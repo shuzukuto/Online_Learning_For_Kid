@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduQuest Pro - Thu thập & Quản lý Ngân hàng Câu hỏi Thi Trực tuyến</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans & Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS for High-Precision Math Rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+
+  <!-- Suppress Browser Tab Favicon / Logo (Clear any browser cached favicon) -->
+  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
+  <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="css/style.css?v=1.0.21">
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- 1. Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-text">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <h1>EduQuest Pro</h1>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.17</span>
+          </div>
+          <p>Ngân hàng Câu hỏi Thi</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Bảng Tổng quan</span>
+        </a>
+        <a class="nav-item" data-view="bank">
+          <span class="nav-icon">📚</span>
+          <span>Ngân hàng Câu hỏi</span>
+        </a>
+        <a class="nav-item" data-view="builder">
+          <span class="nav-icon">📝</span>
+          <span>Biên soạn & Trộn Đề</span>
+          <span class="tag-badge" id="selected-q-count" style="margin-left: auto; background: var(--color-primary); color: white;">0</span>
+        </a>
+        <a class="nav-item" data-view="collector">
+          <span class="nav-icon">⚡</span>
+          <span>Trung tâm Thu thập</span>
+        </a>
+        <a class="nav-item" data-view="manual">
+          <span class="nav-icon">✍️</span>
+          <span>Soạn Câu hỏi Mới</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="server-indicator">
+          <div class="pulse-dot"></div>
+          <span style="font-weight: 600; color: #f8fafc;">Máy chủ Local (8000)</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
+          <span>VioEdu • Trạng Nguyên</span>
+          <span style="color: #38bdf8; font-weight: 600;">Phiên bản: v1.0.1</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2. Main Wrapper -->
+    <div class="main-wrapper">
+
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="page-title-box">
+          <h2 id="page-main-title">Tổng quan Ngân hàng</h2>
+          <span id="page-sub-title">Thống kê câu hỏi từ các nền t trạng và hoạt động gần đây</span>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn btn-outline-primary btn-sm" onclick="seedSampleQuestions()" title="Nạp 7 câu hỏi mẫu chuẩn quốc tế & học đường">
+            ⚡ Nạp câu hỏi mẫu
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="switchView('collector')">
+            📥 Nhập đề thi PDF
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="switchView('manual')">
+            + Thêm câu hỏi
+          </button>
+        </div>
+      </header>
+
+      <!-- View 1: Dashboard -->
+      <main class="view-container active" id="view-dashboard">
+        <!-- 4 Metric Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue">📚</div>
+            <div class="stat-info">
+              <p>Tổng câu hỏi lưu trữ</p>
+              <h3 id="stat-total-q">0</h3>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">🏆</div>
+            <div class="stat-info">
+              <p>VioEdu (FPT)</p>
+              <h3 id="stat-vioedu-count">0</h3>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber">🎯</div>
+            <div class="stat-info">
+              <p>Trạng Nguyên Toán</p>
+              <h3 id="stat-tnmath-count">0</h3>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple">🌏</div>
+            <div class="stat-info">
+              <p>Olympic (TIMO/HKIMO/ASMO)</p>
+              <h3 id="stat-olympiad-count">0</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject Distribution Grid -->
+        <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-size: 15px; font-weight: 700;">Phân loại theo Bộ Môn (Subjects)</h3>
+          <span style="font-size: 12.5px; color: #64748b;">Nhấp vào môn để xem câu hỏi</span>
+        </div>
+        <div class="platform-grid" id="dashboard-subject-grid" style="margin-bottom: 24px;">
+          <!-- Filled by JS -->
+        </div>
+
+        <!-- Platform Distribution Grid -->
+        <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-size: 15px; font-weight: 700;">Nguồn Nền tảng Câu hỏi</h3>
+          <span style="font-size: 12.5px; color: #64748b;">Nhấp vào nền tảng để xem câu hỏi</span>
+        </div>
+        <div class="platform-grid" id="dashboard-platform-grid">
+          <!-- Filled by JS -->
+        </div>
+
+        <!-- Recent Questions Stream -->
+        <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm); margin-top: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--color-slate-100); padding-bottom: 10px;">
+            <h3 style="font-size: 15px; font-weight: 700;">Câu hỏi Mới Thêm Gần Đây</h3>
+            <button class="btn btn-secondary btn-sm" onclick="viewAllQuestionsInBank()">Xem tất cả trong Ngân hàng →</button>
+          </div>
+          <div id="dashboard-recent-list">
+            <!-- Filled by JS -->
+          </div>
+        </div>
+      </main>
+
+      <!-- View 2: Question Bank -->
+      <main class="view-container" id="view-bank">
+        <!-- Subject Navigation Tabs -->
+        <div class="subject-nav-tabs">
+          <button class="subject-tab active" data-subject="all" onclick="setSubjectFilter('all')">🌐 Tất cả các môn</button>
+          <button class="subject-tab" data-subject="math" onclick="setSubjectFilter('math')">📐 Toán học</button>
+          <button class="subject-tab tab-vietnamese" data-subject="vietnamese" onclick="setSubjectFilter('vietnamese')">📖 Tiếng Việt</button>
+          <button class="subject-tab tab-english" data-subject="english" onclick="setSubjectFilter('english')">🇬🇧 Tiếng Anh</button>
+          <button class="subject-tab tab-science" data-subject="science" onclick="setSubjectFilter('science')">🔬 Khoa học & TNXH</button>
+          <button class="subject-tab tab-informatics" data-subject="informatics" onclick="setSubjectFilter('informatics')">💻 Tin học</button>
+        </div>
+
+        <!-- Admin Maintenance & Quality Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="openDuplicatesModal()" style="font-weight: 700; color: #be123c; border-color: #fecdd3; background: #fff1f2; display: flex; align-items: center; gap: 6px;">
+              <span>🔍</span> Quét & Lọc Trùng lặp
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="openDiagnosticsModal()" style="font-weight: 700; color: #0284c7; border-color: #bae6fd; background: #f0f9ff; display: flex; align-items: center; gap: 6px;">
+              <span>🩺</span> Bác sĩ CSDL (Chuẩn đoán & Tự sửa)
+            </button>
+          </div>
+          <div style="font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 4px;">
+            <span>🛡️</span> CSDL tự động chặn câu hỏi trùng lặp khi cào hoặc nạp mới
+          </div>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div class="filter-toolbar">
+          <div class="filter-row">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="search-input" class="search-input" placeholder="Tìm theo nội dung, số câu (vd: #5), chuyên đề, từ khóa..." oninput="handleSearchInput(this.value)" />
+              <button type="button" id="search-clear-btn" class="search-clear-btn" onclick="clearSearchInput()" title="Xóa nhanh tìm kiếm" style="display: none;">✕</button>
+            </div>
+
+            <select id="filter-sort" class="select-filter" onchange="State.filters.sort_by = this.value; State.filters.page = 1; loadQuestions();">
+              <option value="q_number_asc">Thứ tự Câu (1 → N)</option>
+              <option value="q_number_desc">Thứ tự Câu (N → 1)</option>
+              <option value="created_at_desc">Mới nhất trước</option>
+              <option value="created_at_asc">Cũ nhất trước</option>
+            </select>
+
+            <select id="filter-subject" class="select-filter" onchange="setSubjectFilter(this.value);">
+              <option value="all">Mọi bộ môn</option>
+              <option value="math">Toán học</option>
+              <option value="vietnamese">Tiếng Việt</option>
+              <option value="english">Tiếng Anh</option>
+              <option value="science">Khoa học & TNXH</option>
+              <option value="informatics">Tin học</option>
+            </select>
+
+            <select id="filter-grade" class="select-filter" onchange="State.filters.grade = this.value; State.filters.page = 1; loadQuestions();">
+              <option value="" selected>Tất cả Khối lớp</option>
+              <option value="1">Lớp 1</option>
+              <option value="2">Lớp 2</option>
+              <option value="3">Lớp 3</option>
+              <option value="4">Lớp 4</option>
+              <option value="5">Lớp 5</option>
+              <option value="6">Lớp 6</option>
+              <option value="7">Lớp 7</option>
+              <option value="8">Lớp 8</option>
+              <option value="9">Lớp 9</option>
+            </select>
+
+            <select id="filter-source-detail" class="select-filter" onchange="State.filters.source_detail = this.value; State.filters.page = 1; loadQuestions();">
+              <option value="all">Mọi nguồn chi tiết</option>
+              <option value="CodeMath">CodeMath (Olympic TIMO/HKIMO)</option>
+              <option value="Hành Trang Số">Hành Trang Số (SGK)</option>
+              <option value="VioEdu">VioEdu (FPT)</option>
+              <option value="Trạng Nguyên">Trạng Nguyên</option>
+              <option value="Kho Đề Mở">Kho Đề Mở (Online)</option>
+              <option value="Olympic">Olympic chung (IOE/TIMO)</option>
+              <option value="VietJack">VietJack / VnDoc</option>
+              <option value="Soạn thủ công">Soạn thủ công</option>
+            </select>
+
+            <select id="filter-type" class="select-filter" onchange="State.filters.question_type = this.value; State.filters.page = 1; loadQuestions();">
+              <option value="all">Mọi dạng câu hỏi</option>
+              <option value="single_choice">Trắc nghiệm 1 đáp án</option>
+              <option value="fill_blank">Điền số vào ô trống</option>
+              <option value="matching">Ghép nối cặp tương ứng</option>
+              <option value="essay">Tự luận</option>
+            </select>
+
+            <select id="filter-diff" class="select-filter" onchange="State.filters.difficulty = this.value; State.filters.page = 1; loadQuestions();">
+              <option value="all">Mọi độ khó</option>
+              <option value="easy">Dễ</option>
+              <option value="medium">Trung bình</option>
+              <option value="hard">Khó</option>
+              <option value="olympiad">Olympic Quốc tế</option>
+            </select>
+
+            <select id="filter-page-size" class="select-filter" style="font-weight: 700; color: #1e40af; background: #eff6ff; border-color: #bfdbfe;" onchange="setPageSize(this.value)">
+              <option value="15">15 câu / trang</option>
+              <option value="30">30 câu / trang</option>
+              <option value="50" selected>50 câu / trang</option>
+              <option value="100">100 câu / trang</option>
+              <option value="9999">Tất cả (Xem hết)</option>
+            </select>
+
+            <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #be123c; cursor: pointer; background: #fff1f2; padding: 6px 10px; border-radius: 8px; border: 1px solid #fecdd3; white-space: nowrap;">
+              <input type="checkbox" id="filter-only-dupes" onchange="State.filters.only_duplicates = this.checked; State.filters.page = 1; loadQuestions();" />
+              ⚠️ Chỉ câu trùng lặp
+            </label>
+
+            <button class="btn btn-secondary btn-sm" onclick="resetFilters()">Đặt lại</button>
+          </div>
+
+          <!-- Platform Chips -->
+          <div class="chips-container">
+            <button class="chip active" data-platform="all" onclick="setPlatformFilter('all')">Tất cả nền tảng</button>
+            <button class="chip" data-platform="internet_hunter" onclick="setPlatformFilter('internet_hunter')">🌐 Săn Internet</button>
+            <button class="chip" data-platform="hanhtrangso" onclick="setPlatformFilter('hanhtrangso')">📚 Hành Trang Số</button>
+            <button class="chip" data-platform="vioedu" onclick="setPlatformFilter('vioedu')">⭐ VioEdu</button>
+            <button class="chip" data-platform="tnmath" onclick="setPlatformFilter('tnmath')">📖 Trạng Nguyên</button>
+            <button class="chip" data-platform="olympiad" onclick="setPlatformFilter('olympiad')">🏆 Olympic</button>
+            <button class="chip" data-platform="manual" onclick="setPlatformFilter('manual')">✏️ Tự biên soạn</button>
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 13px; font-weight: 700; color: #2563eb; display: flex; align-items: center;" id="bank-total-count">0 câu hỏi</span>
+              <button type="button" class="btn btn-outline-primary btn-sm" id="btn-show-all-q" onclick="setPageSize(9999)" style="font-size: 11.5px; padding: 3px 8px; font-weight: 700; border-radius: 6px; cursor: pointer;" title="Hiển thị toàn bộ câu hỏi trong CSDL không phân trang">
+                👁️ Xem tất cả
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Questions Stream -->
+        <div class="questions-list" id="questions-list-container">
+          <!-- Filled by JS -->
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination-container">
+          <!-- Filled by JS -->
+        </div>
+      </main>
+
+      <!-- View 3: Exam Builder -->
+      <main class="view-container" id="view-builder">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h3 style="font-size: 17px; font-weight: 700;">Biên soạn & Trộn Đề thi</h3>
+            <p style="font-size: 13px; color: #64748b;">Tự động tạo đề theo ma trận độ khó, đảo thứ tự câu hỏi và xuất file Word (.docx) chuẩn Bộ GD&ĐT</p>
+          </div>
+          <span class="tag-badge" id="builder-count-pill" style="background: var(--color-primary-light); color: var(--color-primary); font-size: 13px; padding: 6px 14px;">0 câu đã chọn</span>
+        </div>
+
+        <!-- Auto Exam Matrix Generator Card -->
+        <div class="exam-matrix-card">
+          <div class="exam-matrix-header">
+            <div>
+              <h4 style="font-size: 15px; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
+                <span>⚡</span> Ma trận Tạo Đề Tự Động (Auto Exam Matrix Generator)
+              </h4>
+              <p style="font-size: 12.5px; color: #475569; margin: 2px 0 0 0;">
+                Tự động chọn ngẫu nhiên các câu hỏi từ CSDL theo đúng cơ cấu ma trận độ khó (Dễ - Trung bình - Khó), Môn học và Khối lớp.
+              </p>
+            </div>
+            <!-- Quick Preset Pills -->
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="applyMatrixPreset(20, 8, 8, 4)" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; background: #fff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700;">
+                Đề chuẩn 20 câu (40-40-20)
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="applyMatrixPreset(10, 5, 3, 2)" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; background: #fff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700;">
+                Ôn tập 10 câu (50-30-20)
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="applyMatrixPreset(25, 5, 10, 10)" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; background: #fff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700;">
+                Olympic 25 câu (Nâng cao)
+              </button>
+            </div>
+          </div>
+
+          <div class="exam-matrix-grid">
+            <div class="matrix-input-box">
+              <label>Bộ môn</label>
+              <select id="matrix-subject">
+                <option value="math">📐 Môn Toán</option>
+                <option value="vietnamese">📖 Tiếng Việt</option>
+                <option value="english">🇬🇧 Tiếng Anh</option>
+                <option value="science">🔬 Khoa học</option>
+              </select>
+            </div>
+            <div class="matrix-input-box">
+              <label>Khối lớp</label>
+              <select id="matrix-grade">
+                <option value="1">Lớp 1</option>
+                <option value="2">Lớp 2</option>
+                <option value="3">Lớp 3</option>
+                <option value="4">Lớp 4</option>
+                <option value="5" selected>Lớp 5</option>
+                <option value="6">Lớp 6</option>
+                <option value="7">Lớp 7</option>
+                <option value="8">Lớp 8</option>
+                <option value="9">Lớp 9</option>
+              </select>
+            </div>
+            <div class="matrix-input-box">
+              <label>Tổng số câu</label>
+              <input type="number" id="matrix-total" value="20" min="1" max="100" oninput="validateMatrixCounts()" />
+            </div>
+            <div class="matrix-input-box">
+              <label>🟢 Số câu Dễ</label>
+              <input type="number" id="matrix-easy" value="8" min="0" oninput="validateMatrixCounts()" />
+            </div>
+            <div class="matrix-input-box">
+              <label>🟡 Số câu TB</label>
+              <input type="number" id="matrix-medium" value="8" min="0" oninput="validateMatrixCounts()" />
+            </div>
+            <div class="matrix-input-box">
+              <label>🔴 Số câu Khó</label>
+              <input type="number" id="matrix-hard" value="4" min="0" oninput="validateMatrixCounts()" />
+            </div>
+            <div class="matrix-input-box" style="grid-column: span 2;">
+              <label>Chuyên đề / Topic (Tùy chọn)</label>
+              <input type="text" id="matrix-topic" placeholder="Vd: Phân số, Hình học, Số học Olympic..." />
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #dbeafe; padding-top: 12px; margin-top: 4px; flex-wrap: wrap; gap: 8px;">
+            <div id="matrix-status-text" style="font-size: 12px; color: #1e40af; font-weight: 700;">
+              ✓ Cơ cấu ma trận: 8 Dễ + 8 TB + 4 Khó = 20 câu
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-auto-matrix" onclick="autoGenerateExamByMatrix()" style="padding: 7px 18px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+              <span>🎲</span> Tự động Tạo Đề theo Ma trận
+            </button>
+          </div>
+        </div>
+
+        <div id="exam-builder-content">
+          <!-- Filled by JS -->
+        </div>
+      </main>
+
+      <!-- View 4: Collector Hub -->
+      <main class="view-container" id="view-collector">
+
+        <!-- Default Grade & Settings Bar -->
+        <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 18px 24px; box-shadow: var(--shadow-sm); margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 24px;">⚙️</span>
+            <div>
+              <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 2px;">Cấu hình Khối lớp Mặc định & Ghi nhớ Tự động</h4>
+              <p style="font-size: 12px; color: #64748b;">Hệ thống tự động lưu khối lớp, tài khoản cào và đồng bộ toàn bộ các bộ lọc khi bạn sử dụng.</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label style="font-size: 13px; font-weight: 700; color: #334155;">Khối lớp mặc định:</label>
+            <select id="global-default-grade" class="form-control" style="width: 140px; font-weight: 700;" onchange="setDefaultGrade(this.value)">
+              <option value="1">Khối lớp 1</option>
+              <option value="2">Khối lớp 2</option>
+              <option value="3">Khối lớp 3</option>
+              <option value="4">Khối lớp 4</option>
+              <option value="5" selected>Khối lớp 5</option>
+              <option value="6">Khối lớp 6</option>
+              <option value="7">Khối lớp 7</option>
+              <option value="8">Khối lớp 8</option>
+              <option value="9">Khối lớp 9</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+
+          <!-- Card 1: Chrome Extension Integration -->
+          <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span style="font-size: 24px;">🔌</span>
+              <div>
+                <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.0</span></h3>
+                <span style="font-size: 12px; color: #10b981; font-weight: 600;">● Tự động bắt trọn 100% đề thi VioEdu & Trạng Nguyên</span>
+              </div>
+            </div>
+            <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 16px;">
+              Cài đặt extension vào trình duyệt để tự động bắt gói tin đề thi và đáp án 1-click khi học sinh làm bài hoặc xem lại lịch sử đấu trường mà không lo captcha hay khóa tài khoản.
+            </p>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; margin-bottom: 16px; line-height: 1.6;">
+              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.0):</strong><br/>
+              1. Mở Chrome/Edge, vào: <code>chrome://extensions</code><br/>
+              2. Bật công tắc <strong>Developer mode (Chế độ cho nhà phát triển)</strong> ở góc trên bên phải.<br/>
+              3. Nhấn <strong>Load unpacked (Tải tiện ích đã giải nén)</strong> hoặc bấm 🔄 Làm mới tiện ích đã nạp:<br/>
+              <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 600;">g:\Mina\Online_Learning\extension</code>
+            </div>
+
+            <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.0 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
+              📁 Vị trí thư mục Extension (v1.3.0)
+            </button>
+          </div>
+
+          <!-- Card 2: PDF Importer (TIMO, HKIMO, ASMO) -->
+          <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span style="font-size: 24px;">📄</span>
+              <div>
+                <h3 style="font-size: 16px; font-weight: 700;">Bóc tách Đề thi PDF (TIMO, HKIMO, ASMO)</h3>
+                <span style="font-size: 12px; color: #2563eb; font-weight: 600;">Bóc tách tự động chữ, công thức & ảnh đề thi</span>
+              </div>
+            </div>
+
+            <div class="dropzone" id="pdf-dropzone">
+              <div class="dropzone-icon">📥</div>
+              <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">Kéo & Thả file PDF đề thi vào đây</h4>
+              <p style="font-size: 12px; color: #64748b;">Hỗ trợ đề thi Olympic TIMO, HKIMO, ASMO, SASMO...</p>
+              <input type="file" id="pdf-file-input" accept=".pdf" style="display: none;" />
+            </div>
+          </div>
+        </div>
+
+        <!-- PDF Extraction Result Container -->
+        <div id="pdf-result-container" style="display: none; margin-bottom: 24px;"></div>
+
+        <!-- Internet Question Hunter Card (Feature 2) -->
+        <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">🌐</span>
+              <div>
+                <h3 style="font-size: 16px; font-weight: 700;">Tự động Săn câu hỏi từ Internet (Internet Question Hunter)</h3>
+                <span style="font-size: 12px; color: #2563eb; font-weight: 600;">● Tự động quét và nạp đề thi mở từ Internet vào CSDL</span>
+              </div>
+            </div>
+            <span class="tag-badge" style="background: #e0f2fe; color: #0369a1;">TỰ ĐỘNG HÓA</span>
+          </div>
+
+          <p style="font-size: 13px; color: #475569; margin-bottom: 16px; line-height: 1.6;">
+            Hệ thống tự động tìm kiếm, phân tích cú pháp HTML/văn bản và trích xuất câu hỏi từ các kho đề mở (Violympic, Trạng Nguyên Tiếng Việt, Olympic TIMO/HKIMO, VnDoc, Vietjack...) và lưu trực tiếp vào CSDL theo đúng Bộ môn.
+          </p>
+
+          <!-- Row 1: Filters (2 equal columns) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px;">
+            <div class="form-group">
+              <label class="form-label">Chọn Bộ Môn cần săn</label>
+              <select id="hunter-subject" class="form-control">
+                <option value="all">Tất cả các môn (Toán, TV, Anh)</option>
+                <option value="math">📐 Môn Toán (VioEdu, TIMO, ASMO)</option>
+                <option value="vietnamese">📖 Môn Tiếng Việt (Trạng Nguyên)</option>
+                <option value="english">🇬🇧 Môn Tiếng Anh (IOE, Olympic)</option>
+                <option value="science">🔬 Môn Khoa học & Tự nhiên</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Chọn Khối lớp</label>
+              <select id="hunter-grade" class="form-control" onchange="onGradeSelectChanged(this.value)">
+                <option value="1">Khối lớp 1</option>
+                <option value="2">Khối lớp 2</option>
+                <option value="3">Khối lớp 3</option>
+                <option value="4">Khối lớp 4</option>
+                <option value="5" selected>Khối lớp 5</option>
+                <option value="6">Khối lớp 6</option>
+                <option value="7">Khối lớp 7</option>
+                <option value="8">Khối lớp 8</option>
+                <option value="9">Khối lớp 9</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 2: Full Width URL Input & Add Button (Spacious, not cramped) -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Đường dẫn web hoặc từ khóa tùy chọn (Tùy chọn)</span>
+              <span style="font-size: 11.5px; color: #64748b; font-weight: normal;">Nhập link web và nhấn "Thêm" để lưu vào danh sách cào</span>
+            </label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="text" id="hunter-url-input" class="form-control" style="flex: 1; width: 100%; min-width: 0;" placeholder="Nhập URL (vd: https://hanhtrangso.nxbgd.vn/..., https://vio.edu.vn/..., https://trangnguyen.edu.vn/...)" onkeydown="if(event.key==='Enter'){event.preventDefault();addHunterTargetUrl();}" />
+              <button type="button" class="btn btn-secondary" id="btn-add-hunter-url" onclick="addHunterTargetUrl()" style="white-space: nowrap; padding: 9px 20px; font-weight: 700; border: 1px solid #cbd5e1; display: inline-flex; align-items: center; gap: 6px;">
+                <span>➕</span> Thêm
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Presets / Gợi ý nguồn cào nhanh -->
+          <div style="margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-size: 11.5px; color: #64748b; font-weight: 600;">Gợi ý nguồn nhanh:</span>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/timo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+              🏆 CodeMath TIMO
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.hacodemath.com/hkimo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+              🥈 CodeMath HKIMO/BBB
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/sasmo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+              🥇 CodeMath SASMO/IKMC
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/seamo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+              ⭐ CodeMath SEAMO/FMO
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=0&classes=2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+              📘 Hành trang số Lớp 2 (SGK)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=2&classes=2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+              📙 Hành trang số Lớp 2 (SBT)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vio.edu.vn/luyen-tap')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">
+              📐 VioEdu Luyện tập
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://tnmath.edu.vn/luyen-tap')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;">
+              📖 Trạng Nguyên Toán & TV
+            </button>
+          </div>
+
+          <!-- Danh sách các web/link đã lưu để cào dữ liệu -->
+          <div style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 12.5px; font-weight: 700; color: #334155;">
+                📋 Danh sách các web để cào dữ liệu: <span id="hunter-urls-count" style="background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 12px; font-size: 11.5px; font-weight: 700;">0</span>
+              </span>
+              <button type="button" id="btn-clear-hunter-urls" onclick="clearAllHunterTargetUrls()" style="display: none; background: none; border: none; font-size: 11.5px; color: #ef4444; cursor: pointer; text-decoration: underline;">
+                Xóa tất cả nguồn
+              </button>
+            </div>
+            <div id="hunter-urls-container" style="display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; padding: 2px;">
+              <!-- Rendered dynamically by JS -->
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <button class="btn btn-primary" id="btn-run-hunter" onclick="runInternetHunter()">
+              ⚡ Bắt đầu Săn câu hỏi từ Internet
+            </button>
+
+            <!-- Auto-Hunter Loop Toggle -->
+            <div style="display: flex; align-items: center; gap: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 8px 14px; border-radius: 8px;">
+              <input type="checkbox" id="hunter-auto-loop" style="width: 17px; height: 17px; cursor: pointer;" onchange="toggleAutoHunter(this.checked)" />
+              <label for="hunter-auto-loop" style="font-size: 13px; font-weight: 700; color: #166534; cursor: pointer;">
+                🔄 Tự động cào định kỳ nếu web còn mở (Mỗi 5 phút)
+              </label>
+              <span id="hunter-countdown-badge" style="display: none; background: #dcfce7; color: #15803d; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
+                ⏳ Lần tới sau: <span id="hunter-countdown-sec">300s</span>
+              </span>
+            </div>
+          </div>
+
+          <div id="hunter-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 12px; padding: 14px; border-radius: 8px; margin-top: 14px; max-height: 160px; overflow-y: auto; white-space: pre-wrap;"></div>
+        </div>
+
+        <!-- Scraper Bot & Activity Logs Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <!-- Automated Scraper -->
+          <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
+            <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 10px;">Bot Đăng nhập Tài khoản Cào Vòng thi (Tùy chọn)</h3>
+            <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; color: #1e40af; line-height: 1.5;">
+              ℹ️ <strong>Lưu ý quan trọng</strong>: Nền tảng VioEdu áp dụng tường lửa bảo mật Cloudflare/Captcha đối với kết nối Bot trực tiếp. <strong>Giải pháp tối ưu & an toàn:</strong> Sử dụng <strong>Tiện ích Extension v1.3.1</strong> trên Chrome/Edge — tiện ích có nút <em>"🚀 Cào tất cả câu hỏi trên trang này"</em> giúp tự động thu thập trọn bộ hàng trăm câu hỏi từ các bài học & luyện tập mà không cần trả lời từng câu!
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label">Chọn nền tảng</label>
+                <select id="scraper-platform" class="form-control" onchange="localStorage.setItem('eduquest_scraper_plat', this.value)">
+                  <option value="vioedu">VioEdu (vio.edu.vn)</option>
+                  <option value="tnmath">Trạng Nguyên (tnmath.edu.vn)</option>
+                </select>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="form-group">
+                  <label class="form-label">Tài khoản (Tự động ghi nhớ)</label>
+                  <input type="text" id="scraper-username" class="form-control" placeholder="Tên đăng nhập" oninput="localStorage.setItem('eduquest_scraper_user', this.value)" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Mật khẩu</label>
+                  <input type="password" id="scraper-password" class="form-control" placeholder="Mật khẩu" />
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="form-group">
+                  <label class="form-label">Khối lớp</label>
+                  <select id="scraper-grade" class="form-control" onchange="onGradeSelectChanged(this.value)">
+                    <option value="1">Khối 1</option>
+                    <option value="2">Khối 2</option>
+                    <option value="3">Khối 3</option>
+                    <option value="4">Khối 4</option>
+                    <option value="5" selected>Khối 5</option>
+                    <option value="6">Khối 6</option>
+                    <option value="7">Khối 7</option>
+                    <option value="8">Khối 8</option>
+                    <option value="9">Khối 9</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Vòng thi / Mã Đấu trường</label>
+                  <input type="text" id="scraper-round" class="form-control" placeholder="vd: 1, 2 hoặc ma_dau_truong" oninput="localStorage.setItem('eduquest_scraper_round', this.value)" />
+                </div>
+              </div>
+
+              <button class="btn btn-primary" onclick="runAutoScraper()" style="margin-top: 6px;">
+                🚀 Bắt đầu cào dữ liệu
+              </button>
+
+              <div id="scraper-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 11.5px; padding: 12px; border-radius: 8px; max-height: 140px; overflow-y: auto; white-space: pre-wrap;"></div>
+            </div>
+          </div>
+
+          <!-- Collector Logs -->
+          <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <h3 style="font-size: 15px; font-weight: 700;">Nhật ký Hoạt động Thu thập & Debug</h3>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="copyCollectorLogs()" title="Sao chép toàn bộ nhật ký debug">📋 Sao chép</button>
+                <button class="btn btn-secondary btn-sm" onclick="clearAllCollectorLogs()" title="Xóa sạch nhật ký">🗑️ Xóa</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadCollectorLogs()">🔄 Làm mới</button>
+              </div>
+            </div>
+            <div id="collector-logs-list" style="display: flex; flex-direction: column; max-height: 280px; overflow-y: auto;">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+        </div>
+      </main>
+            <div id="collector-logs-list" style="display: flex; flex-direction: column; max-height: 280px; overflow-y: auto;">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- View 5: Manual Question Editor -->
+      <main class="view-container" id="view-manual">
+        <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
+          <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 6px;">Soạn thảo & Thêm câu hỏi Thủ công</h3>
+          <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Hỗ trợ soạn công thức Toán học chuẩn LaTeX bằng ký hiệu $...$ hoặc $$...$$</p>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <!-- Left: Inputs -->
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                <div class="form-group">
+                  <label class="form-label">Nguồn câu hỏi</label>
+                  <select id="m-platform" class="form-control">
+                    <option value="manual">Tự biên soạn</option>
+                    <option value="vioedu">VioEdu</option>
+                    <option value="tnmath">Trạng Nguyên</option>
+                    <option value="timo">TIMO</option>
+                    <option value="hkimo">HKIMO</option>
+                    <option value="asmo">ASMO</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Bộ môn (Subject)</label>
+                  <select id="m-subject" class="form-control">
+                    <option value="math">📐 Toán học</option>
+                    <option value="vietnamese">📖 Tiếng Việt</option>
+                    <option value="english">🇬🇧 Tiếng Anh</option>
+                    <option value="science">🔬 Khoa học & TNXH</option>
+                    <option value="informatics">💻 Tin học</option>
+                    <option value="history_geo">🌏 Lịch sử & Địa lý</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Khối lớp</label>
+                  <select id="m-grade" class="form-control">
+                    <option value="1">Khối 1</option>
+                    <option value="2">Khối 2</option>
+                    <option value="3">Khối 3</option>
+                    <option value="4">Khối 4</option>
+                    <option value="5" selected>Khối 5</option>
+                    <option value="6">Khối 6</option>
+                    <option value="7">Khối 7</option>
+                    <option value="8">Khối 8</option>
+                    <option value="9">Khối 9</option>
+                    <option value="10">Khối 10</option>
+                    <option value="11">Khối 11</option>
+                    <option value="12">Khối 12</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Tên Chuyên đề / Dạng bài</label>
+                <input type="text" id="m-topic" class="form-control" placeholder="vd: Phân số, Hình học, Tổ hợp..." />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Nội dung Đề bài (Có thể chèn LaTeX vd: $\frac{a}{b}$)</label>
+                <textarea id="m-content" class="form-control" rows="5" placeholder="Nhập đề bài ở đây..."></textarea>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <input type="text" id="m-opt-a" class="form-control" placeholder="Đáp án A (vd: $\frac{1}{2}$)" />
+                <input type="text" id="m-opt-b" class="form-control" placeholder="Đáp án B" />
+                <input type="text" id="m-opt-c" class="form-control" placeholder="Đáp án C" />
+                <input type="text" id="m-opt-d" class="form-control" placeholder="Đáp án D" />
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="form-group">
+                  <label class="form-label">Đáp án đúng</label>
+                  <select id="m-correct" class="form-control">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Mức độ</label>
+                  <select id="m-diff" class="form-control">
+                    <option value="easy">Dễ</option>
+                    <option value="medium" selected>Trung bình</option>
+                    <option value="hard">Khó</option>
+                    <option value="olympiad">Olympic</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Lời giải chi tiết</label>
+                <textarea id="m-explanation" class="form-control" rows="3" placeholder="Hướng dẫn giải chi tiết..."></textarea>
+              </div>
+
+              <button class="btn btn-primary" onclick="submitManualQuestion()">
+                💾 Lưu câu hỏi vào Ngân hàng
+              </button>
+            </div>
+
+            <!-- Right: Live Preview Box -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px;">
+              <div style="font-weight: 700; font-size: 14px; margin-bottom: 12px; color: #475569;">
+                👁️ Xem trước Hiển thị KaTeX Trực tiếp
+              </div>
+              <div id="m-preview-box" style="background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; min-height: 250px;">
+                <p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+    </div>
+  </div>
+
+  <!-- Modal 1: Edit Question & Answers -->
+  <div class="modal-overlay" id="modal-edit-question">
+    <div class="modal-content" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3 style="font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+          <span>✏️</span> Chỉnh sửa Câu hỏi & Đáp án
+          <span id="edit-q-num-badge" style="font-size: 12px; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-family: monospace;"></span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeEditQuestionModal()">✕</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="edit-q-id" />
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">Môn học</label>
+            <select id="edit-q-subject" class="form-control">
+              <option value="math">Toán</option>
+              <option value="vietnamese">Tiếng Việt</option>
+              <option value="english">Tiếng Anh</option>
+              <option value="science">Khoa học</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Khối lớp</label>
+            <select id="edit-q-grade" class="form-control">
+              <option value="1">Lớp 1</option>
+              <option value="2">Lớp 2</option>
+              <option value="3">Lớp 3</option>
+              <option value="4">Lớp 4</option>
+              <option value="5">Lớp 5</option>
+              <option value="6">Lớp 6</option>
+              <option value="7">Lớp 7</option>
+              <option value="8">Lớp 8</option>
+              <option value="9">Lớp 9</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Độ khó</label>
+            <select id="edit-q-diff" class="form-control">
+              <option value="easy">Dễ</option>
+              <option value="medium">Trung bình</option>
+              <option value="hard">Khó</option>
+              <option value="olympiad">Olympic</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Chuyên đề / Kỳ thi</label>
+          <input type="text" id="edit-q-topic" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nội dung câu hỏi (hỗ trợ LaTeX $...$ hoặc $$...$$)</label>
+          <textarea id="edit-q-content" class="form-control" rows="4" oninput="updateEditQuestionPreview()"></textarea>
+        </div>
+        <!-- Live preview -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px;">
+          <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px;">👁️ Xem trước công thức:</div>
+          <div id="edit-q-preview" style="font-size: 13.5px; line-height: 1.5; min-height: 30px;"></div>
+        </div>
+        <!-- Options A, B, C, D -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">Đáp án A</label>
+            <input type="text" id="edit-q-opt-a" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Đáp án B</label>
+            <input type="text" id="edit-q-opt-b" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Đáp án C</label>
+            <input type="text" id="edit-q-opt-c" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Đáp án D</label>
+            <input type="text" id="edit-q-opt-d" class="form-control" />
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">Đáp án đúng</label>
+            <select id="edit-q-correct" class="form-control">
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="">Khác / Tự luận / Điền số</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dạng câu hỏi</label>
+            <select id="edit-q-type" class="form-control">
+              <option value="single_choice">Trắc nghiệm 1 đáp án</option>
+              <option value="fill_blank">Điền số vào ô trống</option>
+              <option value="matching">Ghép nối</option>
+              <option value="essay">Tự luận</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lời giải chi tiết</label>
+          <textarea id="edit-q-explanation" class="form-control" rows="2"></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeEditQuestionModal()">Hủy</button>
+          <button type="button" class="btn btn-primary" onclick="saveEditedQuestion()">💾 Lưu thay đổi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Duplicates Manager -->
+  <div class="modal-overlay" id="modal-duplicates">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 700; color: #be123c; display: flex; align-items: center; gap: 8px;">
+            <span>🔍</span> Quét & Lọc Câu hỏi Trùng Lặp
+          </h3>
+          <p style="font-size: 12.5px; color: #64748b; margin: 2px 0 0 0;">
+            Hệ thống phát hiện các câu hỏi trùng nội dung và cho phép quản trị viên quyết định giữ lại hoặc xóa bỏ.
+          </p>
+        </div>
+        <button class="modal-close-btn" onclick="closeDuplicatesModal()">✕</button>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #fff1f2; border: 1px solid #fecdd3; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <div style="font-weight: 700; font-size: 13.5px; color: #9f1239;" id="dupe-summary-text">
+            Đang quét...
+          </div>
+          <div style="font-size: 12px; color: #be123c;">
+            Quy tắc: Giữ lại bản ghi cũ nhất (được lưu trước), xóa các bản ghi bản sao phát sinh.
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-clean-dupes-auto" onclick="cleanDuplicatesAuto()" style="background: #e11d48; border-color: #be123c; font-weight: 700;">
+          🧹 Xóa sạch bản sao (1-Click)
+        </button>
+      </div>
+
+      <div id="duplicates-list-container" style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Filled by JS -->
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+        <button type="button" class="btn btn-secondary" onclick="closeDuplicatesModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Database Diagnostics & Auto-Fix -->
+  <div class="modal-overlay" id="modal-db-diagnostics">
+    <div class="modal-content" style="max-width: 750px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 700; color: #0369a1; display: flex; align-items: center; gap: 8px;">
+            <span>🩺</span> Bác sĩ Cơ sở Dữ liệu (Diagnostics & Auto-Fix)
+          </h3>
+          <p style="font-size: 12.5px; color: #64748b; margin: 2px 0 0 0;">
+            Phân tích toàn diện cơ sở dữ liệu SQLite, phát hiện lỗi hỏng dữ liệu, trùng lặp và tự động sửa chữa.
+          </p>
+        </div>
+        <button class="modal-close-btn" onclick="closeDiagnosticsModal()">✕</button>
+      </div>
+
+      <div id="db-diag-content">
+        <!-- Filled by JS -->
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 14px; margin-top: 16px; flex-wrap: wrap; gap: 8px;">
+        <button type="button" class="btn btn-secondary" onclick="openDiagnosticsModal()">🔄 Quét lại</button>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeDiagnosticsModal()">Đóng</button>
+          <button type="button" class="btn btn-primary" id="btn-db-fix" onclick="runDbAutoFix()" style="background: #0284c7; border-color: #0369a1; font-weight: 700;">
+            🛠️ Tự động Sửa Chữa Toàn Diện
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- KaTeX JavaScript Engine -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Application Modules -->
+  <script src="js/app.js?v=1.0.21"></script>
+  <script src="js/bank.js?v=1.0.21"></script>
+  <script src="js/exam_builder.js?v=1.0.21"></script>
+  <script src="js/collector.js?v=1.0.21"></script>
+
+  <!-- Manual Question Live Preview Script -->
+  <script>
+    const mContent = document.getElementById("m-content");
+    const mPreview = document.getElementById("m-preview-box");
+
+    if (mContent && mPreview) {
+      mContent.addEventListener("input", () => {
+        const val = mContent.value;
+        if (!val.trim()) {
+          mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
+          return;
+        }
+        mPreview.innerHTML = `<div style="font-size: 14.5px; line-height: 1.6;">${val.replace(/\n/g, '<br/>')}</div>`;
+        renderMath(mPreview);
+      });
+    }
+
+    async function submitManualQuestion() {
+      const content = document.getElementById("m-content").value.trim();
+      if (!content) {
+        showToast("Vui lòng nhập nội dung câu hỏi", "error");
+        return;
+      }
+
+      const optA = document.getElementById("m-opt-a").value.trim();
+      const optB = document.getElementById("m-opt-b").value.trim();
+      const optC = document.getElementById("m-opt-c").value.trim();
+      const optD = document.getElementById("m-opt-d").value.trim();
+
+      const options = [];
+      if (optA) options.push({ id: "A", content: optA, is_correct: document.getElementById("m-correct").value === "A" });
+      if (optB) options.push({ id: "B", content: optB, is_correct: document.getElementById("m-correct").value === "B" });
+      if (optC) options.push({ id: "C", content: optC, is_correct: document.getElementById("m-correct").value === "C" });
+      if (optD) options.push({ id: "D", content: optD, is_correct: document.getElementById("m-correct").value === "D" });
+
+      const payload = {
+        source_platform: document.getElementById("m-platform").value,
+        grade: parseInt(document.getElementById("m-grade").value) || 5,
+        subject: document.getElementById("m-subject").value || "math",
+        topic: document.getElementById("m-topic").value.trim() || "Chung",
+        question_type: options.length > 0 ? "single_choice" : "fill_blank",
+        content_html: `<p>${content}</p>`,
+        content_text: content,
+        options: options,
+        correct_answer: document.getElementById("m-correct").value,
+        difficulty: document.getElementById("m-diff").value,
+        explanation: document.getElementById("m-explanation").value.trim()
+      };
+
+      try {
+        const res = await fetch(`${API_BASE}/questions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("Đã lưu câu hỏi thành công!");
+          if (typeof broadcastNewQuestions === "function") {
+            broadcastNewQuestions(1, "Soạn thủ công");
+          }
+          document.getElementById("m-content").value = "";
+          document.getElementById("m-opt-a").value = "";
+          document.getElementById("m-opt-b").value = "";
+          document.getElementById("m-opt-c").value = "";
+          document.getElementById("m-opt-d").value = "";
+          document.getElementById("m-explanation").value = "";
+          mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
+          loadDashboardStats();
+          if (typeof loadQuestions === "function" && State.currentView === "bank") {
+            loadQuestions();
+          }
+        }
+      } catch (err) {
+        showToast("Lỗi lưu câu hỏi", "error");
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+{
+  "manifest_version": 3,
+  "name": "EduQuest Collector - Thu thập Đề thi Tự động",
+  "version": "1.3.12",
+  "description": "Tiện ích tự động bắt và thu thập câu hỏi từ VioEdu, Trạng Nguyên, Hành trang số, CodeMath, Vietjack, Fermat LMS về phần mềm EduQuest Pro.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.vio.edu.vn/*",
+    "https://*.tnmath.edu.vn/*",
+    "https://*.trangnguyen.edu.vn/*",
+    "https://*.hanhtrangso.nxbgd.vn/*",
+    "https://*.hacodemath.com/*",
+    "https://*.codemath.vn/*",
+    "https://*.vietjack.com/*",
+    "https://*.loigiaihay.com/*",
+    "https://*.vndoc.com/*",
+    "https://*.hoc247.net/*",
+    "https://*.lmsfermat.edu.vn/*",
+    "https://*.asmo.vn/*",
+    "https://*.violympic.vn/*",
+    "https://*.ioe.vn/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.vio.edu.vn/*",
+        "https://*.tnmath.edu.vn/*",
+        "https://*.trangnguyen.edu.vn/*",
+        "https://*.hanhtrangso.nxbgd.vn/*",
+        "https://*.vietjack.com/*",
+        "https://*.loigiaihay.com/*",
+        "https://*.vndoc.com/*",
+        "https://*.hoc247.net/*",
+        "https://*.lmsfermat.edu.vn/*",
+        "https://*.asmo.vn/*",
+        "https://*.violympic.vn/*",
+        "https://*.ioe.vn/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["interceptor.js"],
+      "matches": [
+        "https://*.vio.edu.vn/*",
+        "https://*.tnmath.edu.vn/*",
+        "https://*.trangnguyen.edu.vn/*",
+        "https://*.hanhtrangso.nxbgd.vn/*",
+        "https://*.lmsfermat.edu.vn/*",
+        "https://*.asmo.vn/*",
+        "https://*.violympic.vn/*",
+        "https://*.ioe.vn/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "EduQuest Collector"
+  }
+}
