@@ -4,37 +4,50 @@ Tài liệu này là **đặc tả thiết kế còn hiệu lực** của hệ t
 
 ---
 
-## 1. Kiến trúc Hệ thống & Phiên bản
+## 1. Kiến trúc Hệ thống & Quy Chuẩn Phiên Bản
 
 Hệ thống hoạt động theo mô hình Hybrid phân tán:
-1. **Phiên bản chuẩn hóa**: **App: `v1.0.17`**, **Extension: `v1.3.12`**.
+1. **Phiên bản chuẩn hóa toàn diện**:
+   - **Web App**: `v1.0.24` (hiển thị đồng bộ tại `frontend/index.html` và `frontend/js/app.js`).
+   - **Chrome Extension**: `v1.3.15` (đồng bộ 100% trên `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
+   - **Cache Buster**: `?v=1.0.28` trên tất cả liên kết tài nguyên tĩnh (CSS, JS).
+   - **Nguyên tắc loại trừ chuỗi cũ**: Tuyệt đối không để tồn tại bất kỳ phiên bản lỗi thời nào (`v1.3.0`, `v1.3.11`, `v1.3.12`, `v1.3.14`) trong toàn bộ mã nguồn.
 2. **Backend Engine**: FastAPI (Python 3.10+) chạy tại `http://127.0.0.1:8000`.
    - Cơ sở dữ liệu: SQLite (`data/questions.db`).
    - Thư mục Media/Ảnh: `data/media/`.
    - Export Word: `python-docx` xuất file `.docx` chuẩn mẫu đề thi Việt Nam.
-3. **Frontend Single-Page App**: HTML5, Vanilla JavaScript, CSS3.
+   - Export PDF: Headless Playwright Chromium xuất file `.pdf` chuẩn in ấn MOET A4 kèm bảng đáp án và thang điểm.
+   - Bóc tách Đề thi & Ảnh OCR: Động cơ trích xuất PDF và Image OCR (`backend/pdf_extractor.py`) hỗ trợ `.png, .jpg, .jpeg, .webp, .bmp`.
+3. **Frontend Single-Page App**: HTML5, Vanilla JavaScript, CSS3 Design Tokens.
    - Thư viện hiển thị công thức: KaTeX 0.16.10 tự động render `$ ... $`, `$$ ... $$`, `\( ... \)`.
-   - Giao diện gồm 5 module: Bảng Tổng quan, Ngân hàng Câu hỏi, Biên soạn & Trộn Đề, Trung tâm Thu thập, Soạn Câu hỏi Mới.
+   - Giao diện gồm 6 module chính:
+     + Bảng Tổng quan (Dashboard Analytics).
+     + Ngân hàng Câu hỏi (Question Bank Manager).
+     + Biên soạn & Trộn Đề (Exam Builder: Word & MOET PDF).
+     + Trung tâm Thu thập (Collector Center: Scrapers, Hunter, Image OCR).
+     + Soạn Câu hỏi Mới (Question Editor).
+     + 🎯 Luyện tập Trực tuyến (Interactive Practice Arena, Trending Charts, Mastery, Badges).
    - **Quy chuẩn UX Tab Trình duyệt**: Bỏ hoàn toàn biểu tượng/logo ở tab trình duyệt bằng chuẩn W3C `<link rel="icon" href="data:,">`.
 4. **Trình thu thập dữ liệu (Collector Modules)**:
-   - **Chrome/Edge Extension (v1.3.12)**: Thu thập tự động câu hỏi trên VioEdu, Hành Trang Số, Trạng Nguyên, CodeMath, IOE, VietJack, Lời Giải Hay qua Network Request Interception, DOM Extraction và Bulk Lesson Crawler.
-   - **Bộ bóc tách đề thi PDF**: Phân tích đề thi Olympic TIMO, ASMO, HKIMO bằng PyPDF & Regex.
-   - **Internet Hunter & Parametric Generator**: Thu thập tự động từ các nguồn học liệu trực tuyến mở (Blogger Atom JSON, SGK điện tử) kết hợp động cơ sinh câu hỏi tham số hóa đa khối lớp và đa bộ môn.
+   - **Chrome/Edge Extension (v1.3.15)**: Thu thập tự động câu hỏi trên VioEdu, Hành Trang Số, Trạng Nguyên, CodeMath, IOE, VietJack, Lời Giải Hay qua Network Request Interception, DOM Extraction và Bulk Lesson Crawler.
+   - **Bộ bóc tách đề thi PDF & Image OCR**: Phân tích đề thi Olympic TIMO, ASMO, HKIMO và ảnh chụp đề thi bằng PyPDF, OpenCV và RapidOCR/EasyOCR.
+   - **Internet Hunter & Parametric Generator**: Thu thập tự động từ các nguồn học liệu trực tuyến mở (Blogger Atom JSON, SGK điện tử) kết hợp động cơ sinh câu hỏi tham số hóa 12 khối lớp và đa bộ môn.
+
 
 ---
 
-## 2. Tiện ích Mở rộng (Chrome / Edge Extension v1.3.12)
+## 2. Tiện ích Mở rộng (Chrome / Edge Extension v1.3.15)
 
 ### 2.1. Kiến trúc Extension & Thu thập Bài học Hàng loạt (Bulk Harvester)
 - **Manifest**: Manifest V3, quyền `activeTab`, `storage`, `scripting`, truy cập host `*.vio.edu.vn`, `*.tnmath.edu.vn`, `*.trangnguyen.edu.vn`, `*.hanhtrangso.nxbgd.vn`, `*.vietjack.com`, `*.loigiaihay.com`, `*.vndoc.com`, `*.hoc247.net`, `localhost:8000`.
-- **Page Context Interceptor (`interceptor.js v1.3.12`)**:
+- **Page Context Interceptor (`interceptor.js v1.3.15`)**:
    - Tiêm trực tiếp vào môi trường DOM gốc (page context) để ghi đè `window.fetch`, `XMLHttpRequest.prototype.open`, `XMLHttpRequest.prototype.send`, `WebSocket.prototype.send`.
    - **Hỗ trợ Angular HttpClient (`responseType = 'json'`) & GraphQL**: Bắt trực tiếp cả REST API và GraphQL queries (`PracticeQuestionQuery`, `GetQuestionResultQuery`), phân tích chuyên sâu các đối tượng câu hỏi VioEdu (`skillName`, `depthOfKnowledge`, `textDropdownAnswers`, `leftMatching`, `rightMatching`), bao quát cả các luồng đánh giá năng lực `onboard-flow`.
    - **Hỗ trợ URL Rút gọn**: Hàm `getShortUrl()` trích xuất `hostname + pathname` rút gọn (tối đa 22 ký tự), gắn kèm vào mọi log phát đi.
    - **Loại bỏ cây dữ liệu phi câu hỏi (CMS Ignored Keys)**: Bỏ qua hoàn toàn các nhánh dữ liệu CMS tin tức, cấu hình, quảng cáo (`news`, `posts`, `articles`, `banners`, `notifications`, `categories`, `menus`, `configs`, `promotions`, `products`, `combos`, `courses`, `transactions`, `orders`).
    - **Bộ lọc Chống UUID và Token Định danh**: Tuyệt đối không lấy chuỗi UUID (pattern `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`), chuỗi mã băm Hex, hoặc token đơn lẻ làm nội dung câu hỏi.
    - **Loại bỏ Tiêu đề Tin tức/Sự kiện**: Tuyệt đối không sử dụng trường `title` hoặc `name` làm câu hỏi trừ khi đối tượng có mảng phương án `answers`/`options` hợp lệ và không chứa từ khóa quảng cáo/giải đấu.
-- **Content Script (`content.js v1.3.12`)**:
+- **Content Script (`content.js v1.3.15`)**:
    - Giao tiếp với `interceptor.js` qua `window.postMessage`.
    - **Loại bỏ Triệt để Tiền tố Thứ tự Câu hỏi ("Câu hỏi số xx", "Câu xx", "Bài xx")**:
      - Phẫu thuật loại bỏ thẻ `.panel-heading`, `.practice-question-title`, `.question-title`, `.cau-hoi-so`, `[class*='question-number']` khỏi cây DOM clone trước khi trích xuất stem.
@@ -78,9 +91,14 @@ Hệ thống hoạt động theo mô hình Hybrid phân tán:
      - Blacklist toàn bộ định dạng nhật ký log của Extension: regex `^\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\s*\[`, `\[(?:dom|mạng|lưu csdl|tương tác|thông báo|bỏ qua|dom bỏ qua|dom bắt được|mạng bắt được|mạng gói tin|info|ok|skip|net|error|warn)\]`, `thẻ #\d+ trùng câu hỏi`, `trùng câu hỏi đã có`, `eduquest`.
      - Blacklist tiêu đề và nút giao diện tiện ích: `danh sách câu hỏi đã quét`, `xem các câu hỏi đã quét`, `cào tất cả câu hỏi`, `quét nhanh màn hình`, `tự động lưu (zero-click)`, `nhật ký hoạt động`.
      - Blacklist hộp thoại tiếp tục/xác nhận bài làm LMS/VioEdu: `bạn đang làm bài kiểm tra`, `tiếp tục từ phần đã làm trước đó`, `tiếp tục làm bài`, `làm lại từ đầu`, `chưa hoàn thành.*tiếp tục`, `ICRobotConfirm`.
-     - `hasCardRichContent` loại trừ icon, robot avatar, svg, loading gif; không tự động chấp thuận vô điều kiện các dialog hệ thống.
-     - Hỗ trợ câu hỏi đọc hiểu Tiếng Việt: Nhận diện văn bản tường thuật nhiều đoạn kết hợp từ để hỏi hoặc câu hỏi chốt ở cuối.
-     - Tự động nhận diện môn Tiếng Việt (`detectSubject`) đối với bài đọc văn bản thuần túy không chứa ký hiệu toán học.
+     - **Chặn Rác Khối Tiến độ Sao & Gợi ý Tính điểm VioEdu**: Loại bỏ triệt để các phần tử header bài tập `._1Tl2B`, `._1pVpr`, `._1MIz2`, `._1ZsoA`, `.score-hint-popup`, và ảnh huy hiệu kỹ năng (`star_practice_skillname.png`), cùng chuỗi hướng dẫn "Cách tính điểm khi trả lời ĐÚNG hoặc SAI...".
+     - **Chặn Rác Video/Menu Trang Chủ VnDoc (`TreeWalker` & Path Whitelist)**:
+       - `TreeWalker` trong `scanByTextHeuristic` bỏ qua toàn bộ các thẻ liên kết `<a>`, thẻ `<nav>`, `<header>`, `<footer>`, `.menu`, `.video-item`, `.home-video-item`.
+       - Bắt buộc kiểm tra dấu hiệu câu hỏi thực sự (`?`, `hỏi`, `tính`, `tìm`, `điền`, `chọn`, công thức số) trước khi phân tích DOM.
+       - Giới hạn cào tự động trên `vndoc.com` (`isEduLearningActive`): Chỉ chạy trên các đường dẫn bài tập thực tế (`/trac-nghiem-`, `/de-thi-`, `/bai-tap-`, `/de-kiem-tra-`, `/phieu-bai-tap-`), không quét trang chủ.
+     - `hasCardRichContent` loại trừ icon, robot avatar, svg, loading gif, huy hiệu sao; không tự động chấp thuận vô điều kiện các dialog hệ thống.
+     - **Hỗ trợ toàn diện câu hỏi đọc hiểu & ngữ pháp Tiếng Việt**: Nhận diện văn bản tường thuật nhiều đoạn kết hợp từ để hỏi hoặc câu hỏi chốt ở cuối (ví dụ: đoạn văn "Lan và Minh", câu hỏi "cho thấy điều gì?").
+     - Tự động nhận diện môn Tiếng Việt (`detectSubject`) đối với bài đọc văn bản thuần túy có dấu thanh Tiếng Việt và không chứa ký hiệu toán học; tuyệt đối không để nhầm sang `english` do menu giao diện.
      - Từ chối triệt để UUID, Hex hash, chuỗi không có khoảng trắng, số ID thuần túy.
      - Blacklist toàn diện tin tức, sự kiện, hướng dẫn dự thi, thông báo mở bài thi, bài thi thử khám phá, combo đồng hành.
    - **Cơ chế Bắt Tự động Đa tầng (Multi-Stage Auto-Capture)**:
@@ -157,8 +175,18 @@ Hệ thống hoạt động theo mô hình Hybrid phân tán:
   - Huy hiệu hiển thị tổng số nguồn web đang có trong danh sách.
 - Khi bấm "Săn câu hỏi từ Internet" hoặc chạy vòng lặp 5 phút: hệ thống tự động duyệt qua tất cả các trang web active trong danh sách để bóc tách câu hỏi.
 
-### 4.2. Tự động Lưu Nhật ký Trực tiếp (Live Log Persistence)
-- Nhật ký trực tiếp của Thợ săn Internet (`#hunter-live-log`) và Bot cào (`#scraper-live-log`) được tự động lưu vào `localStorage`. Khi người dùng F5 hoặc chuyển view, nội dung log vẫn được giữ nguyên vẹn.
+### 4.2. Tự động Lưu & Chuẩn Hóa Nhật ký Trực tiếp (Live Log Persistence & Formatting)
+- **Nhật ký Thợ săn Internet (`#hunter-live-log`)**:
+  - **Sắp xếp Mới nhất trên cùng (Newest on Top)**: Phiên săn mới nhất và kết quả hoàn thành luôn hiển thị ngay tại đầu khung nhật ký, người dùng không cần phải cuộn chuột xuống đáy.
+  - **Tách riêng từng dòng cho mỗi log**: Mọi dòng thông điệp (Khởi tạo phiên, Danh sách mục tiêu web, Trạng thái đang quét, Kết quả bóc tách/lưu CSDL) được tách biệt tuyệt đối trên từng dòng riêng (`\n`), các phiên được phân cách bằng dòng trống (`\n\n`), loại bỏ 100% tình trạng dính dòng ngang do cơ chế DOM innerText gây ra.
+  - **Thanh công cụ Thợ săn (`#hunter-log-toolbar`)**: Bổ sung 2 nút bấm thao tác trực quan:
+    - `📋 Sao chép Log`: Copy toàn bộ nội dung nhật ký đã định dạng chuẩn vào Clipboard (sử dụng `navigator.clipboard` kèm cơ chế fallback).
+    - `🗑️ Xóa Log`: Xóa sạch nội dung trên màn hình và xóa khóa lưu trữ `eduquest_hunter_log` trong `localStorage`.
+  - **Cơ chế Phục hồi & Tự Động Định dạng Log Cũ (Auto-Healing & Sorting Migration)**: Khi tải trang, hàm `formatAndSortHunterLog` tự động quét các log cũ trong `localStorage`, giải phóng các dòng bị dính chuỗi, chuẩn hóa lại cấu trúc và đảo ngược thứ tự về "Mới nhất trên đầu" nếu phát hiện log cũ đang lưu theo thứ tự tăng dần.
+- **Nhật ký Bot Đăng nhập Cào Vòng thi (`#scraper-live-log`)**:
+  - Có thanh công cụ `#scraper-log-toolbar` với nút `📋 Sao chép Log` và `🗑️ Xóa Log`.
+  - Hiển thị theo nguyên tắc mới nhất trên cùng.
+- **Tính Bền Vững (Persistence)**: Cả hai khung nhật ký được tự động lưu vào `localStorage`. Khi người dùng F5 hoặc chuyển đổi giữa các module giao diện, nội dung log vẫn được bảo toàn nguyên vẹn.
 
 ### 4.3. Cấu hình Khối lớp & Tài khoản
 - Cho phép người dùng thiết lập **Khối lớp mặc định** toàn hệ thống.
@@ -168,7 +196,75 @@ Hệ thống hoạt động theo mô hình Hybrid phân tán:
 ### 4.4. Thợ săn Câu hỏi Internet Tự động (Auto-Hunter Loop)
 - Tích hợp vòng lặp tự động chạy mỗi 5 phút (300 giây).
 - Hiển thị huy hiệu đếm ngược thời gian thực trên giao diện.
-- Trạng thái bật/tắt được ghi nhớ qua `localStorage` (`eduquest_autohunter`).
+### 4.5. Bot Đăng Nhập Ngầm Cào Vòng Thi & Bài Thực Hành VioEdu (Headless Engine & Safe Practice Crawler)
+- **Cơ chế Đăng nhập Ngầm (Playwright Headless Engine)**:
+  - Khởi chạy Chromium không đầu (headless) với cờ bảo mật desktop, mô phỏng người dùng thật.
+  - Kiểm tra xác thực 2 tầng: kiểm tra nhanh API và phiên trình duyệt đầy đủ. Trả về thông báo lỗi rõ ràng nếu sai mật khẩu hoặc tài khoản không tồn tại.
+- **Nhận diện Khối Lớp Cố Định Của Tài Khoản (Fixed Account Grade)**:
+  - Tài khoản học sinh VioEdu có thuộc tính khối lớp cố định (`user.grade` / `user.class`).
+  - Bot tự động nhận diện và khóa theo đúng khối lớp của tài khoản, tự động gán khối lớp này cho toàn bộ câu hỏi và đề thi cào được, không bị nhầm lẫn giữa các khối lớp.
+- **Tự Động Xử Lý Vượt Quá 3 Thiết Bị (OVER_QUOTA & 289 Auto-Recovery)**:
+  - Khi tài khoản đăng nhập trên quá 3 thiết bị đồng thời, máy chủ VioEdu trả về phản hồi `OVER_QUOTA` (mã trạng thái nội bộ 289).
+  - Bot tự động phát hiện và kích hoạt mutation GraphQL chuẩn của VioEdu `resetLogin3Devices(username: $username)` để giải phóng phiên làm việc của các thiết bị cũ.
+  - Tự động đăng nhập lại sau khi giải phóng phiên thành công, bảo đảm phiên làm việc liên tục mà không cần can thiệp thủ công.
+  - Trình duyệt Playwright tự động nhận diện và click nút `"Đăng xuất toàn bộ thiết bị"` trên giao diện web nếu xuất hiện cảnh báo.
+- **Thanh Công Cụ Nhật Ký Trực Tiếp & Sắp Xếp Mới Nhất Trên Đầu (Newest on Top & Log Toolbar)**:
+  - Khung nhật ký trực tiếp của Bot (`#scraper-live-log`) hiển thị theo thứ tự **Mới nhất trên đầu** (Newest on top): dòng mới nhất luôn ở vị trí dòng 1, kết quả thành công/thất bại luôn được ghim trên cùng.
+  - Tích hợp thanh công cụ phía trên với hai nút: `📋 Sao chép Log` (sao chép trực tiếp vào Clipboard kèm fallback textarea) và `🗑️ Xóa Log`.
+- **Cơ Chế Cào Bài Thực Hành VioEdu An Toàn Tuyệt Đối (Zero-Risk Read-Only GraphQL Crawler)**:
+  - Truy vấn dữ liệu đề bài và đáp án thụ động qua GraphQL `PracticeQuestionQuery` (`getPracticeQuestionBySkillId`).
+  - **Quy chuẩn bảo vệ tài khoản & bảo tồn tiến trình học tập**:
+    - Luôn gửi `score: 0`, `isManual: false`, `userHomeworkId: ""`.
+    - Tuyệt đối **không click nút Trả lời / Nộp bài**, tuyệt đối **không gửi `PracticeResultMutation`**.
+    - Bảo toàn 100% điểm số, chuỗi ngày học tập và quota bài luyện tập của học sinh, tránh bị phát hiện khóa tài khoản.
+- **Hỗ Trợ Mọi Dạng Câu Hỏi Thực Hành VioEdu**:
+  - Dạng Điền ô trống (`questionType: 3` / `{}`): tự động bóc tách đáp án điền từ `answers` vào `correct_answer`, làm trống `options`.
+  - Dạng Trắc nghiệm 1 đáp án (`questionType: 1`) & Nhiều đáp án (`questionType: 2`): trích xuất đáp án đúng chính xác từ trường `correct: true`.
+  - Dạng Nối cặp (`leftMatching` & `rightMatching`) và Dropdown (`textDropdownAnswers`).
+  - Trích xuất lời giải chi tiết `explanation` và ảnh đề bài.
+- **Nhận Diện Mục Tiêu Thông Minh (`parse_vioedu_target`)**:
+  - URL `https://vio.edu.vn/skill-practice/:id` hoặc ID 24 hex: cào bài thực hành cụ thể.
+  - URL `https://vio.edu.vn/skill-list`: tự động truy vấn danh mục bài luyện tập (`getListTopicSkill` + `getSkillListQuery`) và cào câu hỏi theo khối lớp cố định của học sinh.
+  - Mã vòng đấu trường số (`1`, `2`,...): truy cập các tuyến đấu trường `/arena`, `/arena-zone`, `/arena-school`.
+  - Để trống (`auto`): tự động tìm đấu trường đang mở; nếu ngoài khung giờ thi đấu, Bot tự động chuyển sang thu thập các bài thực hành trọng tâm của khối lớp tương ứng.
+- **Làm Sạch & Lưu Trữ CSDL**:
+  - Tự động loại bỏ cụm từ "Câu hỏi số X", "Câu X:", "Bài X:" khỏi đề bài.
+  - Bảo tồn toàn vẹn công thức Toán học LaTeX (`$...$`), danh sách đáp án A/B/C/D, lời giải và hình ảnh minh họa.
+  - Kiểm tra trùng lặp mã băm (`content_hash`) và lưu trực tiếp vào CSDL SQLite `data/questions.db`.
+  - Ghi nhận nhật ký thu thập thời gian thực vào bảng `collector_logs`.
+
+### 4.6. Vòng Lặp Cào VioEdu Tự Động Định Kỳ 5 Phút & Nhật Ký Bắt Câu Hỏi (Auto-Crawl Loop & Capture Logs Modal)
+- **Cơ chế Vòng Lặp Định Kỳ 5 Phút (Auto-Crawl VioEdu 5-Min Loop)**:
+  - Công tắc chuyển đổi (Toggle Switch) `#bot-auto-crawl-toggle` tích hợp trực tiếp trên thẻ VioEdu Scraper.
+  - Khi bật:
+    + Huy hiệu trạng thái nhấp nháy xanh `#bot-auto-crawl-badge` chuyển sang trạng thái hoạt động ("ĐANG CHẠY").
+    + Bộ đếm ngược thời gian thực `#bot-countdown-display` đếm lùi từng giây từ 05:00 (`300s`) về 00:00.
+    + Khi đồng hồ chạm mốc 00:00, hệ thống tự động kích hoạt `runAutoScraper()`, gửi request cào vòng thi VioEdu qua `POST /api/collect/run`, ghi log vào `collector_logs`, cập nhật số câu hỏi mới vào Ngân hàng, phát thông báo BroadcastChannel và tự động reset chu kỳ 300s tiếp theo.
+  - Trạng thái bật/tắt được đồng bộ bền vững vào `localStorage` (`eduquest_bot_autocrawl`), tự động khôi phục khi làm mới trang hoặc chuyển tab.
+- **Cửa Sổ Xem Nhật Ký Bắt Câu Hỏi (Question Capture Logs Modal `#modal-capture-logs`)**:
+  - Nút bấm `📜 Xem Nhật ký Bắt câu hỏi` tích hợp tại khung Collector logs.
+  - Hiển thị danh sách các câu hỏi đã bóc tách từ VioEdu và VnDoc song song ở 2 chế độ:
+    + Dạng Thẻ Trực Quan (Card View): Xem đề bài, đáp án A/B/C/D, môn, khối lớp và trạng thái lưu CSDL.
+    + Dạng JSON Thô (Raw JSON): Hỗ trợ nút `📋 Sao chép JSON` vào clipboard.
+  - Nút **`🚀 Nạp lại vào Ngân hàng (X câu)`** (`#btn-reinject-questions`): Gửi toàn bộ câu hỏi lên `POST /api/questions/bulk`, tự động lưu vào SQLite, cập nhật lại thống kê Dashboard và Ngân hàng câu hỏi chỉ với 1 click.
+
+### 4.7. Bóc Tách Đề Thi Từ Ảnh (Image OCR Exam Ingestion)
+- **Đa dạng Định dạng Tiếp nhận**:
+  - Hỗ trợ tải lên cả tệp PDF và tệp ảnh đề thi (`.png, .jpg, .jpeg, .webp, .bmp`) qua dropzone kéo thả `#pdf-dropzone` và file input `#pdf-file-input`.
+  - Phân loại và định tuyến tự động tại backend qua `POST /api/import/pdf`, `POST /api/import/image` và `POST /api/import/exam-file`.
+- **Quy trình Tiền Xử Lý Ảnh (OpenCV CLAHE Pipeline)**:
+  - Chuyển đổi không gian màu sang ảnh xám (`cv2.cvtColor`).
+  - Cân bằng độ tương phản thích ứng cục bộ giới hạn tương phản CLAHE (`cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8,8))`) làm rõ chữ in mờ.
+  - Khử nhiễu biên và giữ nét văn bản với bộ lọc song phương (`cv2.bilateralFilter`).
+  - Lưu tệp gốc và ảnh tiền xử lý vào thư mục tĩnh `data/media/ocr_{uuid}.ext` để giao diện hiển thị khung xem trước ảnh (Image preview).
+- **Động Cơ Bóc Tách Ký Tự Quang Học Đa Tầng (Multi-Tier OCR Engine)**:
+  - Tầng 1 (Ưu tiên): RapidOCR (PaddleOCR ONNX gọn nhẹ, siêu tốc, nhận diện tiếng Việt cực chuẩn).
+  - Tầng 2: EasyOCR (PyTorch deep learning hỗ trợ song ngữ Tiếng Việt & Tiếng Anh).
+  - Tầng 3 (Dự phòng): PyTesseract Engine.
+  - Chuẩn hóa Unicode NFC (`unicodedata.normalize('NFC', text)`), sửa lỗi OCR kinh điển (`C@u`, `Cdu`, `Cáu` -> `Câu`, `B@i` -> `Bài`).
+  - Regex Engine bóc tách cấu trúc câu hỏi trắc nghiệm (phương án A, B, C, D) và lời giải.
+- **Bảng Đối Soát Câu Hỏi Trực Quan Trước Khi Lưu (Audit Review Table)**:
+  - Hiển thị bảng đối soát `#ocr-review-table` cho phép giáo viên chỉnh sửa trực tiếp nội dung đề bài (kèm live KaTeX preview), các phương án đáp án, chọn radio đáp án đúng, phân loại môn/lớp trước khi bấm "Lưu vào Ngân hàng".
 
 ---
 
@@ -176,9 +272,9 @@ Hệ thống hoạt động theo mô hình Hybrid phân tán:
 
 Quy tắc phân loại tự động ưu tiên theo thứ tự:
 1. `math`: Khớp các từ khóa toán học hoặc công thức LaTeX (`\frac`, `\sqrt`, `^`, góc, chu vi, diện tích, phân số, chữ số, hình bình hành, tam giác, ...).
-2. `english`: Khớp từ khóa tiếng Anh thuần túy, kiểm tra ranh giới từ `\bioe\b`, kiểm tra tỷ lệ từ tiếng Anh không dấu.
-3. `vietnamese`: Nhận diện dấu thanh Tiếng Việt đặc trưng kết hợp từ vựng văn học, tiếng Việt (từ ghép, biện pháp tu từ, trạng ngữ, chủ ngữ, vị ngữ, chính tả, thành ngữ, tục ngữ, ...).
-4. `science`: Khớp từ vựng khoa học tự nhiên, động vật, thực vật, môi trường, địa lý, lịch sử.
+2. `science`: Khớp từ vựng khoa học tự nhiên, động vật, thực vật, môi trường, địa lý, lịch sử, cơ quan cơ thể, tự nhiên và xã hội.
+3. `vietnamese`: Nhận diện dấu thanh Tiếng Việt đặc trưng kết hợp cấu trúc ngữ pháp học đường (mẫu câu *Ai là gì*, *Ai làm gì*, *Ai thế nào*, câu nêu đặc điểm/hoạt động, điền âm/vần `s/x`, dấu phẩy/chấm, đoạn văn đọc hiểu, tác giả, tác phẩm, thành ngữ, tục ngữ, từ ghép, từ đồng nghĩa).
+4. `english`: Khớp từ khóa tiếng Anh thuần túy, kiểm tra ranh giới từ `\bioe\b`, tỷ lệ từ tiếng Anh không dấu. **Đặc biệt**: Nếu văn bản có dấu thanh Tiếng Việt, câu hỏi KHÔNG BAO GIỜ bị xếp vào `english` mà sẽ tự động reclassify về `vietnamese`.
 
 ---
 
@@ -202,6 +298,28 @@ Quy tắc phân loại tự động ưu tiên theo thứ tự:
 - Hỗ trợ trộn ngẫu nhiên câu hỏi và hoán vị thứ tự các đáp án A, B, C, D.
 - Tự động đính kèm Trang Đáp án & Lời giải chi tiết ở cuối đề thi.
 - Chuyển đổi công thức LaTeX sang định dạng văn bản toán học rõ ràng, dễ in ấn.
+
+### 6.3. Xuất File PDF Chuẩn In Ấn MOET A4 & Chuẩn Hóa Ký Tự Toán/Khoa Học
+- **Quy Chuẩn In Ấn A4 Theo Quy Định Bộ Giáo Dục & Đào Tạo**:
+  - Khổ giấy A4 đứng chuẩn (`210mm x 297mm`).
+  - Căn lề quy chuẩn: lề trên `20mm`, lề dưới `20mm`, lề trái `25mm` (dành khoảng gáy đóng tập), lề phải `15mm`.
+  - Phông chữ chuẩn tiếng Việt học đường: Times New Roman 12pt, dãn dòng 1.25, tiêu đề đậm rõ nét.
+  - Header tiêu chuẩn 2 cột: Cột trái (Tên Sở/Phòng GD&ĐT, Trường), Cột phải (Kỳ thi, Môn thi, Khối lớp, Thời gian làm bài, Khung thông tin học sinh: Họ tên, Số báo danh, Lớp).
+  - Quy tắc ngắt trang thông minh: Sử dụng CSS `page-break-inside: avoid` trên từng khối câu hỏi, tuyệt đối không để xảy ra hiện tượng đề bài ở trang trước và phương án đáp án rơi sang trang sau.
+- **Trang Bảng Đáp Án & Thang Điểm Độc Lập**:
+  - Tự động tách riêng phần Bảng Đáp Án sang trang mới bằng thuộc tính `page-break-before: always;`.
+  - Bảng tổng hợp đáp án dạng ma trận 10 cột trực quan (Câu 1 đến N, Đáp án A/B/C/D).
+  - Kèm thang điểm chi tiết cho từng câu (thang điểm 10) và phần Hướng dẫn giải chi tiết cho các câu hỏi có trường `explanation`.
+- **Chuẩn Hóa Ký Tự Đặc Biệt Toán Học & Khoa Học (`normalize_moet_math_symbols`)**:
+  - Phân số: Biến đổi LaTeX `\frac{a}{b}` sang dạng hiển thị inline đẹp mắt `a/b` hoặc ký hiệu phân số chuẩn.
+  - Căn thức: `\sqrt{x}` -> `√x`.
+  - Toán tử: Nhân `\times` -> `×`, Chia `\div` -> `÷`, Góc `\angle` -> `∠`, Song song `\parallel` -> `∥`, Vuông góc `\perp` -> `⊥`.
+  - Ký tự Hy Lạp: `\pi` -> `π`, `\alpha` -> `α`, `\beta` -> `β`, `\Delta` -> `Δ`.
+  - Số mũ & Chỉ số: `^2` -> `²`, `^3` -> `³`, `_1` -> `₁`, `_2` -> `₂`.
+  - Ký hiệu Khoa học & Hóa học: $H_2O$ -> $H₂O$, $CO_2$ -> $CO₂$, $O_2$ -> $O₂$, mét vuông $m^2$ -> $m²$, mét khối $m^3$ -> $m³$.
+- **Cơ Chế Kết Xuất Hai Tầng (Dual-Mode Rendering Pipeline)**:
+  - Tầng Server (Ưu tiên): Playwright Chromium Headless kết xuất vector PDF hoàn hảo với độ phân giải cao (`print_background=True`).
+  - Tầng Client (Dự phòng): `@media print` stylesheet kích hoạt lệnh `window.print()` khi mất kết nối mạng, đảm bảo không bao giờ làm gián đoạn công việc của giáo viên.
 
 ---
 
@@ -281,5 +399,134 @@ Quy tắc phân loại tự động ưu tiên theo thứ tự:
 - Nút bấm nhanh `👁️ Xem tất cả` trên thanh công cụ và liên kết `Xem tất cả trên 1 trang` dưới chân trang: 1-click hiển thị toàn bộ 100% câu hỏi trong CSDL mà không cần phân trang.
 - Backend FastAPI nâng ngưỡng `page_size` tối đa lên `10000` (`ge=1, le=10000`), cho phép tải toàn bộ ngân hàng câu hỏi mà không gặp lỗi xác thực HTTP 422.
 - Thanh phân trang luôn hiển thị rõ ràng chỉ báo phạm vi: `Đang xem câu X - Y / tổng Z câu`.
+
+---
+
+## 10. Tích Hợp & Săn Dữ Liệu Toán Động Cho Toàn Bộ Khối Lớp 1 Đến 12 (Song Ngữ Anh - Việt & Olympic)
+
+Hệ thống loại bỏ hoàn toàn việc khóa cứng (hardcode) dữ liệu vào một khối lớp duy nhất, mở rộng cơ chế bóc tách và tạo câu hỏi tự động tương thích toàn diện cho **12 khối lớp học đường (Khối 1 đến Khối 12)**:
+
+### 10.1. Động Cơ Phân Tích Khối Lớp Từ URL (`extract_grade_from_url`)
+- Tự động nhận diện khối lớp 1–12 từ mọi định dạng đường dẫn web:
+  - Query parameters: `classes=X`, `grade=X`, `lop=X`, `class=X`.
+  - Path slugs tiếng Việt: `toan-lop-X`, `lop-X`.
+  - Path slugs tiếng Anh & chuẩn US: `grade-X`, `-first-grade-`, `-second-grade-`, ..., `-twelfth-grade-`, `1st-grade`...`12th-grade`.
+  - Phân nhánh môn THPT trên Khan Academy: `algebra` (Lớp 9), `geometry` (Lớp 10), `algebra2` (Lớp 11), `calculus-1` / `precalculus` (Lớp 12).
+- Khử lỗi rò rỉ khối lớp (Grade Leakage): Chặt đứt cơ chế tự động nạp đề Lớp 2 vào các khối lớp khác, phân lập chính xác 100% từng câu hỏi theo đúng khối lớp của nó.
+
+### 10.2. Danh Mục Nguồn Động Theo Khối Lớp (`GET /api/hunter/grade-sources?grade={1..12}`)
+- Sinh tự động danh mục URL nguồn chuẩn hóa theo 3 nhóm trụ cột cho từng khối lớp:
+  - 🇻🇳 **Toán Tiếng Việt (GDPT 2018)**: Hành Trang Số (SGK/SBT `classes={grade}`), VioEdu, Trạng Nguyên Toán, OLM.vn (`toan-lop-{grade}`), VnDoc (`toan-lop-{grade}`), VietJack (`toan-lop-{grade}/index.jsp`).
+  - 🇬🇧 **Toán Tiếng Anh (Math Grade {grade})**: K5 Learning (Worksheets theo khối 1–6), IXL Learning Math (`grade-{grade}`), Khan Academy (Khóa học tương ứng Khối 1–12), Common Core Sheets.
+  - 🏆 **Toán Olympic & Tư Duy Song Ngữ**: Kangaroo Math (IKMC phân nhóm Ecolier 1-2 / Ecolier 3-4 / Benjamin 5-6 / Cadet 7-8 / Junior 9-10 / Student 11-12), Olympic TIMO (Primary 1-5 / Secondary 1-4 / Senior), Olympic SASMO & CodeMath.
+- **Frontend Presets Động (`updateGradePresetsUI`)**:
+  - Giao diện Trung tâm Thu thập tự động cập nhật toàn bộ các chip gợi ý nguồn nhanh khi người dùng chuyển đổi khối lớp trong dropdown chọn Khối.
+  - Nút Nạp Nhanh tự động hiển thị: `✨ Nạp nhanh Đề Toán Khối [X] Toàn diện (Anh & Việt)`.
+
+### 10.3. Cơ Chế 1-Click Harvester Theo Khối (`POST /api/hunter/harvest-by-grade`)
+- Nhận `{ "grade": int, "subject": "math" }` (1 <= grade <= 12).
+- Quét đồng thời các nguồn học liệu của đúng khối lớp được chọn, nạp câu hỏi vào CSDL SQLite.
+- Tự động chuẩn hóa công thức LaTeX/KaTeX, gán thẻ `source_detail` chuyên biệt, loại trừ trùng lặp và kích hoạt đánh số tuần tự 1..N.
+- Giữ nguyên các alias tương thích ngược: `GET /api/hunter/grade2-sources` và `POST /api/hunter/harvest-grade2`.
+
+### 10.4. Động Cơ Sinh Câu Hỏi Tham Số Hóa 12 Khối Lớp (`generate_parametric_questions`)
+- Mở rộng ngân hàng câu hỏi tham số hóa tự động cho toàn bộ 12 khối lớp:
+  - Khối 1–5: Phép tính có nhớ, phân số, hỗn số, số thập phân, hình học phẳng, chuyển động đều.
+  - Khối 6: Số nguyên $\mathbb{Z}$, ước chung lớn nhất (ƯCLN), bội chung nhỏ nhất (BCNN), phân số, hình thoi.
+  - Khối 7: Dãy tỉ số bằng nhau, đa thức một biến, tổng các góc trong tam giác, lũy thừa số hữu tỉ.
+  - Khối 8: Định lý Pythagoras, các hằng đẳng thức đáng nhớ, định lý Thales, phân tích đa thức thành nhân tử.
+  - Khối 9: Căn bậc hai số học, hệ thức Vi-ét phương trình bậc hai, hệ số góc hàm số bậc nhất, góc nội tiếp và góc ở tâm.
+  - Khối 10: Giao và hợp của tập hợp khoảng đoạn, dấu tam thức bậc hai, tích vô hướng của hai vectơ, vectơ pháp tuyến đường thẳng $Oxy$.
+  - Khối 11: Số hạng tổng quát cấp số cộng $u_n$, quy tắc tính đạo hàm đa thức, hàm số lượng giác $\tan(x)$, xác suất cổ điển.
+  - Khối 12: Tiệm cận đứng của hàm số phân thức, phương trình mũ và logarit, tích phân cơ bản $\int x^2 dx$, môđun số phức $z = a + bi$, phương trình mặt cầu không gian $Oxyz$.
+
+---
+
+## 11. Phân Hệ Luyện Tập Đề Thi Tương Tác & Báo Cáo Phân Tích (Interactive Practice Arena, History & Analytics)
+
+Phân hệ `🎯 Luyện tập Trực tuyến` là môi trường thi thử và rèn luyện kỹ năng tương tác chất lượng cao, tích hợp đồng bộ giữa Frontend (`frontend/js/practice.js`), Backend API (`backend/app.py`) và CSDL SQLite:
+
+### 11.1. Phòng Thi Trực Tuyến Tương Tác (Active Practice Arena)
+- **Tạo Đề Luyện Tập Linh Hoạt (`POST /api/practice/generate`)**:
+  - Hỗ trợ tạo đề từ ngân hàng theo đề thi cụ thể (`exam_id`) hoặc sinh đề động theo bộ môn (`subject`), khối lớp (`grade`), số lượng câu hỏi (`count`) và độ khó (`difficulty`).
+- **Thanh HUD Giám Sát Thời Gian Thực (Arena HUD)**:
+  - Hiển thị tiêu đề bài thi, khối lớp, thanh tiến độ làm bài (`X/Y câu`).
+  - Đồng hồ đếm ngược với trạng thái cảnh báo màu động:
+    + Bình thường: Màu xám đậm / xanh ngọc.
+    + Cảnh báo (< 3 phút): Màu vàng cam (`#f59e0b`).
+    + Nguy hiểm (< 1 phút): Màu đỏ nhấp nháy (`#ef4444`, animation pulse).
+    + Khi hết giờ: Tự động khóa thao tác và kích hoạt nộp bài tự động.
+- **Thao Tác Nhanh Bằng Bàn Phím (Keyboard Shortcuts)**:
+  - Chọn phương án: Phím số `1`, `2`, `3`, `4` tương ứng với các đáp án `A`, `B`, `C`, `D`.
+  - Phím chữ cái `A`, `B`, `C`, `D`.
+- **Lưới Điều Hướng Câu Hỏi (Stepper Grid Navigation)**:
+  - Lưới các nút câu hỏi `1..N` với 4 trạng thái trực quan:
+    + `unanswered`: Màu xám viền nhạt (chưa làm).
+    + `answered`: Màu xanh ngọc đậm (đã chọn đáp án).
+    + `flagged`: Màu vàng hổ phách kèm biểu tượng cờ 🚩 (đánh dấu xem lại sau).
+    + `current`: Viền xanh dương phát sáng (câu đang làm).
+- **Hộp Thoại Xác Nhận Nộp Bài (Submission Confirm Modal `#modal-submit-confirm`)**:
+  - Cảnh báo rõ ràng số lượng câu hỏi chưa hoàn thành trước khi học sinh nộp bài.
+
+- **Quy Chuẩn Hợp Đồng Dữ Liệu Nộp Bài & Bí Danh Khóa (Payload Aliases)**:
+  - Backend Pydantic model `PracticeAnswerSubmission` hỗ trợ đồng thời cả 3 tên khóa đáp án thông qua `AliasChoices` và `@model_validator`: `selected_answer` (chuẩn model), `selected_option` (chuẩn web SPA `practice.js`), và `user_answer` (chuẩn test/docs).
+  - Phía web client gửi đồng bộ cả `selected_answer` và `selected_option`.
+  - Phía web client hỗ trợ linh hoạt các phản hồi: `data.questions || data.session?.questions || []` khi khởi tạo phòng thi, và `data.records || data.history || []` khi tải lịch sử.
+  - Phía web client hỗ trợ linh hoạt huy hiệu (`badges`) dạng danh sách chuỗi ID lẫn mảng đối tượng `{ id, unlocked }`.
+- **Quy Chuẩn Chấm Điểm Hai Thang Điểm (`POST /api/practice/submit`)**:
+  - Thang điểm 10.0 (`score = round((correct_count / total_questions) * 10.0, 1)`).
+  - Thang điểm 100.0 (`score_100 = round((correct_count / total_questions) * 100.0, 1)`).
+  - Phân loại học lực chuẩn Bộ Giáo dục & Đào tạo:
+    + `score >= 9.0`: **Xuất sắc** 🏆
+    + `8.0 <= score < 9.0`: **Giỏi** 🥇
+    + `6.5 <= score < 8.0`: **Khá** 🥈
+    + `5.0 <= score < 6.5`: **Trung bình** 🥉
+    + `score < 5.0`: **Cần cố gắng** 📚
+- **Chế Độ Xem Lại Toàn Diện (Detailed Review Mode)**:
+  - Hiển thị trực quan từng câu:
+    + Lựa chọn của học sinh đúng: Viền xanh lá cây nhạt (`border-emerald-500`, background xanh mint).
+    + Lựa chọn của học sinh sai: Viền đỏ đậm (`border-rose-500`, background đỏ hồng), đánh dấu ✕ tại lựa chọn sai và đánh dấu ✓ tại đáp án đúng.
+  - Hiển thị Lời giải chi tiết và công thức Toán render chuẩn KaTeX cho từng câu hỏi.
+
+### 11.3. Bảng CSDL SQLite `practice_history` & Tối Ưu Hóa Truy Vấn
+- **Cấu trúc Bảng SQLite 16 Trường**:
+  - `id`: Khóa chính định danh UUID (`TEXT PRIMARY KEY NOT NULL`).
+  - `exam_id`: Mã đề thi gốc hoặc mã phiên sinh động (`TEXT`).
+  - `exam_title`: Tiêu đề bài luyện tập (`TEXT NOT NULL`).
+  - `subject`: Bộ môn (`math`, `vietnamese`, `english`, `science`).
+  - `grade`: Khối lớp (1 đến 12).
+  - `total_questions`, `correct_count`, `wrong_count`, `skipped_count`: Số liệu câu hỏi (INTEGER).
+  - `score`, `max_score`: Điểm số đạt được và điểm tối đa (REAL).
+  - `duration_seconds`, `time_spent_seconds`: Thời gian quy định và thời gian làm thực tế (INTEGER).
+  - `ranking`: Xếp loại học lực tiếng Việt (`TEXT`).
+  - `answers_detail`: Chuỗi JSON chi tiết từng câu hỏi, lựa chọn của học sinh, đáp án đúng, trạng thái cờ và thời gian làm từng câu (`TEXT`).
+  - `created_at`: Thời gian hoàn thành ISO 8601 UTC (`TEXT NOT NULL`).
+- **4 Chỉ Mục Hiệu Năng Cao (Performance Indexes)**:
+  - `idx_practice_created_at` trên `practice_history(created_at DESC)` (truy vấn lịch sử và biểu đồ xu hướng).
+  - `idx_practice_subject` trên `practice_history(subject)` (lọc theo bộ môn).
+  - `idx_practice_grade` trên `practice_history(grade)` (lọc theo khối lớp).
+  - `idx_practice_exam_id` trên `practice_history(exam_id)` (truy vết bài thi).
+- **Cơ Chế Lưu Trữ Kép (Dual Persistence)**:
+  - Vừa ghi nhận vĩnh viễn vào SQLite `practice_history` qua API backend.
+  - Vừa lưu đệm danh sách phiên gần nhất vào `localStorage` (`eduquest_practice_history`) để hiển thị tức thì không phụ thuộc độ trễ mạng.
+
+### 11.4. Báo Cáo Xu Hướng, Năng Lực & Hệ Thống Gamification
+- **Biểu Đồ Xu Hướng Điểm Số (Trending Score Chart Canvas)**:
+  - Kết xuất trực tiếp bằng HTML5 Canvas 2D (`#canvas-practice-trending`), tự động nhân đôi tỉ lệ pixel (`devicePixelRatio`) đảm bảo nét căng trên màn hình Retina / 4K.
+  - Đường cong Bezier mượt mà thể hiện tiến độ điểm số qua 10 lượt luyện tập gần nhất kèm gradient chuyển màu và tooltip điểm số khi rê chuột.
+- **Phân Tích Năng Lực Bộ Môn (Subject Mastery Analysis)**:
+  - Thống kê tỷ lệ chính xác (Accuracy %) và số câu đúng/tổng câu cho từng bộ môn: Toán học, Tiếng Việt, Tiếng Anh, Khoa học.
+  - Thanh tiến độ (Progress bar) trực quan với màu sắc nhận diện đặc trưng cho từng môn.
+- **Hệ Thống 8 Huy Hiệu Thành Tích Học Tập (Gamification Badges)**:
+  1. `badge_first_step`: **Khởi Đầu** 🚀 — Hoàn thành bài luyện tập đầu tiên.
+  2. `badge_perfect_score`: **Xạ Thủ Điểm 10** 🎯 — Đạt điểm 10 tuyệt đối.
+  3. `badge_speed_racer`: **Tia Chớp Tốc Độ** ⚡ — Hoàn thành bài thi dưới 50% thời gian với điểm >= 8.0.
+  4. `badge_math_master`: **Nhà Toán Học Nhí** 📐 — Hoàn thành xuất sắc bài thi môn Toán.
+  5. `badge_scholar`: **Trạng Nguyên** 🏆 — Đạt xếp loại Xuất sắc (điểm >= 9.0).
+  6. `badge_persistent`: **Chiến Binh Chăm Chỉ** 🔥 — Hoàn thành từ 5 phiên luyện tập trở lên.
+  7. `badge_multilingual`: **Bách Khoa Song Ngữ** 🌍 — Luyện tập từ 2 bộ môn khác nhau trở lên.
+  8. `badge_top_tier`: **Bậc Thầy Đỉnh Cao** 👑 — Điểm trung bình tất cả các lượt thi đạt từ 8.5 trở lên.
+
+
 
 

@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import hashlib
 import httpx
 from bs4 import BeautifulSoup
@@ -132,9 +133,11 @@ async def normalize_question_payload(q: Dict[str, Any]) -> Dict[str, Any]:
     q["content_html"] = clean_html
     q["content_text"] = QUESTION_NUMBER_REGEX.sub('', clean_text or q.get("content_text", "")).strip()
 
-    # Auto-classify subject if not explicitly set
+    # Auto-classify subject if not explicitly set or verify accuracy
     current_sub = q.get("subject")
-    if not current_sub or current_sub == "math":
+    from backend.classifier import VN_DIACRITICS_REGEX
+    has_vn = bool(VN_DIACRITICS_REGEX.search(q["content_text"]))
+    if not current_sub or current_sub == "math" or (current_sub == "english" and has_vn):
         detected_sub = classify_subject(
             content_text=q["content_text"],
             content_html=q["content_html"],
@@ -244,10 +247,14 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
     if re.search(r'\b\d+%\s*$', content_text, re.I):
         return False, "Kết thúc bằng phần trăm tiến độ"
     if any(k in combined for k in [
+        "cách tính điểm khi trả lời", "tổng điểm <", "score-hint-popup", "star_practice",
+        "đúng cộng 10 điểm", "đúng cộng 9 điểm", "sai trừ 1 điểm", "sai trừ 2 điểm", "sai trừ 3 điểm",
         "đang lấy thông tin câu hỏi", "viogpt-loading", "đang tải dữ liệu",
         "tiến độ làm bài", "vui lòng chờ trong giây lát"
     ]):
-        return False, "Chứa trạng thái đang tải câu hỏi hoặc thông báo hệ thống"
+        return False, "Chứa trạng thái đang tải câu hỏi, tiến độ, hoặc popup cách tính điểm VioEdu"
+    if re.search(r'\b\d+\s*/\s*100\b', combined) and ("tính điểm" in combined or "điểm" in combined):
+        return False, "Chứa tiến độ điểm số trên thang 100 của VioEdu"
 
     # 2. Reject HTML source dumps, doctype, scripts, CSS stylesheets
     if "<!doctype" in combined or "<html" in combined or "xmlns=" in combined:
@@ -270,10 +277,15 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
     if phone_match:
         return False, f"Chứa số điện thoại liên hệ: {phone_match.group(0)}"
 
+    # Strict regex check for commercial course/tutoring marketing with required diacritics on "khóa/khoá",
+    # ensuring legitimate educational reading passages with "khoa học" (Science) are NEVER falsely rejected.
+    if re.search(r'\b(?:đăng\s+ký\s+|mua\s+|bán\s+|tư\s+vấn\s+)?(?:khóa|khoá)\s+học\b', combined, re.I):
+        return False, "Chứa thông tin quảng cáo / liên hệ / khóa học (khóa học)"
+
     contact_keywords = [
         "liên hệ", "hotline", "sđt", "điện thoại:", "zalo", "facebook", "fanpage",
-        "fan page", "inbox", "học phí", "khóa học", "khoá học", "đăng ký học",
-        "đăng ký khóa học", "lớp học thêm", "tư vấn khóa học", "tư vấn tuyển sinh",
+        "fan page", "inbox", "học phí", "đăng ký học",
+        "lớp học thêm", "tư vấn tuyển sinh",
         "tuyển sinh", "website:", "email:", "bản quyền thuộc về", "all rights reserved"
     ]
     for ck in contact_keywords:
@@ -293,10 +305,13 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
         "hướng dẫn học sinh tham gia", "hướng dẫn tham gia", "bài thi thử khám phá", "thi thử khám phá",
         "thông báo mở bài thi", "thông báo mở", "thông báo v/v", "thông báo số", "thông báo kết quả", "thông báo tổ chức",
         "rộn ràng đón", "trăng rằm", "tựu trường", "bứt phá", "khám phá combo", "combo đồng hành",
-        "khóa học combo", "ưu đãi", "khuyến mại", "thể lệ giải đấu", "cơ cấu giải thưởng",
+        "ưu đãi", "khuyến mại", "thể lệ giải đấu", "cơ cấu giải thưởng",
         "danh sách nhận thưởng", "chúc mừng các thí sinh", "lễ vinh danh", "lễ trao giải",
         "tin tức & sự kiện", "tin nổi bật", "bài viết mới nhất", "hướng dẫn phụ huynh",
-        "điều khoản sử dụng", "chính sách bảo mật", "quy định thi", "thể lệ cuộc thi", "vnmf"
+        "điều khoản sử dụng", "chính sách bảo mật", "quy định thi", "thể lệ cuộc thi", "vnmf",
+        "video mở đầu", "video bài đọc", "dự án bữa ăn", "bố cục trong tranh",
+        "học online toán", "học online tiếng việt", "học online luyện từ", "kh luyện từ",
+        "tìm bài trong mục này", "tất cả chân trời kết nối cánh diều", "tài liệu, đề thi, trắc nghiệm"
     ]
     for bk in blog_promo_keywords:
         bk_no = remove_vietnamese_accents(bk)
@@ -317,6 +332,11 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
     # 7. Validate options if choice type
     q_type = q.get("question_type")
     options = q.get("options") or []
+    if isinstance(options, str):
+        try:
+            options = json.loads(options)
+        except Exception:
+            return False, "Định dạng phương án không hợp lệ"
     if q_type in ("single_choice", "multiple_choice") and options:
         if len(options) < 2:
             return False, f"Phương án trắc nghiệm không hợp lệ (ít hơn 2 lựa chọn)"

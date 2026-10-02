@@ -1,6 +1,6 @@
-// EduQuest Pro - Super Network & WebSocket Interceptor v1.3.12 (Runs in page context)
+// EduQuest Pro - Super Network & WebSocket Interceptor v1.3.15 (Runs in page context)
 (function () {
-  console.log("[EduQuest Interceptor v1.3.12] Active in page context (Fetch + XHR + WebSocket)");
+  console.log("[EduQuest Interceptor v1.3.15] Active in page context (Fetch + XHR + WebSocket)");
 
   function getShortUrl() {
     try {
@@ -30,7 +30,7 @@
     } catch (e) {}
   }
 
-  sendInterceptorLog(`⚡ Interceptor v1.3.11 đã kích hoạt trên ${window.location.hostname}`, "info");
+  sendInterceptorLog(`⚡ Interceptor v1.3.15 đã kích hoạt trên ${window.location.hostname}`, "info");
 
   function isUuidOrIdString(str) {
     if (!str || typeof str !== "string") return false;

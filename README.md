@@ -1,7 +1,7 @@
 # EduQuest Pro — Hệ Thống Thu Thập & Quản Lý Ngân Hàng Câu Hỏi Thi Trực Tuyến
 
-![Version](https://img.shields.io/badge/App-v1.0.17-blue)
-![Extension](https://img.shields.io/badge/Extension-v1.3.12-emerald)
+![Version](https://img.shields.io/badge/App-v1.0.24-blue)
+![Extension](https://img.shields.io/badge/Extension-v1.3.15-emerald)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Framework-teal)
 ![KaTeX](https://img.shields.io/badge/Math-KaTeX%20LaTeX-orange)
@@ -39,14 +39,14 @@ Online_Learning_For_Kid/
 │       ├── internet_hunter.py # Bot cào kho học liệu trực tuyến mở & đề thi online
 │       ├── vioedu.py          # Bot kết nối API VioEdu
 │       └── tnmath.py          # Bot kết nối API Trạng Nguyên
-├── extension/                 # Tiện ích Chrome / Edge Extension (v1.3.12 Manifest V3)
+├── extension/                 # Tiện ích Chrome / Edge Extension (v1.3.15 Manifest V3)
 │   ├── manifest.json
 │   ├── background.js          # Service worker đồng bộ với máy chủ port 8000
 │   ├── interceptor.js         # Tiêm page context bắt gói tin mạng Fetch/XHR/WebSocket
 │   ├── content.js             # Bắt câu hỏi DOM, Floating Widget & Zero-Click Auto-Sync
 │   ├── popup.html / popup.js  # Giao diện điều khiển popup & Monospace Debug Log
 │   └── styles.css
-├── frontend/                  # Web Dashboard UI/UX Pro Max (v1.0.17)
+├── frontend/                  # Web Dashboard UI/UX Pro Max (v1.0.24)
 │   ├── index.html             # Single Page Application
 │   ├── css/style.css          # Design system & KaTeX layout
 │   └── js/

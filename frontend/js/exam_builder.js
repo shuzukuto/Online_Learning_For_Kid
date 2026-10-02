@@ -172,6 +172,9 @@ async function renderExamBuilderView() {
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+            <button class="btn btn-success" onclick="exportExamPDF()" id="btn-export-pdf" style="font-weight: 700; background: #059669; border-color: #059669; color: white;">
+              📑 Xuất Đề thi PDF
+            </button>
             <button class="btn btn-primary" onclick="exportExamWordDocx()" id="btn-export-docx" style="font-weight: 700;">
               📄 Xuất file Word (.docx)
             </button>
@@ -296,3 +299,157 @@ async function exportExamWordDocx() {
     btn.innerText = "📄 Xuất file Word (.docx)";
   }
 }
+
+// Math and Science Symbols Normalizer
+if (typeof formatMathSymbols !== "function") {
+  window.formatMathSymbols = function(str) {
+    if (!str) return "";
+    let s = String(str);
+    s = s.replace(/\\times\b/g, '×').replace(/\\cdot\b/g, '·').replace(/\\div\b/g, '÷');
+    s = s.replace(/\\angle\b/g, '∠').replace(/\\Delta\b/g, 'Δ');
+    s = s.replace(/\\pi\b/g, 'π').replace(/\\alpha\b/g, 'α').replace(/\\beta\b/g, 'β')
+         .replace(/\\theta\b/g, 'θ').replace(/\\gamma\b/g, 'γ').replace(/\\lambda\b/g, 'λ');
+    s = s.replace(/\\le\b|\\leq\b/g, '≤').replace(/\\ge\b|\\geq\b/g, '≥').replace(/\\ne\b|\\neq\b/g, '≠');
+    s = s.replace(/\^2\b/g, '²').replace(/\^3\b/g, '³');
+    s = s.replace(/([a-zA-Z0-9])\^2/g, '$1²').replace(/([a-zA-Z0-9])\^3/g, '$1³');
+    s = s.replace(/\bH2O\b/g, 'H₂O').replace(/\bCO2\b/g, 'CO₂').replace(/\bO2\b/g, 'O₂');
+    s = s.replace(/(?<!\$)\\sqrt\{([^}]+)\}(?!\$)/g, '$\\sqrt{$1}$');
+    s = s.replace(/(?<!\$)\\frac\{([^}]+)\}\{([^}]+)\}(?!\$)/g, '$\\frac{$1}{$2}$');
+    return s;
+  };
+}
+
+async function exportExamPDF() {
+  const btn = document.getElementById("btn-export-pdf");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ Đang tạo file PDF...";
+  }
+
+  const payload = {
+    title: document.getElementById("exam-title-input")?.value || "ĐỀ KHẢO SÁT CHẤT LƯỢNG MÔN TOÁN",
+    header_info: document.getElementById("exam-header-input")?.value || "PHÒNG GIÁO DỤC VÀ ĐÀO TẠO",
+    grade: parseInt(document.getElementById("exam-grade-input")?.value) || 5,
+    duration_minutes: parseInt(document.getElementById("exam-duration-input")?.value) || 45,
+    notes: document.getElementById("exam-notes-input")?.value || "Cán bộ coi thi không giải thích gì thêm.",
+    question_ids: examQuestionsList.map(q => q.id)
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/export/pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `De_thi_${payload.grade}_${payload.title.replace(/\s+/g, '_').substring(0, 25)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast("✓ Đã xuất Đề thi PDF chuẩn Bộ GD&ĐT thành công!", "success");
+      return;
+    }
+
+    // Fallback if backend PDF generation returns error
+    console.warn("Backend PDF endpoint returned status:", res.status, "- falling back to client print window");
+    triggerClientPdfPrint(payload, examQuestionsList);
+
+  } catch (err) {
+    console.warn("Network error during PDF export, using client print fallback:", err);
+    triggerClientPdfPrint(payload, examQuestionsList);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "📑 Xuất Đề thi PDF";
+    }
+  }
+}
+
+function triggerClientPdfPrint(payload, questions) {
+  let printArea = document.getElementById("printable-exam-area");
+  if (!printArea) {
+    printArea = document.createElement("div");
+    printArea.id = "printable-exam-area";
+    document.body.appendChild(printArea);
+  }
+
+  const totalQ = questions.length;
+  const pointsPerQ = (10.0 / (totalQ || 1)).toFixed(2);
+
+  const questionsHtml = questions.map((q, idx) => {
+    const cleanStem = typeof formatMathSymbols === 'function' ? formatMathSymbols(q.content_text || q.content_html || "") : (q.content_text || q.content_html || "");
+    const options = q.options || [];
+    return `
+      <div class="exam-question-item">
+        <div style="margin-bottom: 4pt; text-align: justify;"><strong>Câu ${idx + 1}:</strong> ${cleanStem}</div>
+        ${options.length > 0 ? `
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4pt 12pt; padding-left: 14pt; font-size: 11.5pt;">
+            ${options.map(o => `<div><strong>${o.id}.</strong> ${typeof formatMathSymbols === 'function' ? formatMathSymbols(o.content || "") : (o.content || "")}</div>`).join("")}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join("");
+
+  const answerRows = questions.map((q, idx) => {
+    const correctOpt = q.correct_answer || (q.options?.find(o => o.is_correct)?.id) || "A";
+    return `<tr><td style="text-align: center; font-weight: bold;">Câu ${idx + 1}</td><td style="text-align: center; font-weight: bold;">${correctOpt}</td><td style="text-align: center;">${pointsPerQ}</td></tr>`;
+  }).join("");
+
+  printArea.innerHTML = `
+    <div style="padding: 10mm;">
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 12pt;">
+        <tr>
+          <td style="width: 45%; text-align: center; vertical-align: top;">
+            <div style="font-size: 10.5pt; font-weight: bold; text-transform: uppercase;">${payload.header_info}</div>
+            <div style="font-weight: bold; font-size: 11pt; margin-top: 4pt;">MÃ ĐỀ THI: 101</div>
+          </td>
+          <td style="width: 55%; text-align: center; vertical-align: top;">
+            <div style="font-size: 12.5pt; font-weight: bold; text-transform: uppercase;">${payload.title}</div>
+            <div style="font-size: 11pt; font-weight: bold; margin-top: 2pt;">Khối lớp: ${payload.grade} - Thời gian: ${payload.duration_minutes} phút</div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="border: 1px dashed #64748b; padding: 6pt 10pt; margin-bottom: 12pt; font-size: 11pt;">
+        Họ và tên thí sinh: ............................................................................................ Lớp: .................... SBD: ....................
+      </div>
+
+      <div style="margin-bottom: 14pt;">
+        ${questionsHtml}
+      </div>
+
+      <div class="exam-answer-page">
+        <h3 style="text-align: center; text-transform: uppercase; margin-bottom: 12pt;">ĐÁP ÁN VÀ THANG ĐIỂM CHI TIẾT (MÃ ĐỀ 101)</h3>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
+          <thead>
+            <tr style="background: #f1f5f9;">
+              <th style="border: 1px solid #000; padding: 6pt;">Câu hỏi</th>
+              <th style="border: 1px solid #000; padding: 6pt;">Đáp án đúng</th>
+              <th style="border: 1px solid #000; padding: 6pt;">Thang điểm</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${answerRows}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  if (typeof renderMath === "function") {
+    renderMath(printArea);
+  }
+
+  setTimeout(() => {
+    window.print();
+    showToast("Đã mở cửa sổ in ấn / lưu PDF");
+  }, 250);
+}
+

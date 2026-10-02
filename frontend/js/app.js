@@ -1,5 +1,5 @@
 // EduQuest Pro - Core Application & Router
-const APP_VERSION = "v1.0.17";
+const APP_VERSION = "v1.0.24";
 const API_BASE = "http://localhost:8000/api";
 
 let lastKnownQuestionCount = null;
@@ -60,6 +60,7 @@ function switchView(viewName) {
   const titles = {
     dashboard: { title: "Tổng quan Ngân hàng", sub: "Thống kê câu hỏi từ các nền tảng và hoạt động gần đây" },
     bank: { title: "Ngân hàng Câu hỏi", sub: "Tìm kiếm, lọc nâng cao và xem trước công thức Toán học" },
+    practice: { title: "Đấu trường Luyện tập Trực tuyến", sub: "Làm bài thi tính giờ, chấm điểm tự động, phân tích năng lực & huy hiệu thành tích" },
     builder: { title: "Biên soạn & Trộn Đề thi", sub: "Tùy biến đề thi chuẩn format và xuất file Word (.docx)" },
     collector: { title: "Trung tâm Thu thập", sub: "Tiện ích Extension, Bóc tách PDF (TIMO, ASMO) & Cào tự động" },
     manual: { title: "Soạn thảo Câu hỏi Mới", sub: "Trình soạn câu hỏi với hiển thị công thức LaTeX trực tiếp" }
@@ -72,6 +73,7 @@ function switchView(viewName) {
   // View-specific initializers
   if (viewName === "dashboard") loadDashboardStats();
   if (viewName === "bank") loadQuestions();
+  if (viewName === "practice" && typeof initPracticeView === "function") initPracticeView();
   if (viewName === "builder") renderExamBuilderView();
   if (viewName === "collector") loadCollectorLogs();
 }

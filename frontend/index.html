@@ -18,7 +18,7 @@
   <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.21">
+  <link rel="stylesheet" href="css/style.css?v=1.0.28">
 </head>
 <body>
   <div class="app-container">
@@ -29,7 +29,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.17</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.24</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -43,6 +43,11 @@
         <a class="nav-item" data-view="bank">
           <span class="nav-icon">📚</span>
           <span>Ngân hàng Câu hỏi</span>
+        </a>
+        <a class="nav-item" data-view="practice">
+          <span class="nav-icon">🎯</span>
+          <span>Luyện tập Trực tuyến</span>
+          <span class="tag-badge" id="practice-nav-badge" style="margin-left: auto; background: #10b981; color: white;">Mới</span>
         </a>
         <a class="nav-item" data-view="builder">
           <span class="nav-icon">📝</span>
@@ -66,7 +71,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;">Phiên bản: v1.0.1</span>
+          <span style="color: #38bdf8; font-weight: 600;">Phiên bản: v1.0.24</span>
         </div>
       </div>
     </aside>
@@ -221,6 +226,9 @@
               <option value="7">Lớp 7</option>
               <option value="8">Lớp 8</option>
               <option value="9">Lớp 9</option>
+              <option value="10">Lớp 10</option>
+              <option value="11">Lớp 11</option>
+              <option value="12">Lớp 12</option>
             </select>
 
             <select id="filter-source-detail" class="select-filter" onchange="State.filters.source_detail = this.value; State.filters.page = 1; loadQuestions();">
@@ -353,6 +361,9 @@
                 <option value="7">Lớp 7</option>
                 <option value="8">Lớp 8</option>
                 <option value="9">Lớp 9</option>
+                <option value="10">Lớp 10</option>
+                <option value="11">Lớp 11</option>
+                <option value="12">Lớp 12</option>
               </select>
             </div>
             <div class="matrix-input-box">
@@ -416,6 +427,9 @@
               <option value="7">Khối lớp 7</option>
               <option value="8">Khối lớp 8</option>
               <option value="9">Khối lớp 9</option>
+              <option value="10">Khối lớp 10</option>
+              <option value="11">Khối lớp 11</option>
+              <option value="12">Khối lớp 12</option>
             </select>
           </div>
         </div>
@@ -427,7 +441,7 @@
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
               <span style="font-size: 24px;">🔌</span>
               <div>
-                <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.0</span></h3>
+                <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.15</span></h3>
                 <span style="font-size: 12px; color: #10b981; font-weight: 600;">● Tự động bắt trọn 100% đề thi VioEdu & Trạng Nguyên</span>
               </div>
             </div>
@@ -436,33 +450,33 @@
             </p>
 
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; margin-bottom: 16px; line-height: 1.6;">
-              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.0):</strong><br/>
+              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.15):</strong><br/>
               1. Mở Chrome/Edge, vào: <code>chrome://extensions</code><br/>
               2. Bật công tắc <strong>Developer mode (Chế độ cho nhà phát triển)</strong> ở góc trên bên phải.<br/>
               3. Nhấn <strong>Load unpacked (Tải tiện ích đã giải nén)</strong> hoặc bấm 🔄 Làm mới tiện ích đã nạp:<br/>
               <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 600;">g:\Mina\Online_Learning\extension</code>
             </div>
 
-            <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.0 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
-              📁 Vị trí thư mục Extension (v1.3.0)
+            <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.15 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
+              📁 Vị trí thư mục Extension (v1.3.15)
             </button>
           </div>
 
-          <!-- Card 2: PDF Importer (TIMO, HKIMO, ASMO) -->
+          <!-- Card 2: PDF & Image OCR Importer (TIMO, HKIMO, ASMO & Ảnh đề thi) -->
           <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-              <span style="font-size: 24px;">📄</span>
+              <span style="font-size: 24px;">📄🖼️</span>
               <div>
-                <h3 style="font-size: 16px; font-weight: 700;">Bóc tách Đề thi PDF (TIMO, HKIMO, ASMO)</h3>
-                <span style="font-size: 12px; color: #2563eb; font-weight: 600;">Bóc tách tự động chữ, công thức & ảnh đề thi</span>
+                <h3 style="font-size: 16px; font-weight: 700;">Bóc tách Đề thi PDF & Hình ảnh (Image OCR)</h3>
+                <span style="font-size: 12px; color: #2563eb; font-weight: 600;">Hỗ trợ tệp PDF Olympic & Ảnh chụp đề thi (.png, .jpg, .webp)</span>
               </div>
             </div>
 
             <div class="dropzone" id="pdf-dropzone">
               <div class="dropzone-icon">📥</div>
-              <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">Kéo & Thả file PDF đề thi vào đây</h4>
-              <p style="font-size: 12px; color: #64748b;">Hỗ trợ đề thi Olympic TIMO, HKIMO, ASMO, SASMO...</p>
-              <input type="file" id="pdf-file-input" accept=".pdf" style="display: none;" />
+              <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">Kéo & Thả file PDF đề thi hoặc Ảnh chụp vào đây</h4>
+              <p style="font-size: 12px; color: #64748b;">Hỗ trợ PDF (TIMO, ASMO) & Ảnh (.png, .jpg, .jpeg, .webp, .bmp) có xem trước & đối soát</p>
+              <input type="file" id="pdf-file-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp" style="display: none;" />
             </div>
           </div>
         </div>
@@ -512,6 +526,9 @@
                 <option value="7">Khối lớp 7</option>
                 <option value="8">Khối lớp 8</option>
                 <option value="9">Khối lớp 9</option>
+                <option value="10">Khối lớp 10</option>
+                <option value="11">Khối lớp 11</option>
+                <option value="12">Khối lớp 12</option>
               </select>
             </div>
           </div>
@@ -530,33 +547,61 @@
             </div>
           </div>
 
-          <!-- Quick Presets / Gợi ý nguồn cào nhanh -->
-          <div style="margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <span style="font-size: 11.5px; color: #64748b; font-weight: 600;">Gợi ý nguồn nhanh:</span>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/timo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
-              🏆 CodeMath TIMO
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.hacodemath.com/hkimo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
-              🥈 CodeMath HKIMO/BBB
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/sasmo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
-              🥇 CodeMath SASMO/IKMC
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/seamo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
-              ⭐ CodeMath SEAMO/FMO
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=0&classes=2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
-              📘 Hành trang số Lớp 2 (SGK)
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=2&classes=2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
-              📙 Hành trang số Lớp 2 (SBT)
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vio.edu.vn/luyen-tap')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">
-              📐 VioEdu Luyện tập
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://tnmath.edu.vn/luyen-tap')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;">
-              📖 Trạng Nguyên Toán & TV
-            </button>
+          <!-- Quick Presets / Gợi ý nguồn cào nhanh Toán theo Khối Lớp & Đa bộ môn (Tự động cập nhật theo Khối) -->
+          <div id="hunter-grade-presets-container" style="margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
+            <!-- Category 1: Toán Tiếng Việt -->
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;" id="preset-cat-vn">
+              <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;" id="preset-label-vn">🇻🇳 Toán Tiếng Việt:</span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=0&classes=2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+                📘 Hành trang số (SGK Toán)
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vio.edu.vn/luyen-tap')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">
+                📐 VioEdu Luyện tập
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://tnmath.edu.vn/luyen-tap')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;">
+                📖 Trạng Nguyên Toán
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://olm.vn/chu-de/toan-lop-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fdf2f8; color: #9d174d; border: 1px solid #fbcfe8;">
+                🎓 OLM.vn Toán
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vndoc.com/toan-lop-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4;">
+                📝 VnDoc Phiếu Toán
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vietjack.com/toan-lop-2/index.jsp')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fafaf9; color: #44403c; border: 1px solid #e7e5e4;">
+                📚 VietJack Toán
+              </button>
+            </div>
+
+            <!-- Category 2: Toán Tiếng Anh -->
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;" id="preset-cat-en">
+              <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;" id="preset-label-en">🇬🇧 Math (English):</span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.k5learning.com/free-math-worksheets/second-grade-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fefce8; color: #a16207; border: 1px solid #fef08a;">
+                📑 K5 Learning Worksheets
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.ixl.com/math/grade-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+                🎯 IXL Math Skills
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.khanacademy.org/math/cc-2nd-grade-math')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;">
+                🌱 Khan Academy Math
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.commoncoresheets.com')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;">
+                📋 Common Core Math
+              </button>
+            </div>
+
+            <!-- Category 3: Toán Olympic Song ngữ -->
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;" id="preset-cat-olympiad">
+              <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;" id="preset-label-olympiad">🏆 Olympic Song ngữ:</span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://kangaroo-math.vn')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;">
+                🦘 Kangaroo Math (IKMC)
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/timo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+                🏅 TIMO Primary Song ngữ
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/sasmo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+                🥇 SASMO Singapore Math
+              </button>
+            </div>
           </div>
 
           <!-- Danh sách các web/link đã lưu để cào dữ liệu -->
@@ -575,9 +620,14 @@
           </div>
 
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-            <button class="btn btn-primary" id="btn-run-hunter" onclick="runInternetHunter()">
-              ⚡ Bắt đầu Săn câu hỏi từ Internet
-            </button>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <button class="btn btn-primary" id="btn-run-hunter" onclick="runInternetHunter()">
+                ⚡ Bắt đầu Săn câu hỏi từ Internet
+              </button>
+              <button type="button" class="btn btn-success" id="btn-harvest-grade-quick" onclick="harvestCurrentGradeMathQuick()" style="padding: 10px 18px; font-weight: 700; background: linear-gradient(135deg, #059669 0%, #10b981 100%); border: none; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.25); display: inline-flex; align-items: center; gap: 6px;">
+                ✨ Nạp nhanh Đề Toán Khối <span id="harvest-grade-btn-label">2</span> Toàn diện (Anh & Việt)
+              </button>
+            </div>
 
             <!-- Auto-Hunter Loop Toggle -->
             <div style="display: flex; align-items: center; gap: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 8px 14px; border-radius: 8px;">
@@ -591,16 +641,44 @@
             </div>
           </div>
 
-          <div id="hunter-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 12px; padding: 14px; border-radius: 8px; margin-top: 14px; max-height: 160px; overflow-y: auto; white-space: pre-wrap;"></div>
+          <!-- Hunter Live Log Header with Copy & Clear buttons -->
+          <div id="hunter-log-toolbar" style="display: none; justify-content: space-between; align-items: center; margin-top: 14px; margin-bottom: 4px;">
+            <span style="font-size: 12px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 6px;">
+              <span>📋</span> Nhật ký Săn câu hỏi (Mới nhất trên đầu):
+            </span>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copyHunterLiveLog()" title="Sao chép toàn bộ nhật ký săn câu hỏi" style="font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                📋 Sao chép Log
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="clearHunterLiveLog()" title="Xóa màn hình nhật ký" style="font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                🗑️ Xóa Log
+              </button>
+            </div>
+          </div>
+
+          <div id="hunter-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 12px; padding: 14px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6;"></div>
         </div>
 
         <!-- Scraper Bot & Activity Logs Grid -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
           <!-- Automated Scraper -->
           <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
-            <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 10px;">Bot Đăng nhập Tài khoản Cào Vòng thi (Tùy chọn)</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+              <h3 style="font-size: 15px; font-weight: 700; margin: 0;">🤖 Bot Đăng nhập Tài khoản Cào Vòng thi Tự động</h3>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="bot-auto-crawl-badge" class="status-badge-pulsing" style="display: none;">
+                  <div class="pulse-dot"></div>
+                  <span>ĐANG TỰ ĐỘNG CÀO</span>
+                  <span id="bot-countdown-display" class="countdown-timer-text">05:00</span>
+                </div>
+                <label class="toggle-switch" title="Bật/Tắt tự động cào định kỳ 5 phút">
+                  <input type="checkbox" id="bot-auto-crawl-toggle" onchange="toggleBotAutoCrawl(this.checked)" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
             <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; color: #1e40af; line-height: 1.5;">
-              ℹ️ <strong>Lưu ý quan trọng</strong>: Nền tảng VioEdu áp dụng tường lửa bảo mật Cloudflare/Captcha đối với kết nối Bot trực tiếp. <strong>Giải pháp tối ưu & an toàn:</strong> Sử dụng <strong>Tiện ích Extension v1.3.1</strong> trên Chrome/Edge — tiện ích có nút <em>"🚀 Cào tất cả câu hỏi trên trang này"</em> giúp tự động thu thập trọn bộ hàng trăm câu hỏi từ các bài học & luyện tập mà không cần trả lời từng câu!
+              🚀 <strong>Bot Tự Động Đăng Nhập Ngầm (Headless Playwright):</strong> Bot tự động chạy ngầm, đăng nhập vào VioEdu bằng tài khoản của bạn, <strong>tự động nhận diện Khối lớp cố định của tài khoản</strong>, tìm kiếm các vòng thi / đấu trường / bài thi và cào trọn bộ câu hỏi lưu trực tiếp vào CSDL.
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px;">
               <div class="form-group">
@@ -614,7 +692,7 @@
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                 <div class="form-group">
                   <label class="form-label">Tài khoản (Tự động ghi nhớ)</label>
-                  <input type="text" id="scraper-username" class="form-control" placeholder="Tên đăng nhập" oninput="localStorage.setItem('eduquest_scraper_user', this.value)" />
+                  <input type="text" id="scraper-username" class="form-control" placeholder="Tên đăng nhập VioEdu" oninput="localStorage.setItem('eduquest_scraper_user', this.value)" />
                 </div>
                 <div class="form-group">
                   <label class="form-label">Mật khẩu</label>
@@ -624,7 +702,7 @@
 
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                 <div class="form-group">
-                  <label class="form-label">Khối lớp</label>
+                  <label class="form-label">Khối lớp (Tự động theo tài khoản VioEdu cố định)</label>
                   <select id="scraper-grade" class="form-control" onchange="onGradeSelectChanged(this.value)">
                     <option value="1">Khối 1</option>
                     <option value="2">Khối 2</option>
@@ -635,27 +713,46 @@
                     <option value="7">Khối 7</option>
                     <option value="8">Khối 8</option>
                     <option value="9">Khối 9</option>
+                    <option value="10">Khối 10</option>
+                    <option value="11">Khối 11</option>
+                    <option value="12">Khối 12</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Vòng thi / Mã Đấu trường</label>
-                  <input type="text" id="scraper-round" class="form-control" placeholder="vd: 1, 2 hoặc ma_dau_truong" oninput="localStorage.setItem('eduquest_scraper_round', this.value)" />
+                  <label class="form-label">Vòng thi / Link bài luyện tập (Tùy chọn)</label>
+                  <input type="text" id="scraper-round" class="form-control" placeholder="vd: 1, link skill-practice/..., skill-list hoặc để trống" oninput="localStorage.setItem('eduquest_scraper_round', this.value)" />
                 </div>
               </div>
 
-              <button class="btn btn-primary" onclick="runAutoScraper()" style="margin-top: 6px;">
+              <button class="btn btn-primary" id="btn-run-scraper" onclick="runAutoScraper()" style="margin-top: 6px;">
                 🚀 Bắt đầu cào dữ liệu
               </button>
 
-              <div id="scraper-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 11.5px; padding: 12px; border-radius: 8px; max-height: 140px; overflow-y: auto; white-space: pre-wrap;"></div>
+              <!-- Scraper Live Log Header with Copy & Clear buttons -->
+              <div id="scraper-log-toolbar" style="display: none; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 4px;">
+                <span style="font-size: 12px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 6px;">
+                  <span>📋</span> Nhật ký trực tiếp (Mới nhất trên đầu):
+                </span>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="copyScraperLiveLog()" title="Sao chép toàn bộ nhật ký của Bot" style="font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                    📋 Sao chép Log
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="clearScraperLiveLog()" title="Xóa màn hình nhật ký" style="font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                    🗑️ Xóa Log
+                  </button>
+                </div>
+              </div>
+
+              <div id="scraper-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 11.5px; padding: 12px; border-radius: 8px; max-height: 180px; overflow-y: auto; white-space: pre-wrap;"></div>
             </div>
           </div>
 
           <!-- Collector Logs -->
           <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-              <h3 style="font-size: 15px; font-weight: 700;">Nhật ký Hoạt động Thu thập & Debug</h3>
-              <div style="display: flex; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+              <h3 style="font-size: 15px; font-weight: 700; margin: 0;">Nhật ký Hoạt động Thu thập & Debug</h3>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button class="btn btn-primary btn-sm" onclick="openCaptureLogsModal()" title="Xem danh sách câu hỏi đã bắt và nạp lại vào CSDL" style="background: #4f46e5; border-color: #4f46e5;">📋 Bắt câu hỏi (Logs)</button>
                 <button class="btn btn-secondary btn-sm" onclick="copyCollectorLogs()" title="Sao chép toàn bộ nhật ký debug">📋 Sao chép</button>
                 <button class="btn btn-secondary btn-sm" onclick="clearAllCollectorLogs()" title="Xóa sạch nhật ký">🗑️ Xóa</button>
                 <button class="btn btn-secondary btn-sm" onclick="loadCollectorLogs()">🔄 Làm mới</button>
@@ -667,11 +764,349 @@
           </div>
         </div>
       </main>
-            <div id="collector-logs-list" style="display: flex; flex-direction: column; max-height: 280px; overflow-y: auto;">
-              <!-- Filled by JS -->
+
+      <!-- View 6: Interactive Practice Arena (R5) -->
+      <main class="view-container" id="view-practice">
+
+        <!-- 1. Practice Lobby -->
+        <div id="practice-lobby" class="practice-container">
+          <!-- Navigation Tabs -->
+          <div class="practice-nav-tabs">
+            <button class="practice-tab-btn active" data-tab="start" onclick="switchPracticeTab('start')">
+              🎯 Vào thi Luyện tập
+            </button>
+            <button class="practice-tab-btn" data-tab="trending" onclick="switchPracticeTab('trending')">
+              📈 Xu hướng Điểm số
+            </button>
+            <button class="practice-tab-btn" data-tab="mastery" onclick="switchPracticeTab('mastery')">
+              🧠 Năng lực Bộ môn
+            </button>
+            <button class="practice-tab-btn" data-tab="badges" onclick="switchPracticeTab('badges')">
+              🏆 Huy hiệu Thành tích
+            </button>
+            <button class="practice-tab-btn" data-tab="history" onclick="switchPracticeTab('history')">
+              📜 Lịch sử Làm bài
+            </button>
+          </div>
+
+          <!-- Tab 1: Start Practice Setup -->
+          <div id="tab-practice-start">
+            <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-xl); padding: 26px; box-shadow: var(--shadow-sm); margin-top: 16px;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                <span style="font-size: 32px;">🎯</span>
+                <div>
+                  <h3 style="font-size: 18px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">Cấu hình Đấu trường Luyện tập Trực tuyến</h3>
+                  <p style="font-size: 13px; color: #64748b; margin: 0;">Lựa chọn bộ môn, khối lớp và thời gian làm bài để hệ thống tự động sinh đề thi trắc nghiệm.</p>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                <div class="form-group">
+                  <label class="form-label">Chọn Bộ Môn</label>
+                  <select id="practice-subject-select" class="form-control" style="font-weight: 700;">
+                    <option value="math">📐 Môn Toán học (Olympic & Học đường)</option>
+                    <option value="vietnamese">📖 Môn Tiếng Việt (Trạng Nguyên, Đọc hiểu)</option>
+                    <option value="english">🇬🇧 Môn Tiếng Anh (IOE, Ngữ pháp, Từ vựng)</option>
+                    <option value="science">🔬 Môn Khoa học & Tự nhiên</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Khối lớp</label>
+                  <select id="practice-grade-select" class="form-control" style="font-weight: 700;">
+                    <option value="1">Khối 1</option>
+                    <option value="2">Khối 2</option>
+                    <option value="3">Khối 3</option>
+                    <option value="4">Khối 4</option>
+                    <option value="5" selected>Khối 5</option>
+                    <option value="6">Khối 6</option>
+                    <option value="7">Khối 7</option>
+                    <option value="8">Khối 8</option>
+                    <option value="9">Khối 9</option>
+                    <option value="10">Khối 10</option>
+                    <option value="11">Khối 11</option>
+                    <option value="12">Khối 12</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Số lượng câu hỏi</label>
+                  <select id="practice-count-select" class="form-control">
+                    <option value="5">5 câu (Khởi động)</option>
+                    <option value="10" selected>10 câu (Tiêu chuẩn)</option>
+                    <option value="15">15 câu (Đầy đủ)</option>
+                    <option value="20">20 câu (Chuyên sâu)</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Thời gian làm bài</label>
+                  <select id="practice-duration-select" class="form-control">
+                    <option value="5">5 phút</option>
+                    <option value="10">10 phút</option>
+                    <option value="15" selected>15 phút</option>
+                    <option value="20">20 phút</option>
+                    <option value="30">30 phút</option>
+                    <option value="45">45 phút</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Độ khó câu hỏi</label>
+                  <select id="practice-difficulty-select" class="form-control">
+                    <option value="all" selected>Tất cả mức độ</option>
+                    <option value="Nhận biết">Nhận biết</option>
+                    <option value="Thông hiểu">Thông hiểu</option>
+                    <option value="Vận dụng">Vận dụng</option>
+                    <option value="Vận dụng cao">Vận dụng cao</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                <button class="btn btn-primary" id="btn-start-practice" onclick="startPracticeSession()" style="font-size: 15px; font-weight: 800; padding: 12px 28px; background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+                  🚀 BẮT ĐẦU LÀM BÀI
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Trending Score Chart -->
+          <div id="tab-practice-trending" style="display: none; margin-top: 16px;">
+            <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-xl); padding: 26px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                  <h3 style="font-size: 17px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">📈 Biểu đồ Xu hướng Điểm số (Trending Score Chart)</h3>
+                  <p style="font-size: 13px; color: #64748b; margin: 0;">Theo dõi tiến độ học tập và điểm số qua các lượt làm bài gần nhất</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="renderTrendingChart()">🔄 Làm mới biểu đồ</button>
+              </div>
+
+              <div id="trending-summary-stats"></div>
+
+              <div style="position: relative; width: 100%; overflow-x: auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--radius-lg); padding: 16px;">
+                <canvas id="trending-score-canvas" width="850" height="320" style="width: 100%; max-width: 850px; height: 320px; display: block; margin: 0 auto;"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Skill & Subject Mastery -->
+          <div id="tab-practice-mastery" style="display: none; margin-top: 16px;">
+            <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-xl); padding: 26px; box-shadow: var(--shadow-sm);">
+              <div style="margin-bottom: 20px;">
+                <h3 style="font-size: 17px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">🧠 Phân tích Năng lực Bộ môn (Skill & Subject Mastery)</h3>
+                <p style="font-size: 13px; color: #64748b; margin: 0;">Đánh giá tỷ lệ thành thạo và mức độ am hiểu kiến thức theo từng môn học</p>
+              </div>
+
+              <div id="skill-mastery-container" class="mastery-grid">
+                <!-- Filled by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 4: Achievements & Badges -->
+          <div id="tab-practice-badges" style="display: none; margin-top: 16px;">
+            <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-xl); padding: 26px; box-shadow: var(--shadow-sm);">
+              <div style="margin-bottom: 20px;">
+                <h3 style="font-size: 17px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">🏆 Hệ thống Huy hiệu & Thành tích (8 Achievements)</h3>
+                <p style="font-size: 13px; color: #64748b; margin: 0;">Mở khóa các danh hiệu học tập xuất sắc khi bạn hoàn thành các cột mốc luyện tập</p>
+              </div>
+
+              <div id="achievements-badges-container" class="badges-grid">
+                <!-- Filled by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 5: Practice History -->
+          <div id="tab-practice-history" style="display: none; margin-top: 16px;">
+            <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-xl); padding: 26px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                  <h3 style="font-size: 17px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">📜 Lịch sử Làm bài Thi & Luyện tập</h3>
+                  <p style="font-size: 13px; color: #64748b; margin: 0;">Toàn bộ các lần thi đã lưu trữ vào SQLite DB và localStorage</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="loadPracticeHistory()">🔄 Tải lại lịch sử</button>
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table class="table" style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-size: 12.5px; text-transform: uppercase;">
+                      <th>Thời gian</th>
+                      <th>Tên bài thi</th>
+                      <th>Bộ môn</th>
+                      <th>Khối</th>
+                      <th>Điểm số</th>
+                      <th>Xếp loại</th>
+                      <th>Thời gian làm</th>
+                    </tr>
+                  </thead>
+                  <tbody id="practice-history-tbody">
+                    <!-- Filled by JS -->
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
+
+        <!-- 2. Active Exam Arena (HUD, Central Question Card & Stepper Grid) -->
+        <div id="practice-active-arena" style="display: none;" class="practice-container">
+          <!-- Fixed HUD Header -->
+          <div class="arena-hud">
+            <div class="hud-title-box">
+              <h3 id="arena-title-text" style="font-size: 16px; font-weight: 800; color: #0f172a; margin: 0;">Bài Thi Trực Tuyến</h3>
+              <span id="arena-meta-text" style="font-size: 12.5px; color: #64748b;">Môn: Toán • Khối 5</span>
+            </div>
+
+            <!-- Countdown Timer Display -->
+            <div id="arena-timer" class="hud-timer-badge">
+              ⏱️ 15:00
+            </div>
+
+            <!-- Progress Bar -->
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 180px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700;">
+                <span id="arena-progress-text" style="color: #475569;">Đã làm 0/10 câu (0%)</span>
+              </div>
+              <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                <div id="arena-progress-fill" style="width: 0%; height: 100%; background: #2563eb; transition: width 0.3s ease;"></div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-flag-question" onclick="toggleFlagCurrentQuestion()" style="font-weight: 700;">
+                🏳️ Đánh dấu xem lại
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-submit-exam" onclick="confirmSubmitPracticeExam()" style="font-weight: 800; background: #059669; border-color: #059669;">
+                ✓ Nộp bài
+              </button>
+            </div>
+          </div>
+
+          <!-- Arena Main Layout: Question + Stepper Grid -->
+          <div class="arena-layout-grid">
+            <!-- Left: Question Card -->
+            <div class="arena-main-card">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="q-number-pill" id="arena-q-index-pill" style="font-size: 13.5px; padding: 4px 12px;">Câu 1 / 10</span>
+                <span style="font-size: 12px; color: #64748b;">Dùng phím tắt <strong>1, 2, 3, 4</strong> hoặc <strong>A, B, C, D</strong> để chọn</span>
+              </div>
+
+              <!-- Question Stem -->
+              <div id="arena-q-stem" class="arena-q-stem">
+                Đang tải câu hỏi...
+              </div>
+
+              <!-- Optional Image -->
+              <div id="arena-q-image-box" style="display: none; text-align: center;"></div>
+
+              <!-- Options Grid -->
+              <div id="arena-options-container" class="arena-options-grid">
+                <!-- Filled by JS -->
+              </div>
+
+              <!-- Navigation Controls -->
+              <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 16px; margin-top: 10px;">
+                <button type="button" class="btn btn-secondary" id="btn-arena-prev" onclick="prevPracticeQuestion()">
+                  ⬅ Câu trước
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-arena-next" onclick="nextPracticeQuestion()">
+                  Câu tiếp ➡
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: Stepper Grid Panel -->
+            <div class="stepper-panel">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="font-size: 14px; font-weight: 800; color: #0f172a; margin: 0;">Lưới điều hướng</h4>
+                <span style="font-size: 11px; color: #64748b;">(Nhấn để chuyển câu)</span>
+              </div>
+
+              <div id="question-stepper-grid" class="stepper-grid">
+                <!-- Stepper buttons filled by JS -->
+              </div>
+
+              <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; color: #64748b;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 14px; height: 14px; background: #2563eb; border-radius: 3px; display: inline-block;"></span>
+                  <span>Đã làm</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 14px; height: 14px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 3px; display: inline-block;"></span>
+                  <span>Chưa làm</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 14px; height: 14px; background: #f59e0b; border-radius: 3px; display: inline-block;"></span>
+                  <span>Đã gắn cờ 🚩</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Result & Detailed Review View -->
+        <div id="practice-result-view" style="display: none;" class="practice-container">
+          <!-- Summary Card -->
+          <div class="score-summary-card">
+            <div>
+              <span style="font-size: 13px; text-transform: uppercase; font-weight: 700; opacity: 0.9; letter-spacing: 0.5px;">KẾT QUẢ BÀI THI</span>
+              <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 6px;">
+                <span id="result-score-10" class="score-badge-huge">9.0 / 10</span>
+                <span id="result-score-100" style="font-size: 20px; font-weight: 700; opacity: 0.9;">(90 điểm)</span>
+              </div>
+              <div style="margin-top: 10px;">
+                <span id="result-rank-badge" class="rank-badge-pill rank-xuat-sac">Xếp loại: Xuất sắc</span>
+              </div>
+            </div>
+
+            <!-- Stats Column -->
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 24px; font-size: 13.5px;">
+              <div>⏱️ Thời gian: <strong id="res-stat-time">08m 30s</strong></div>
+              <div>🎯 Tỷ lệ đúng: <strong id="res-stat-accuracy">90%</strong></div>
+              <div>✅ Số câu đúng: <strong id="res-stat-correct" style="color: #bbf7d0;">9 câu</strong></div>
+              <div>❌ Số câu sai: <strong id="res-stat-wrong" style="color: #fecdd3;">1 câu</strong></div>
+              <div>⏭️ Số câu bỏ qua: <strong id="res-stat-skipped">0 câu</strong></div>
+            </div>
+
+            <!-- CTA Actions -->
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn btn-light" onclick="returnToPracticeLobby()" style="background: white; color: #1e3a8a; font-weight: 800;">
+                🔄 Làm bài kiểm tra khác
+              </button>
+              <button class="btn btn-outline-light" onclick="switchPracticeTab('trending'); document.getElementById('practice-result-view').style.display='none'; document.getElementById('practice-lobby').style.display='block';" style="border-color: rgba(255,255,255,0.7); color: white;">
+                📈 Xem biểu đồ xu hướng
+              </button>
+            </div>
+          </div>
+
+          <!-- Unlocked Badges Banner -->
+          <div id="result-new-badges-banner" style="display: none; background: #fef3c7; border: 1px solid #fde68a; border-radius: var(--radius-lg); padding: 14px 20px; align-items: center; gap: 12px;">
+            <span style="font-size: 28px;">🏆</span>
+            <div>
+              <strong style="color: #92400e; font-size: 14px;">Thành tích mới đạt được!</strong>
+              <div id="result-new-badges-text" style="color: #b45309; font-size: 13px;">Chúc mừng bạn đã mở khóa huy hiệu mới!</div>
+            </div>
+          </div>
+
+          <!-- Review List Container -->
+          <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-xl); padding: 24px; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <div>
+                <h3 style="font-size: 17px; font-weight: 800; color: #0f172a; margin: 0;">📑 Xem lại Chi tiết Từng Câu & Hướng dẫn Giải</h3>
+                <p style="font-size: 12.5px; color: #64748b; margin: 2px 0 0 0;">Màu xanh lá biểu thị đáp án đúng, màu đỏ là lựa chọn sai của bạn.</p>
+              </div>
+            </div>
+
+            <div id="practice-review-list">
+              <!-- Question cards filled by JS -->
+            </div>
+          </div>
+        </div>
+
       </main>
 
       <!-- View 5: Manual Question Editor -->
@@ -823,6 +1258,9 @@
               <option value="7">Lớp 7</option>
               <option value="8">Lớp 8</option>
               <option value="9">Lớp 9</option>
+              <option value="10">Lớp 10</option>
+              <option value="11">Lớp 11</option>
+              <option value="12">Lớp 12</option>
             </select>
           </div>
           <div class="form-group">
@@ -970,6 +1408,52 @@
     </div>
   </div>
 
+  <!-- Modal Submit Confirmation (Practice Arena) -->
+  <div class="modal-overlay" id="modal-submit-confirm" style="display: none; z-index: 9999;">
+    <div class="modal-content" style="max-width: 480px; padding: 24px;">
+      <div id="submit-confirm-msg"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px;">
+        <button type="button" class="btn btn-secondary" onclick="closeSubmitConfirmModal()">Tiếp tục làm bài</button>
+        <button type="button" class="btn btn-primary" onclick="submitPracticeExam(true)" style="background: #059669; border-color: #059669; font-weight: 700;">
+          Xác nhận Nộp bài
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Question Capture Logs (R6) -->
+  <div class="modal-overlay" id="modal-capture-logs" style="display: none; z-index: 9999;">
+    <div class="modal-content" style="max-width: 850px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 700; color: #4338ca; display: flex; align-items: center; gap: 8px;">
+            <span>📋</span> Nhật ký Bắt câu hỏi (Question Capture Logs)
+          </h3>
+          <p style="font-size: 12.5px; color: #64748b; margin: 2px 0 0 0;">
+            Xem lại các câu hỏi vừa thu thập từ VioEdu, VnDoc, Extension & OCR; hỗ trợ làm sạch và nạp lại vào CSDL.
+          </p>
+        </div>
+        <button class="modal-close-btn" onclick="closeCaptureLogsModal()">✕</button>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #eef2ff; border: 1px solid #c7d2fe; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" onclick="renderCapturedQuestionsView('cards')">Thẻ câu hỏi</button>
+          <button class="btn btn-secondary btn-sm" onclick="renderCapturedQuestionsView('json')">Mã JSON thô</button>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-reinject-questions" onclick="reinjectCapturedQuestions()" style="background: #4f46e5; border-color: #4338ca; font-weight: 700;">
+          ⚡ Làm sạch & Nạp lại vào CSDL
+        </button>
+      </div>
+
+      <div id="capture-logs-content"></div>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+        <button type="button" class="btn btn-secondary" onclick="closeCaptureLogsModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -978,10 +1462,11 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.21"></script>
-  <script src="js/bank.js?v=1.0.21"></script>
-  <script src="js/exam_builder.js?v=1.0.21"></script>
-  <script src="js/collector.js?v=1.0.21"></script>
+  <script src="js/app.js?v=1.0.28"></script>
+  <script src="js/bank.js?v=1.0.28"></script>
+  <script src="js/exam_builder.js?v=1.0.28"></script>
+  <script src="js/collector.js?v=1.0.28"></script>
+  <script src="js/practice.js?v=1.0.28"></script>
 
   <!-- Manual Question Live Preview Script -->
   <script>

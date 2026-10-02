@@ -1,5 +1,5 @@
 from typing import List, Optional, Any, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices, model_validator, ConfigDict
 from datetime import datetime
 
 class OptionItem(BaseModel):
@@ -97,3 +97,88 @@ class AutoExamGenerateRequest(BaseModel):
 class CleanDuplicatesRequest(BaseModel):
     action: str = "keep_oldest"  # "keep_oldest", "keep_newest", "delete_ids"
     delete_ids: Optional[List[str]] = None
+
+
+# ----------------- Interactive Practice Arena Models -----------------
+
+class PracticeAnswerSubmission(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    question_id: str
+    selected_answer: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("selected_answer", "selected_option", "user_answer")
+    )  # "A", "B", "C", "D" or text
+    time_spent_seconds: Optional[int] = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def unify_answer_key(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            ans = data.get("selected_answer")
+            if ans is None:
+                ans = data.get("selected_option")
+            if ans is None:
+                ans = data.get("user_answer")
+            if ans is not None:
+                data["selected_answer"] = str(ans).strip()
+        return data
+
+class PracticeSubmitRequest(BaseModel):
+    exam_id: Optional[str] = None
+    exam_title: str = "Bài luyện tập trực tuyến"
+    subject: str = "math"
+    grade: int = 5
+    duration_seconds: int = 1800  # Allowed time (seconds)
+    time_spent_seconds: int = 0   # Actual time spent
+    answers: List[PracticeAnswerSubmission]
+
+class PracticeHistoryResponse(BaseModel):
+    id: str
+    exam_id: Optional[str] = None
+    exam_title: str
+    subject: str
+    grade: int
+    total_questions: int
+    correct_count: int
+    wrong_count: int
+    skipped_count: int
+    score: float
+    max_score: float
+    score_100: Optional[float] = None
+    duration_seconds: int
+    time_spent_seconds: int
+    ranking: str
+    created_at: str
+    answers_detail: Optional[List[Dict[str, Any]]] = None
+
+class SubjectMastery(BaseModel):
+    subject: str
+    subject_label: str
+    attempts: int
+    total_questions: int
+    correct_count: int
+    accuracy_rate: float
+    average_score: float
+
+class BadgeItem(BaseModel):
+    id: str
+    title: str
+    description: str
+    icon: str
+    category: str
+    unlocked: bool
+    unlocked_at: Optional[str] = None
+    progress: Optional[str] = None
+
+class PracticeAnalyticsResponse(BaseModel):
+    total_attempts: int
+    total_questions_answered: int
+    total_correct: int
+    overall_accuracy: float
+    average_score: float
+    highest_score: float
+    trending_scores: List[Dict[str, Any]]
+    subject_mastery: List[SubjectMastery]
+    recent_history: List[PracticeHistoryResponse]
+    badges: List[BadgeItem]
+

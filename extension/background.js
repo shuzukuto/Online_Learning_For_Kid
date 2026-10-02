@@ -1,7 +1,7 @@
-// EduQuest Collector - Background Service Worker v1.3.12
+// EduQuest Collector - Background Service Worker v1.3.15
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("EduQuest Collector Extension v1.3.12 installed successfully.");
+  console.log("EduQuest Collector Extension v1.3.15 installed successfully.");
 });
 
 // Relay message from content script or popup to local EduQuest API

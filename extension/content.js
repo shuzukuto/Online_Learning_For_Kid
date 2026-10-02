@@ -1,6 +1,6 @@
-// EduQuest Collector v1.3.12 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
+// EduQuest Collector v1.3.15 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
 (function () {
-  console.log("%c[EduQuest Collector v1.3.12] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
+  console.log("%c[EduQuest Collector v1.3.15] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
 
   let capturedQuestions = [];
   let autoSaveEnabled = localStorage.getItem("eduquest_autosave") !== "false"; // Default ON (True)
@@ -272,7 +272,7 @@
       this.remove();
     };
     (document.head || document.documentElement).appendChild(script);
-    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.11 vào trang", "info");
+    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.15 vào trang", "info");
   } catch (e) {
     addLog("Lỗi tiêm Interceptor: " + e.message, "error");
   }
@@ -307,9 +307,9 @@
     if (!/\s/.test(clean) && clean.length > 20) return false;
     if (/^\d+$/.test(clean)) return false;
 
-    // Check if card has an educational image, formula, or canvas (Never count icons, robot avatars, choice containers or radios as rich content)
+    // Check if card has an educational image, formula, or canvas (Never count icons, robot avatars, choice containers, stars or badges as rich content)
     const hasCardRichContent = card && Boolean(
-      card.querySelector("img:not([class*='icon']):not([class*='avatar']):not([class*='logo']):not([src*='Robot']):not([src*='robot']), span.math-tex, mjx-container, [data-latex], canvas")
+      card.querySelector("img:not([class*='icon']):not([class*='avatar']):not([class*='logo']):not([src*='Robot']):not([src*='robot']):not([src*='star_practice']):not([src*='diamondComing']):not([src*='practiceCup']):not([src*='Practice']):not([class*='_1Z8DV']):not([class*='vjy-S']):not([class*='_3JKzW']), span.math-tex, mjx-container, [data-latex], canvas")
     );
 
     // 2. Reject boilerplate-only text WITHOUT rich media
@@ -332,6 +332,21 @@
       /nhật ký hoạt động/i,
       /debug log/i,
       // LMS / VioEdu Resume & Confirmation Dialogs, Progress Bars & Loading
+      /cách tính điểm/i,
+      /tổng điểm\s*</i,
+      /đúng cộng \d+ điểm/i,
+      /sai trừ \d+ điểm/i,
+      /\b\d+\s*\/\s*100\b/,
+      // VnDoc Video items, online courses, and category navigation
+      /video mở đầu/i,
+      /video bài đọc/i,
+      /khóa học lớp \d/i,
+      /học online toán/i,
+      /học online tiếng việt/i,
+      /học online luyện từ/i,
+      /kh luyện từ/i,
+      /tìm bài trong mục này/i,
+      /tất cả chân trời kết nối cánh diều/i,
       /\bbạn đã hoàn thành\b/i,
       /\bhoàn thành\s*\d+\s*(?:\/\s*\d+)?\s*(?:câu|%)?/i,
       /\b\d+\s*\/\s*\d+\s*câu\b/i,
@@ -533,6 +548,11 @@
     if (host.includes("loigiaihay.com")) return "loigiaihay";
     if (host.includes("vndoc.com")) return "vndoc";
     if (host.includes("hoc247.net")) return "hoc247";
+    if (host.includes("olm.vn")) return "olm";
+    if (host.includes("k5learning.com")) return "k5learning";
+    if (host.includes("ixl.com")) return "ixl";
+    if (host.includes("khanacademy.org")) return "khanacademy";
+    if (host.includes("kangaroo")) return "kangaroo";
     if (host.includes("timo")) return "timo";
     if (host.includes("hkimo")) return "hkimo";
     if (host.includes("asmo")) return "asmo";
@@ -541,28 +561,95 @@
   }
 
   function detectGrade() {
-    const text = ((document.title || "") + " " + (document.body ? document.body.innerText.substring(0, 3000) : "") + " " + window.location.href);
-    const m = text.match(/lớp\s*([1-9]|1[0-2])/i) || text.match(/lop-?([1-9]|1[0-2])/i) || text.match(/classes=([1-9]|1[0-2])/i);
-    return m ? parseInt(m[1]) : 2;
+    const url = window.location.href.toLowerCase();
+    const title = (document.title || "").toLowerCase();
+    const bodyHead = (document.body ? document.body.innerText.substring(0, 3000) : "").toLowerCase();
+    const fullText = title + " " + bodyHead + " " + url;
+
+    // 1. Check English ordinals in URL
+    const ordinalMap = {
+      "first-grade": 1, "1st-grade": 1,
+      "second-grade": 2, "2nd-grade": 2,
+      "third-grade": 3, "3rd-grade": 3,
+      "fourth-grade": 4, "4th-grade": 4,
+      "fifth-grade": 5, "5th-grade": 5,
+      "sixth-grade": 6, "6th-grade": 6,
+      "seventh-grade": 7, "7th-grade": 7,
+      "eighth-grade": 8, "8th-grade": 8,
+      "ninth-grade": 9, "9th-grade": 9,
+      "tenth-grade": 10, "10th-grade": 10,
+      "eleventh-grade": 11, "11th-grade": 11,
+      "twelfth-grade": 12, "12th-grade": 12
+    };
+    for (const [key, val] of Object.entries(ordinalMap)) {
+      if (url.includes(key)) return val;
+    }
+
+    // 2. Check standard regex patterns across query params, path, title, and body
+    const m = url.match(/classes=([1-9]|1[0-2])\b/) ||
+              url.match(/(?:toan-lop|lop|grade)-([1-9]|1[0-2])\b/) ||
+              fullText.match(/lớp\s*([1-9]|1[0-2])\b/) ||
+              fullText.match(/khối\s*([1-9]|1[0-2])\b/) ||
+              fullText.match(/grade\s*([1-9]|1[0-2])\b/);
+    if (m) return parseInt(m[1]);
+
+    // 3. Fallback to user-selected grade in local storage if present
+    try {
+      const saved = localStorage.getItem("eduquest_selected_grade") || localStorage.getItem("eduquest_default_grade");
+      if (saved) {
+        const parsed = parseInt(saved);
+        if (parsed >= 1 && parsed <= 12) return parsed;
+      }
+    } catch (e) {}
+
+    return 5;
   }
 
   function detectSubject() {
-    const text = ((document.title || "") + " " + (document.body ? document.body.innerText.substring(0, 3000) : "") + " " + window.location.href).toLowerCase();
-    if (text.includes("tiếng việt") || text.includes("tieng-viet") || text.includes("tieng viet") || text.includes("ngữ văn") || text.includes("tập đọc") || text.includes("đọc hiểu") || text.includes("chính tả") || text.includes("luyện từ và câu") || text.includes("kể chuyện")) return "vietnamese";
-    if (text.includes("tiếng anh") || text.includes("tieng-anh") || text.includes("english") || text.includes("ioe")) return "english";
-    if (text.includes("khoa học") || text.includes("khoa-hoc") || text.includes("science")) return "science";
-    if (text.includes("lịch sử") || text.includes("địa lí") || text.includes("lich-su")) return "history";
+    const host = window.location.hostname.toLowerCase();
+    const title = (document.title || "").toLowerCase();
+    const url = window.location.href.toLowerCase();
+
+    // 1. Strict Priority 1: Check document title and URL explicitly
+    if (title.includes("toán") || title.includes("math") || url.includes("/toan-") || url.includes("/math-") || url.includes("tnmath")) return "math";
+    if (title.includes("tiếng việt") || title.includes("tieng-viet") || title.includes("tieng viet") || title.includes("ngữ văn") || title.includes("luyện từ và câu") || title.includes("tập đọc") || title.includes("chính tả")) return "vietnamese";
+    if (title.includes("tiếng anh") || title.includes("tieng-anh") || title.includes("english") || url.includes("/tieng-anh") || url.includes("ioe.vn")) return "english";
+    if (title.includes("khoa học") || title.includes("science")) return "science";
+    if (title.includes("lịch sử") || title.includes("địa lí")) return "history";
+
+    // 2. Check breadcrumbs or specific subject headers in DOM
+    const subjectEl = document.querySelector(".subject-name, .breadcrumb, .exam-subject, [class*='subject']");
+    if (subjectEl) {
+      const sTxt = subjectEl.innerText.toLowerCase();
+      if (sTxt.includes("toán") || sTxt.includes("math")) return "math";
+      if (sTxt.includes("tiếng việt") || sTxt.includes("ngữ văn")) return "vietnamese";
+      if (sTxt.includes("tiếng anh") || sTxt.includes("english")) return "english";
+    }
+
+    if (host.includes("k5learning") || host.includes("ixl") || host.includes("khanacademy")) {
+      return "math";
+    }
+
     return "math";
   }
 
   function isEduLearningActive() {
     const host = window.location.hostname.toLowerCase();
+    if (host.includes("vndoc.com")) {
+      const p = window.location.pathname.toLowerCase();
+      // On VnDoc, only active on actual quiz/test/exercise pages, never on root homepage or video indices
+      if (p.includes("/trac-nghiem-") || p.includes("/de-thi-") || p.includes("/bai-tap-") || p.includes("/de-kiem-tra-") || p.includes("/phieu-bai-tap-")) return true;
+      return Boolean(document.querySelector(".cau-hoi, .bai-tap, .question-item, .item-quiz, .content-question, [class*='question-item']"));
+    }
     if (host.includes("vio.edu.vn") || host.includes("trangnguyen.edu.vn") ||
         host.includes("tnmath.edu.vn") || host.includes("hanhtrangso.nxbgd.vn") ||
         host.includes("vietjack.com") || host.includes("loigiaihay.com") ||
-        host.includes("vndoc.com") || host.includes("hoc247.net") ||
-        host.includes("lmsfermat.edu.vn") || host.includes("asmo.vn") ||
-        host.includes("violympic.vn") || host.includes("ioe.vn")) {
+        host.includes("hoc247.net") ||
+        host.includes("olm.vn") || host.includes("k5learning.com") ||
+        host.includes("ixl.com") || host.includes("khanacademy.org") ||
+        host.includes("kangaroo-math.vn") || host.includes("commoncoresheets.com") ||
+        host.includes("math-drills.com") || host.includes("lmsfermat.edu.vn") ||
+        host.includes("asmo.vn") || host.includes("violympic.vn") || host.includes("ioe.vn")) {
       return true;
     }
     return Boolean(document.querySelector(
@@ -613,7 +700,7 @@
 
   // Helper: Find the genuine Question Card enclosing a clicked or scanned element (Never stops at answer grids or extension UI)
   function findEnclosingQuestionCard(el) {
-    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest']"))) {
+    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer"))) {
       return null;
     }
 
@@ -634,8 +721,8 @@
       ".question-container, .question-box, .question-item, .box-question, .detail-question, .exam-item"
     );
 
-    // If directCard is inside extension UI, reject
-    if (directCard && directCard.closest && directCard.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest']")) {
+    // If directCard is inside extension UI or VioEdu score/header or nav/video, reject
+    if (directCard && directCard.closest && directCard.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer")) {
       return null;
     }
 
@@ -818,7 +905,7 @@
     ];
 
     let containers = Array.from(document.querySelectorAll(questionCardSelectors.join(", ")))
-      .filter(el => !el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest']"));
+      .filter(el => !el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar"));
 
     // CRITICAL: Filter out nested child containers if ancestor card is already selected
     containers = containers.filter(el => !containers.some(p => p !== el && p.contains(el)));
@@ -833,7 +920,7 @@
     // Fallback: If no structured question cards found, locate choice grids and ascend to their parent cards
     if (questions.length === 0) {
       const choiceGrids = Array.from(document.querySelectorAll(".choice-answer-grid-2026, [class*='choice-answer-grid']"))
-        .filter(cg => !cg.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest']"));
+        .filter(cg => !cg.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar"));
       if (choiceGrids.length > 0) {
         choiceGrids.forEach((cg, idx) => {
           const card = findEnclosingQuestionCard(cg);
@@ -858,7 +945,7 @@
   }
 
   function extractQuestionFromElement(el, idx, isBackground = false) {
-    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest']"))) {
+    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar"))) {
       return null;
     }
 
@@ -879,7 +966,7 @@
     }
 
     // 2. Progress bar check: Skip if element itself is a progress bar component
-    if (el.matches && el.matches(".irXzU, ._1WeAM, .Vt514, .progress-bar, .stepper-bar, .progress-circle, [class*='stepper-item']")) {
+    if (el.matches && el.matches(".irXzU, ._1WeAM, .Vt514, .progress-bar, .stepper-bar, .progress-circle, [class*='stepper-item'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV")) {
       return null;
     }
 
@@ -1028,9 +1115,16 @@
     else if (platform === "tnmath") topicName = "Trạng Nguyên Luyện thi";
 
     let detectedSubj = detectSubject();
-    // Auto-detect Vietnamese reading passage if text has narrative structure without math formulas
-    if (detectedSubj === "math" && rawText.length >= 60 && !/[\$\\=><%]|\d+\s*[\+\-\*\/×÷=]\s*\d+/.test(rawText) && /[a-zA-Zà-ỹÀ-Ỹ]{3,}/.test(rawText)) {
-      detectedSubj = "vietnamese";
+    const hasVnDiacritics = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i.test(rawText);
+    const hasMathSigns = /[\$\\=><%]|\d+\s*[\+\-\*\/×÷=]\s*\d+|\b(hình|phép tính|số liền|đoạn thẳng|dm|cm|mm|kg|lít|giờ|phút|cộng|trừ|nhân|chia|tổng|hiệu|tích|thương)\b/i.test(rawText);
+    const hasVnLangSignals = /\b(ai là gì|ai làm gì|ai thế nào|đặc điểm|dấu phẩy|dấu chấm|vần|âm đầu|chính tả|từ ngữ|từ chỉ|đoạn văn|bài đọc|câu chuyện|nhân vật|cho thấy điều gì|ý nghĩa|tập làm văn|sắp xếp|tiếng bắt đầu|điền âm|vần s|âm s|âm x)\b/i.test(rawText);
+
+    if (hasVnDiacritics && !hasMathSigns) {
+      if (hasVnLangSignals || rawText.length >= 45) {
+        detectedSubj = "vietnamese";
+      }
+    } else if (hasMathSigns) {
+      detectedSubj = "math";
     }
 
     const explainEl = card.querySelector(".ZpmD_, ._3yoLK, .explanation, .explain-box, .loi-giai, .practice-explain, [class*='explanation']");
@@ -1068,7 +1162,10 @@
           if (node.closest && node.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest']")) {
             return NodeFilter.FILTER_REJECT;
           }
-          if (node.tagName === "SCRIPT" || node.tagName === "STYLE" || node.tagName === "BUTTON") {
+          if (node.tagName === "SCRIPT" || node.tagName === "STYLE" || node.tagName === "BUTTON" || node.tagName === "A" || node.tagName === "NAV" || node.tagName === "HEADER" || node.tagName === "FOOTER") {
+            return NodeFilter.FILTER_REJECT;
+          }
+          if (node.closest && node.closest("a, nav, header, footer, .menu, .sidebar, .video-item, .home-video-item, .ul-one, .breadcrumb, [class*='nav'], [class*='menu']")) {
             return NodeFilter.FILTER_REJECT;
           }
           return NodeFilter.FILTER_ACCEPT;
@@ -1077,10 +1174,17 @@
     );
     let node;
     while ((node = walker.nextNode())) {
-      if (node.closest && node.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest']")) continue;
+      if (node.closest && node.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar")) continue;
 
       const text = (node.innerText || "").trim();
-      if (/(?:câu\s*(?:hỏi\s*(?:số)?)?\s*\d+|bài\s*\d+)[:\.]?/i.test(text) && text.length > 15 && text.length < 800) {
+      // Block video titles, online courses, category navigation
+      if (/^video\b|khóa học|học online|kh luyện từ/i.test(text)) continue;
+
+      if (/(?:câu\s*(?:hỏi\s*(?:số)?)?\s*\d+|bài\s*(?:tập)?\s*\d+)[:\.]?/i.test(text) && text.length > 20 && text.length < 800) {
+        // Must contain question indicator (?, hỏi, tính, tìm, điền, chọn, đáp án) or formula
+        const hasQuizIndicator = /\?|\b(?:hỏi|tính|tìm|điền|chọn|đáp án|kết quả|giá trị|bao nhiêu|mấy|số nào|đúng|sai)\b/i.test(text) || /[\$\\=><%]|\d+\s*[\+\-\*\/×÷=]\s*\d+/.test(text);
+        if (!hasQuizIndicator) continue;
+
         if (!isRealQuestionText(text)) continue;
         if (text.includes("EduQuest") || /\[(?:dom|mạng|lưu|bỏ qua|ok|skip|net|error)/i.test(text)) continue;
 
@@ -1090,8 +1194,15 @@
         if (!node.querySelector("div, section, article")) {
           // Must have genuine context (enclosing question card or form/quiz wrapper)
           const parentCard = findEnclosingQuestionCard(node);
-          const hasRealContext = parentCard || node.closest("form, .exam, .test, .quiz, main, article, section, [class*='question'], [class*='exam'], [class*='practice']");
+          const hasRealContext = parentCard || node.closest("form, .exam, .test, .quiz, [class*='question'], [class*='exam'], [class*='practice'], .cau-hoi, .bai-tap");
           if (!hasRealContext) continue;
+
+          let heurSubj = detectSubject();
+          const hasVn = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i.test(text);
+          const hasMath = /[\$\\=><%]|\d+\s*[\+\-\*\/×÷=]\s*\d+|\b(hình|phép tính|số liền|cm|dm|m|kg|lít)\b/i.test(text);
+          if (hasVn && !hasMath) {
+            heurSubj = "vietnamese";
+          }
 
           const qId = "dom_text_" + Date.now();
           if (!isAlreadyCaptured(sig, qId)) {
@@ -1103,8 +1214,8 @@
               source_url: window.location.href,
               exam_name: document.title,
               grade: detectGrade(),
-              subject: "math",
-              topic: "Đấu trường trực tuyến",
+              subject: heurSubj,
+              topic: heurSubj === "vietnamese" ? "Tiếng Việt Luyện tập" : "Toán Luyện tập & Đấu trường",
               question_type: "single_choice",
               content_html: (node.innerHTML || "").replace(/^(?:<[^>]+>)*\s*(?:câu\s*(?:hỏi)?\s*(?:số)?\s*\d+|bài\s*(?:tập)?\s*\d+)[\s\.\:\-_]*/i, "").trim(),
               content_text: text.replace(/^(?:câu\s*(?:hỏi)?\s*(?:số)?\s*\d+|bài\s*(?:tập)?\s*\d+)[\s\.\:\-_]*/i, "").trim(),
@@ -1229,7 +1340,7 @@
     widget.id = "eduquest-floating-widget";
     widget.className = "eduquest-widget";
     widget.innerHTML = `
-      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.12">
+      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.15">
         <div class="eduquest-icon">⚡</div>
         <span class="eduquest-title">EduQuest</span>
         <span class="eduquest-counter" id="eduquest-count">${capturedQuestions.length}</span>
@@ -1239,7 +1350,7 @@
         <div class="eduquest-panel-header" style="display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <strong>EduQuest Pro</strong>
-            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.12</span>
+            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.15</span>
           </div>
           <span class="eduquest-status" id="eduquest-server-status" style="font-size: 11px;">Đang kiểm tra...</span>
         </div>
@@ -1729,7 +1840,7 @@
   // 6. Automatic Execution & Live Listeners for Real-Time Learning Transitions
   function init() {
     injectWidget();
-    addLog("EduQuest Pro v1.3.12 đã khởi động trên " + window.location.hostname, "info");
+    addLog("EduQuest Pro v1.3.15 đã khởi động trên " + window.location.hostname, "info");
     setTimeout(() => {
       scanPageQuestions(false, false);
       autoSyncPendingQuestions();
