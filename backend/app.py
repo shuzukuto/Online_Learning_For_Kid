@@ -11,7 +11,8 @@ from fastapi.responses import StreamingResponse, JSONResponse
 
 from backend.database import (
     init_db, get_questions, get_question_by_id, insert_or_update_question,
-    bulk_insert_questions, delete_question, get_stats, get_stats_count,
+    bulk_insert_questions, delete_question, bulk_delete_questions, bulk_update_questions_grade,
+    get_stats, get_stats_count,
     create_exam, get_exams, get_exam_by_id, delete_exam,
     log_collector_event, get_collector_logs, clear_collector_logs,
     get_duplicate_questions_summary, clean_duplicate_questions,
@@ -21,8 +22,10 @@ from backend.database import (
 )
 from backend.models import (
     QuestionCreate, QuestionUpdate, BulkQuestionCreate,
+    BulkDeleteRequest, BulkDeleteQuestionsRequest, BulkUpdateGradeRequest,
     ExamCreate, ScrapeRequest, AutoExamGenerateRequest, CleanDuplicatesRequest,
-    PracticeSubmitRequest, PracticeAnswerSubmission, PracticeHistoryResponse, PracticeAnalyticsResponse
+    PracticeSubmitRequest, PracticeAnswerSubmission, PracticeHistoryResponse, PracticeAnalyticsResponse,
+    OcrLearnRequest, OcrCorrectionCreate
 )
 from backend.normalizer import normalize_question_payload
 from backend.docx_exporter import generate_exam_docx
@@ -156,13 +159,28 @@ async def get_question(question_id: str):
 @app.post("/api/questions")
 async def create_single_question(data: QuestionCreate):
     raw_dict = data.model_dump()
+    raw_ocr = raw_dict.get("raw_ocr_content")
+    content_text = raw_dict.get("content_text") or ""
+
+    # Active Lexicon Learning (Human-in-the-Loop Feedback)
+    learned_items = []
+    if raw_ocr and content_text:
+        from backend.database import record_ocr_learning_diff
+        learned_items = record_ocr_learning_diff(raw_ocr, content_text, source="manual_feedback")
+
     normalized = await normalize_question_payload(raw_dict)
     from backend.normalizer import is_valid_question_payload
     valid, reason = is_valid_question_payload(normalized)
     if not valid:
         raise HTTPException(status_code=400, detail=f"Câu hỏi không hợp lệ: {reason}")
     q_id = insert_or_update_question(normalized)
-    return {"success": True, "id": q_id, "message": "Lưu câu hỏi thành công"}
+    return {
+        "success": True, 
+        "id": q_id, 
+        "message": "Lưu câu hỏi thành công",
+        "learned_count": len(learned_items),
+        "learned_items": learned_items
+    }
 
 @app.post("/api/questions/bulk")
 async def bulk_create_questions(data: BulkQuestionCreate):
@@ -204,6 +222,55 @@ async def remove_question(question_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Không tìm thấy câu hỏi để xóa")
     return {"success": True, "message": "Đã xóa câu hỏi"}
+
+@app.post("/api/questions/bulk-delete")
+async def bulk_delete_questions_endpoint(payload: BulkDeleteRequest):
+    """API xóa hàng loạt câu hỏi trong 1 transaction SQLite."""
+    if not payload.question_ids:
+        return {"success": True, "status": "success", "deleted_count": 0, "message": "Không có câu hỏi nào được chọn"}
+    try:
+        count = bulk_delete_questions(payload.question_ids)
+        log_collector_event(
+            platform="database",
+            status="success",
+            message=f"Đã xóa hàng loạt {count} câu hỏi khỏi CSDL qua thao tác chọn nhiều",
+            count=count
+        )
+        return {
+            "success": True,
+            "status": "success",
+            "deleted_count": count,
+            "message": f"Đã xóa thành công {count} câu hỏi"
+        }
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xóa hàng loạt: {str(err)}")
+
+@app.post("/api/questions/bulk-update-grade")
+async def bulk_update_grade_endpoint(payload: BulkUpdateGradeRequest):
+    """API cập nhật khối lớp (Lớp 1 đến 12) hàng loạt trong 1 transaction SQLite."""
+    if not (1 <= payload.grade <= 12):
+        raise HTTPException(status_code=400, detail="Khối lớp không hợp lệ (chỉ chấp nhận từ 1 đến 12)")
+    if not payload.question_ids:
+        return {"success": True, "status": "success", "updated_count": 0, "grade": payload.grade, "message": "Không có câu hỏi nào được chọn"}
+    try:
+        count = bulk_update_questions_grade(payload.question_ids, payload.grade)
+        log_collector_event(
+            platform="database",
+            status="success",
+            message=f"Đã đổi khối lớp thành Lớp {payload.grade} cho {count} câu hỏi",
+            count=count
+        )
+        return {
+            "success": True,
+            "status": "success",
+            "updated_count": count,
+            "grade": payload.grade,
+            "message": f"Đã cập nhật khối lớp thành Lớp {payload.grade} cho {count} câu hỏi"
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi cập nhật khối lớp: {str(err)}")
 
 # ----------------- Exam Builder & Word Export -----------------
 
@@ -646,7 +713,8 @@ async def export_exam_pdf(exam_data: ExamCreate):
 @app.post("/api/import/pdf")
 async def import_pdf_exam(
     file: UploadFile = File(...),
-    save_to_bank: bool = Form(False)
+    save_to_bank: bool = Form(False),
+    engine: str = Form("rapid")
 ):
     """Imports exam from either PDF or Image (.png, .jpg, .jpeg, .webp, .bmp) with intelligent auto-routing."""
     content = await file.read()
@@ -654,7 +722,7 @@ async def import_pdf_exam(
     ext = os.path.splitext(filename)[1].lower()
     
     if ext in SUPPORTED_IMAGE_EXTENSIONS:
-        extracted_questions = extract_questions_from_image(content, filename=filename)
+        extracted_questions = extract_questions_from_image(content, filename=filename, engine=engine)
         source_label = "Ảnh đề thi (Image OCR)"
     else:
         extracted_questions = extract_questions_from_pdf(content, filename=filename)
@@ -670,7 +738,7 @@ async def import_pdf_exam(
         log_collector_event(
             platform=extracted_questions[0].get("source_platform", "manual"),
             status="success",
-            message=f"Bóc tách {source_label}: {filename}, lưu {saved_count} câu hỏi",
+            message=f"Bóc tách {source_label}: {filename} (Engine: {engine}), lưu {saved_count} câu hỏi",
             count=saved_count
         )
         
@@ -678,16 +746,19 @@ async def import_pdf_exam(
         "success": True,
         "filename": filename,
         "file_type": "image" if ext in SUPPORTED_IMAGE_EXTENSIONS else "pdf",
+        "ocr_engine": engine,
         "total_extracted": len(extracted_questions),
         "saved_to_bank": save_to_bank,
         "saved_count": saved_count,
-        "preview_questions": extracted_questions
+        "preview_questions": extracted_questions,
+        "questions": extracted_questions
     }
 
 @app.post("/api/import/image")
 async def import_image_exam(
     file: UploadFile = File(...),
-    save_to_bank: bool = Form(False)
+    save_to_bank: bool = Form(False),
+    engine: str = Form("rapid")
 ):
     """Dedicated endpoint for Image OCR exam paper extraction (.png, .jpg, .jpeg, .webp, .bmp)."""
     filename = file.filename or "exam_image.png"
@@ -699,7 +770,7 @@ async def import_image_exam(
         )
         
     content = await file.read()
-    extracted_questions = extract_questions_from_image(content, filename=filename)
+    extracted_questions = extract_questions_from_image(content, filename=filename, engine=engine)
     
     saved_count = 0
     if save_to_bank and extracted_questions:
@@ -711,7 +782,7 @@ async def import_image_exam(
         log_collector_event(
             platform="image_ocr",
             status="success",
-            message=f"Bóc tách Ảnh đề thi OCR: {filename}, lưu {saved_count} câu hỏi",
+            message=f"Bóc tách Ảnh đề thi OCR: {filename} (Engine: {engine}), lưu {saved_count} câu hỏi",
             count=saved_count
         )
         
@@ -719,19 +790,123 @@ async def import_image_exam(
         "success": True,
         "filename": filename,
         "file_type": "image",
+        "ocr_engine": engine,
         "total_extracted": len(extracted_questions),
         "saved_to_bank": save_to_bank,
         "saved_count": saved_count,
-        "preview_questions": extracted_questions
+        "preview_questions": extracted_questions,
+        "questions": extracted_questions
     }
 
+@app.post("/api/pdf/extract")
 @app.post("/api/import/exam-file")
 async def import_exam_file(
     file: UploadFile = File(...),
-    save_to_bank: bool = Form(False)
+    save_to_bank: bool = Form(False),
+    engine: str = Form("rapid")
 ):
-    """Unified file ingestion endpoint accepting both PDF and Image formats."""
-    return await import_pdf_exam(file=file, save_to_bank=save_to_bank)
+    """Unified file ingestion endpoint accepting both PDF and Image formats with engine selection."""
+    return await import_pdf_exam(file=file, save_to_bank=save_to_bank, engine=engine)
+
+# ----------------- OCR Engine Status & Active Lexicon Learning APIs -----------------
+
+@app.get("/api/ocr/engine-status")
+async def get_ocr_engine_status():
+    """Returns status of dual OCR engines (RapidOCR vs VietOCR ONNX) and learned lexicon statistics."""
+    from backend.vietocr_onnx import get_vietocr_engine
+    from backend.database import get_ocr_corrections
+    
+    v_engine = get_vietocr_engine()
+    v_status = v_engine.get_status()
+    _, total_rules = get_ocr_corrections(page=1, page_size=1)
+    
+    return {
+        "success": True,
+        "engines": {
+            "rapid": {
+                "id": "rapid",
+                "name": "RapidOCR (PaddleOCR ONNX)",
+                "display_name": "RapidOCR (PaddleOCR ONNX)",
+                "ready": True,
+                "speed": "Siêu tốc (~0.2s)",
+                "accuracy": "Cao (kèm Bộ ngữ nghĩa Transformer)"
+            },
+            "vietocr": {
+                "id": "vietocr",
+                "name": "VietOCR ONNX DeepDoc Engine",
+                "display_name": "VietOCR ONNX DeepDoc Engine",
+                "ready": v_status["ready"],
+                "speed": "Trung bình (~1.5s)",
+                "accuracy": "Chuyên sâu tiếng Việt",
+                "model_path": v_status["model_path"],
+                "message": v_status["message"]
+            },
+            "vietocr_onnx": {
+                "id": "vietocr_onnx",
+                "name": "VietOCR ONNX DeepDoc Engine",
+                "display_name": "VietOCR ONNX DeepDoc Engine",
+                "ready": v_status["ready"],
+                "speed": "Trung bình (~1.5s)",
+                "accuracy": "Chuyên sâu tiếng Việt",
+                "model_path": v_status["model_path"],
+                "message": v_status["message"]
+            }
+        },
+        "default_engine": "rapid",
+        "total_learned_rules": total_rules,
+        "active_lexicon_rules_count": total_rules
+    }
+
+@app.post("/api/ocr/learn")
+async def learn_ocr_corrections(req: OcrLearnRequest):
+    """Explicitly extracts and learns new phrase corrections between raw OCR text and corrected text."""
+    from backend.database import record_ocr_learning_diff
+    learned = record_ocr_learning_diff(req.raw_text, req.corrected_text, source=req.source or "manual_feedback")
+    return {
+        "success": True,
+        "learned_count": len(learned),
+        "learned_items": learned,
+        "message": f"AI đã học được {len(learned)} cụm từ đính chính mới!" if learned else "Không phát hiện thay đổi cụm từ cần ghi nhớ."
+    }
+
+@app.get("/api/ocr/corrections")
+async def list_ocr_corrections(page: int = 1, page_size: int = 50, search: str = ""):
+    """Lists learned OCR correction rules with pagination and search."""
+    from backend.database import get_ocr_corrections
+    items, total = get_ocr_corrections(page=page, page_size=page_size, search=search)
+    return {
+        "success": True,
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+@app.post("/api/ocr/corrections")
+async def add_ocr_correction(req: OcrCorrectionCreate):
+    """Manually adds or updates a specific correction rule in the lexicon."""
+    from backend.database import add_manual_ocr_correction
+    try:
+        res = add_manual_ocr_correction(req.wrong_text, req.correct_text, source=req.source or "manual_rule")
+        return {"success": True, "item": res, "message": "Đã thêm quy tắc sửa đổi thành công"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/ocr/corrections/{correction_id}")
+async def remove_ocr_correction(correction_id: int):
+    """Deletes a specific correction rule from the lexicon."""
+    from backend.database import delete_ocr_correction
+    ok = delete_ocr_correction(correction_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Không tìm thấy quy tắc cần xóa")
+    return {"success": True, "message": "Đã xóa quy tắc thành công"}
+
+@app.post("/api/ocr/corrections/clear")
+async def clear_ocr_corrections():
+    """Clears all learned correction rules."""
+    from backend.database import clear_all_ocr_corrections
+    count = clear_all_ocr_corrections()
+    return {"success": True, "cleared_count": count, "message": f"Đã xóa toàn bộ {count} quy tắc từ điển"}
 
 # ----------------- Automated Scraper Runner -----------------
 

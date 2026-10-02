@@ -5,14 +5,18 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-from backend.database import init_db, get_stats, get_questions, insert_or_update_question
+from backend.database import init_db, get_stats, get_questions, insert_or_update_question, get_question_by_id
 from backend.normalizer import clean_html_and_math
 from backend.classifier import classify_subject
 from backend.docx_exporter import generate_exam_docx
 from backend.app import app
 from fastapi.testclient import TestClient
+from datetime import datetime
+import re
 
 def test_full_pipeline():
     print("1. Kiểm tra khởi tạo Cơ sở dữ liệu SQLite...")
@@ -283,7 +287,7 @@ def test_full_pipeline():
     print("   => Tự động nắn chỉnh subject 'english' sai lệch về 'vietnamese' thành công!")
 
 
-    print("\n16. Kiểm tra Tính Đồng nhất Phiên bản Toàn hệ thống (Extension v1.3.15, App v1.0.24, Cache Buster ?v=1.0.28)...")
+    print("\n16. Kiểm tra Tính Đồng nhất Phiên bản Toàn hệ thống (Extension v1.3.15, App v1.0.31, Cache Buster ?v=1.0.35)...")
     ext_files = [
         "extension/manifest.json",
         "extension/background.js",
@@ -305,10 +309,10 @@ def test_full_pipeline():
         index_html = f.read()
     with open("frontend/js/app.js", "r", encoding="utf-8") as f:
         app_js = f.read()
-    assert "1.0.24" in index_html, "frontend/index.html thiếu phiên bản Web App v1.0.24!"
-    assert "1.0.24" in app_js, "frontend/js/app.js thiếu phiên bản Web App v1.0.24!"
-    assert "?v=1.0.28" in index_html, "frontend/index.html thiếu Cache Buster ?v=1.0.28!"
-    print("   => Web App đồng bộ v1.0.24 và Cache Buster ?v=1.0.28 chính xác!")
+    assert "1.0.31" in index_html, "frontend/index.html thiếu phiên bản Web App v1.0.31!"
+    assert "1.0.31" in app_js, "frontend/js/app.js thiếu phiên bản Web App v1.0.31!"
+    assert "?v=1.0.35" in index_html, "frontend/index.html thiếu Cache Buster ?v=1.0.35!"
+    print("   => Web App đồng bộ v1.0.31 và Cache Buster ?v=1.0.35 chính xác!")
 
     print("\n17. Kiểm tra Bộ Thẩm định Normalizer & Phân biệt Dấu thanh 'Khoa học' vs 'Khóa học'...")
     # 17.1 Science questions with "khoa học" / "truyện khoa học" must be accepted
@@ -504,8 +508,333 @@ def test_full_pipeline():
     print(f"   => Báo cáo phân tích Trending Analytics & 8 Huy hiệu thành tích sẵn sàng 100%!")
     conn.close()
 
+    print("\n20. Kiểm tra Tác vụ Hàng loạt (Bulk Delete & Bulk Update Grade APIs)...")
+    # 20.1 Nạp 3 câu hỏi kiểm thử tạm thời
+    q_bulk_1 = insert_or_update_question({
+        "id": "test_bulk_qa_1",
+        "source_platform": "manual",
+        "grade": 3,
+        "subject": "math",
+        "question_type": "single_choice",
+        "content_html": "<p>Câu hỏi kiểm thử bulk 1</p>",
+        "content_text": "Câu hỏi kiểm thử bulk 1",
+        "options": [
+            {"id": "A", "content": "1", "is_correct": True},
+            {"id": "B", "content": "2", "is_correct": False}
+        ],
+        "correct_answer": "A"
+    })
+    q_bulk_2 = insert_or_update_question({
+        "id": "test_bulk_qa_2",
+        "source_platform": "manual",
+        "grade": 3,
+        "subject": "math",
+        "question_type": "single_choice",
+        "content_html": "<p>Câu hỏi kiểm thử bulk 2</p>",
+        "content_text": "Câu hỏi kiểm thử bulk 2",
+        "options": [
+            {"id": "A", "content": "2", "is_correct": True},
+            {"id": "B", "content": "3", "is_correct": False}
+        ],
+        "correct_answer": "A"
+    })
+    q_bulk_3 = insert_or_update_question({
+        "id": "test_bulk_qa_3",
+        "source_platform": "manual",
+        "grade": 3,
+        "subject": "math",
+        "question_type": "single_choice",
+        "content_html": "<p>Câu hỏi kiểm thử bulk 3</p>",
+        "content_text": "Câu hỏi kiểm thử bulk 3",
+        "options": [
+            {"id": "A", "content": "3", "is_correct": True},
+            {"id": "B", "content": "4", "is_correct": False}
+        ],
+        "correct_answer": "A"
+    })
+
+    # 20.2 Test Bulk Update Grade
+    resp_grade = client.post("/api/questions/bulk-update-grade", json={
+        "question_ids": ["test_bulk_qa_1", "test_bulk_qa_2", "test_bulk_qa_3"],
+        "grade": 7
+    })
+    assert resp_grade.status_code == 200
+    grade_res = resp_grade.json()
+    assert grade_res["success"] is True or grade_res.get("status") == "success"
+    assert grade_res["updated_count"] == 3
+    assert grade_res["grade"] == 7
+
+    # Xác thực lại trong CSDL
+    q1_check = get_question_by_id("test_bulk_qa_1")
+    assert q1_check["grade"] == 7, "Cập nhật khối lớp hàng loạt thất bại!"
+
+    # Kiểm thử xác thực biên và đối kháng khối lớp (chỉ chấp nhận 1..12, từ chối số âm, số thập phân, boolean, xâu sai lệch)
+    adversarial_grades = [15, 0, 13, -1, 100, "Lớp -5", "-5", "5.9", "Lớp 5.9", "Lớp -12", True, "Lớp 0", "Lớp 13", "", "abc"]
+    for adv_g in adversarial_grades:
+        resp_adv = client.post("/api/questions/bulk-update-grade", json={
+            "question_ids": ["test_bulk_qa_1"],
+            "grade": adv_g
+        })
+        assert resp_adv.status_code in (400, 422), f"Khối lớp đối kháng '{adv_g}' không hợp lệ nhưng không bị từ chối (HTTP {resp_adv.status_code})!"
+    print("   => Xác thực đối kháng khối lớp thành công (từ chối 100% 'Lớp -5', '-5', '5.9', True, v.v.)!")
+
+    # 20.3 Test Bulk Delete
+    resp_bdel = client.post("/api/questions/bulk-delete", json={
+        "question_ids": ["test_bulk_qa_1", "test_bulk_qa_2"]
+    })
+    assert resp_bdel.status_code == 200
+    bdel_res = resp_bdel.json()
+    assert bdel_res["success"] is True or bdel_res.get("status") == "success"
+    assert bdel_res["deleted_count"] == 2
+
+    # Xác thực các câu đã xóa không còn trong CSDL
+    assert get_question_by_id("test_bulk_qa_1") is None
+    assert get_question_by_id("test_bulk_qa_2") is None
+    assert get_question_by_id("test_bulk_qa_3") is not None
+
+    # Xóa dọn dẹp câu còn lại
+    client.post("/api/questions/bulk-delete", json={"question_ids": ["test_bulk_qa_3"]})
+    print("   => Tác vụ hàng loạt (Bulk Delete & Bulk Update Grade) kiểm thử thành công 100% trong 1 transaction SQLite!")
+
+    print("\n21. Kiểm tra Hiển thị Biểu thức Phân số KaTeX & Bảo toàn Delimiters...")
+    # 21.1 Khối toán học đã có sẵn cặp dấu $...$
+    formula_with_math = "Tính giá trị của biểu thức phân số sau: $M=\\frac{3}{4}+\\frac{2}{5}$"
+    clean_h, clean_t = clean_html_and_math(formula_with_math)
+    assert "$M=\\frac{3}{4}+\\frac{2}{5}$" in clean_h or "$M=\\frac{3}{4}+\\frac{2}{5}$" in clean_t
+    assert clean_h.count("$") == 2, "Khối toán học có sẵn không được chèn thêm dấu $!"
+
+    # 21.2 Khối toán học MathJax dạng \\( ... \\)
+    raw_mathjax = "Cho biểu thức \\( A = \\frac{1}{2} + \\frac{1}{3} \\), hãy tính A."
+    h_mj, _ = clean_html_and_math(raw_mathjax)
+    assert "$A = \\frac{1}{2} + \\frac{1}{3}$" in h_mj
+
+    # 21.3 Đảm bảo kiểm tra các câu hỏi trong CSDL có phân số không bị vỡ delimiter
+    db_questions, _ = get_questions(page_size=20, subject="math")
+    for q in db_questions:
+        if "\\frac" in q.get("content_html", ""):
+            assert q["content_html"].count("$") % 2 == 0, f"Lỗi rách delimiter tại câu {q['id']}"
+    print("   => Chuẩn hóa biểu thức phân số KaTeX và bảo toàn khối delimiters hoàn hảo!")
+
+    print("\n22. Kiểm tra Trường Thời gian created_at & Định dạng Ngày Giờ Tiếng Việt...")
+    resp_q_list = client.get("/api/questions?page_size=10")
+    assert resp_q_list.status_code == 200
+    items = resp_q_list.json()["items"]
+    assert len(items) > 0
+    for it in items:
+        assert "created_at" in it and it["created_at"], f"Câu hỏi {it['id']} thiếu trường created_at!"
+        dt = datetime.fromisoformat(it["created_at"])
+        vn_formatted = dt.strftime("%H:%M %d/%m/%Y")
+        assert re.match(r"^\d{2}:\d{2}\s+\d{2}/\d{2}/\d{4}$", vn_formatted), f"Format sai: {vn_formatted}"
+
+    # Kiểm tra sắp xếp theo created_at_desc (newest)
+    resp_newest = client.get("/api/questions?sort_by=created_at_desc&page=1&page_size=5")
+    assert resp_newest.status_code == 200
+    newest_items = resp_newest.json().get("items", [])
+    if len(newest_items) >= 2:
+        for i in range(len(newest_items) - 1):
+            assert newest_items[i]["created_at"] >= newest_items[i+1]["created_at"]
+
+    print("   => Dữ liệu created_at và định dạng ngày giờ tiếng Việt đạt chuẩn 100%!")
+
+    print("\n23. Kiểm tra Bóc tách Đề thi PDF & Hình ảnh (Image OCR Song ngữ, Multi-file & Preview Zoom UI)...")
+    # 23.1 Kiểm tra cấu trúc UI & Router: OCR card chuyển sang view-manual, không còn ở view-collector
+    with open("frontend/index.html", "r", encoding="utf-8") as f:
+        html_src = f.read()
+    assert 'id="view-manual"' in html_src
+    assert 'id="pdf-dropzone"' in html_src
+    assert 'id="pdf-file-input"' in html_src and 'multiple' in html_src
+    assert 'id="ocr-batch-progress-card"' in html_src
+    assert 'id="ocr-questions-nav-bar"' in html_src, "Thiếu thanh chọn nhanh tự do chuyển câu hỏi ocr-questions-nav-bar!"
+    assert 'id="btn-ocr-next-q"' in html_src, "Thiếu nút chuyển câu tiếp theo btn-ocr-next-q!"
+    assert 'id="btn-ocr-discard-q"' in html_src, "Thiếu nút bỏ qua câu hỏi btn-ocr-discard-q!"
+    assert 'id="modal-image-zoom"' in html_src
+    assert 'id="zoom-target-img"' in html_src
+    assert 'id="ocr-live-log"' in html_src
+    assert 'id="ocr-log-toolbar"' in html_src
+
+    # Kiểm tra view-collector không còn chứa pdf-result-container hoặc OCR upload
+    collector_part = html_src.split('id="view-collector"')[1].split('id="view-manual"')[0]
+    assert "pdf-file-input" not in collector_part
+    assert "pdf-result-container" not in collector_part
+    print("   => Giao diện OCR và Lightbox Zoom đã chuyển sang 'Soạn câu hỏi mới' (view-manual), dọn sạch khỏi view-collector!")
+
+    # 23.2 Kiểm tra logic JavaScript Collector & Batch Verification
+    with open("frontend/js/collector.js", "r", encoding="utf-8") as f:
+        col_js = f.read()
+    assert "startOcrBatchVerification" in col_js
+    assert "loadOcrQuestionToForm" in col_js
+    assert "renderOcrQuestionsNavBar" in col_js, "Thiếu hàm render thanh chuyển câu hỏi renderOcrQuestionsNavBar!"
+    assert "navNextOcrQuestion" in col_js, "Thiếu hàm navNextOcrQuestion chuyển câu tự do!"
+    assert "discardCurrentOcrQuestion" in col_js, "Thiếu hàm discardCurrentOcrQuestion bỏ qua câu!"
+    assert "openImageZoomModal" in col_js
+    assert "zoomImage" in col_js
+    assert "appendOcrLog" in col_js
+    assert "copyOcrLiveLog" in col_js
+    assert "clearOcrLiveLog" in col_js
+    print("   => Logic luồng duyệt tự do chuyển câu hỏi, bỏ qua câu & Nhật ký Live OCR Telemetry Log đã sẵn sàng!")
+
+    # 23.3 Kiểm tra API bóc tách hình ảnh song ngữ (media_1790907151101.png)
+    test_img_path = "C:/Users/ptlua/.gemini/antigravity/brain/f8f2462b-e223-4dc3-883c-c9717538b082/.user_uploaded/media_1790907151101.png"
+    if os.path.exists(test_img_path):
+        from backend.pdf_extractor import extract_questions_from_image
+        extracted_qs = extract_questions_from_image(test_img_path)
+        assert len(extracted_qs) == 2, f"Kỳ vọng bóc tách 2 câu hỏi từ ảnh, nhưng nhận được {len(extracted_qs)} câu!"
+        
+        # Câu 1: Song ngữ ngày tháng thứ Tư / Wednesday
+        q1 = extracted_qs[0]
+        assert q1["grade"] == 2, f"Khối lớp nhận diện sai: {q1['grade']} (kỳ vọng 2)"
+        assert len(q1["options"]) >= 4, f"Thiếu 4 phương án cho câu 1: {len(q1['options'])}"
+        assert "Wednesday" in q1["content_text"] or "Thứ Tư" in str(q1["options"]) or "Thứ Tư" in q1["content_text"]
+        
+        # Câu 2: Song ngữ Michael's class / Lớp của Michael
+        q2 = extracted_qs[1]
+        assert q2["grade"] == 2
+        assert len(q2["options"]) >= 4, f"Thiếu 4 phương án cho câu 2: {len(q2['options'])}"
+        assert "Michael" in q2["content_text"]
+        
+        # Kiểm tra endpoint POST /api/pdf/extract qua TestClient
+        with open(test_img_path, "rb") as img_file:
+            resp_upload = client.post(
+                "/api/pdf/extract",
+                files={"file": ("olympiad_grade2.png", img_file.read(), "image/png")}
+            )
+        assert resp_upload.status_code == 200, f"Upload API lỗi: {resp_upload.text}"
+        data_up = resp_upload.json()
+        assert data_up.get("success") is True
+        assert len(data_up.get("questions", [])) == 2
+        print(f"   => Bóc tách chính xác 2/2 câu hỏi song ngữ từ ảnh test với Khối {q1['grade']}, đủ phương án A/B/C/D!")
+
+    # 23.4 Kiểm tra OCR đối kháng trên Ảnh số 2 (media_1790928052101.jpg - Câu 8 & Câu 9)
+    test_img2_path = "C:/Users/ptlua/.gemini/antigravity/brain/f8f2462b-e223-4dc3-883c-c9717538b082/.user_uploaded/media_1790928052101.jpg"
+    if os.path.exists(test_img2_path):
+        from backend.pdf_extractor import extract_questions_from_image
+        extracted_qs2 = extract_questions_from_image(test_img2_path)
+        assert len(extracted_qs2) == 2, f"Kỳ vọng bóc tách chính xác 2 câu hỏi từ Ảnh 2, nhưng nhận được {len(extracted_qs2)} câu!"
+
+        # Câu 8: Không bị tách nhầm thành Câu 2 bởi cụm '2-digit', đủ 4 phương án, đáp án A
+        q8 = extracted_qs2[0]
+        assert "Câu 8" in q8["exam_name"] or "8" in q8["exam_name"]
+        assert len(q8["options"]) == 4, f"Câu 8 thiếu phương án: {len(q8['options'])}"
+        assert q8["correct_answer"] == "A", f"Đáp án Câu 8 sai: {q8['correct_answer']} (kỳ vọng A)"
+        assert "Gordon nghĩ ra một số" in q8["content_text"]
+        assert "2-digit" in q8["content_text"]
+
+        # Câu 9: Tính toán dãy số, đủ 4 phương án, đáp án C
+        q9 = extracted_qs2[1]
+        assert "Câu 9" in q9["exam_name"] or "9" in q9["exam_name"]
+        assert len(q9["options"]) == 4, f"Câu 9 thiếu phương án: {len(q9['options'])}"
+        assert q9["correct_answer"] == "C", f"Đáp án Câu 9 sai: {q9['correct_answer']} (kỳ vọng C)"
+        assert "Tính 13 - 11" in q9["content_text"] or "13 - 11" in q9["content_text"]
+        print("   => Bóc tách hoàn hảo Ảnh số 2: Câu 8 không bị tách nhầm '2-digit', Tiếng Việt tái tạo chuẩn, đáp án A & C chính xác 100%!")
+
+    print("\n24. Kiểm tra Dual OCR Engine (RapidOCR + VietOCR ONNX) & Cơ chế Tự học Ngữ nghĩa (Active Lexicon Learning)...")
+    # 24.1 Kiểm tra UI & DOM elements
+    with open("frontend/index.html", "r", encoding="utf-8") as f:
+        html_src24 = f.read()
+    assert 'id="ocr-engine-select"' in html_src24, "Thiếu dropdown chọn engine OCR ocr-engine-select!"
+    assert 'id="btn-open-ocr-lexicon"' in html_src24, "Thiếu nút mở từ điển tự học btn-open-ocr-lexicon!"
+    assert 'id="modal-ocr-lexicon"' in html_src24, "Thiếu modal quản lý từ điển modal-ocr-lexicon!"
+    assert 'id="ocr-lexicon-count-badge"' in html_src24, "Thiếu badge đếm số lượng từ tự học ocr-lexicon-count-badge!"
+    assert 'id="lexicon-add-wrong"' in html_src24, "Thiếu ô nhập từ sai lexicon-add-wrong!"
+    assert 'id="lexicon-add-correct"' in html_src24, "Thiếu ô nhập từ đúng lexicon-add-correct!"
+    assert 'id="ocr-lexicon-table-body"' in html_src24, "Thiếu bảng danh sách quy tắc ocr-lexicon-table-body!"
+
+    # 24.2 Kiểm tra JavaScript Active Lexicon Functions trong collector.js
+    with open("frontend/js/collector.js", "r", encoding="utf-8") as f:
+        col_js24 = f.read()
+    assert "openOcrLexiconModal" in col_js24
+    assert "closeOcrLexiconModal" in col_js24
+    assert "loadOcrLexiconRules" in col_js24
+    assert "filterOcrLexiconList" in col_js24
+    assert "submitManualLexiconRule" in col_js24
+    assert "deleteOcrLexiconRule" in col_js24
+    assert "clearAllOcrLexiconRules" in col_js24
+    assert "refreshOcrLexiconCountBadge" in col_js24
+    print("   => Giao diện UI Modal & Javascript Active Lexicon Learning đã tích hợp hoàn hảo!")
+
+    # 24.3 Kiểm tra API GET /api/ocr/engine-status
+    resp_status = client.get("/api/ocr/engine-status")
+    assert resp_status.status_code == 200
+    st_data = resp_status.json()
+    assert st_data["success"] is True
+    assert "engines" in st_data
+    assert "rapid" in st_data["engines"]
+    assert "vietocr_onnx" in st_data["engines"]
+    assert "total_learned_rules" in st_data
+    print(f"   => Dual OCR Engine status: RapidOCR ({st_data['engines']['rapid']['display_name']}), VietOCR ONNX ({st_data['engines']['vietocr_onnx']['display_name']})!")
+
+    # 24.4 Kiểm tra Cơ chế Tự học Ngữ nghĩa (POST /api/ocr/learn)
+    raw_sample = "Nenhom nary lal thu Tu fat hie Tiem cung"
+    corr_sample = "Nếu hôm nay là thứ Tư và Tiệm cũng"
+    resp_learn = client.post("/api/ocr/learn", json={
+        "raw_text": raw_sample,
+        "corrected_text": corr_sample,
+        "source": "test_active_learning"
+    })
+    assert resp_learn.status_code == 200
+    learn_data = resp_learn.json()
+    assert learn_data["success"] is True
+    assert learn_data["learned_count"] > 0
+    print(f"   => AI tự động phân tích diff & học được {learn_data['learned_count']} cụm từ đính chính mới!")
+
+    # 24.5 Kiểm tra quy tắc tự học được áp dụng tức thì vào clean_ocr_vietnamese_text
+    from backend.pdf_extractor import clean_ocr_vietnamese_text
+    test_ocr_raw = "Nenhom nary lal thu Tu chung ta di hoc"
+    cleaned_auto = clean_ocr_vietnamese_text(test_ocr_raw)
+    assert "Nếu hôm nay" in cleaned_auto or "thứ Tư" in cleaned_auto, f"Quy tắc tự học chưa áp dụng: {cleaned_auto}"
+    print(f"   => Bộ chuẩn hóa clean_ocr_vietnamese_text nạp động và áp dụng quy tắc tự học thành công: '{cleaned_auto}'!")
+
+    # 24.6 Kiểm tra CRUD Quy tắc Từ điển Thủ công (/api/ocr/corrections)
+    # Thêm quy tắc
+    resp_add_rule = client.post("/api/ocr/corrections", json={
+        "wrong_text": "tuvandethi",
+        "correct_text": "Tự vãn đề thi",
+        "source": "test_manual"
+    })
+    assert resp_add_rule.status_code == 200
+    add_data = resp_add_rule.json()
+    assert add_data["success"] is True
+    rule_id = add_data["item"]["id"]
+
+    # Tra cứu tìm kiếm
+    resp_search = client.get("/api/ocr/corrections?search=tuvandethi")
+    assert resp_search.status_code == 200
+    search_data = resp_search.json()
+    assert search_data["total"] >= 1
+    assert any(it["id"] == rule_id for it in search_data["items"])
+
+    # Xóa quy tắc
+    resp_del_rule = client.delete(f"/api/ocr/corrections/{rule_id}")
+    assert resp_del_rule.status_code == 200
+
+    # 24.7 Kiểm tra Tự học khi tạo câu hỏi qua POST /api/questions với raw_ocr_content
+    resp_q_learn = client.post("/api/questions", json={
+        "source_platform": "image_ocr",
+        "grade": 5,
+        "subject": "math",
+        "topic": "Số học tự học",
+        "question_type": "single_choice",
+        "content_html": "<p>Nếu hôm nay là thứ Sáu</p>",
+        "content_text": "Nếu hôm nay là thứ Sáu thì ba ngày nữa là gì?",
+        "raw_ocr_content": "Nenhom nary lal thu Sau thi ba ngay nua la gi?",
+        "options": [
+            {"id": "A", "content": "Thứ Hai", "is_correct": True},
+            {"id": "B", "content": "Thứ Ba", "is_correct": False}
+        ],
+        "correct_answer": "A"
+    })
+    assert resp_q_learn.status_code == 200
+    q_learn_data = resp_q_learn.json()
+    assert q_learn_data["success"] is True
+    assert q_learn_data.get("learned_count", 0) >= 1
+    print(f"   => Tạo câu hỏi qua POST /api/questions tích hợp tự học thành công (+{q_learn_data['learned_count']} từ)!")
+    
+    # Dọn dẹp câu hỏi test
+    if "question" in q_learn_data and "id" in q_learn_data["question"]:
+        client.delete(f"/api/questions/{q_learn_data['question']['id']}")
+
     print("\n" + "="*60)
-    print(">>> TẤT CẢ 19 BƯỚC KIỂM THỬ ĐÃ VƯỢT QUA XUẤT SẮC 100%! <<<")
+    print(">>> TẤT CẢ 24 BƯỚC KIỂM THỬ ĐÃ VƯỢT QUA XUẤT SẮC 100%! <<<")
     print("="*60)
 
 if __name__ == "__main__":

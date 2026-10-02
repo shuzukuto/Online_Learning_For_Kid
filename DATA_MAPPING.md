@@ -26,8 +26,8 @@ Tài liệu này quy định cấu trúc bảng SQLite, ánh xạ trường gi�
 | `correct_answer` | `TEXT` | Đáp án đúng | `correct_answer` | Ký tự đáp án (A/B/C/D) hoặc nội dung điền | Bắt từ phản hồi hoặc user chọn |
 | `explanation` | `TEXT` | Lời giải chi tiết | `explanation` | Lời giải trích xuất từ trang web | Tùy chọn |
 | `difficulty` | `TEXT` | Mức độ khó | `difficulty` | `easy`, `medium`, `hard`, `olympiad` | Mặc định `medium` |
-| `created_at` | `TEXT` | Thời gian tạo | `created_at` | ISO 8601 Timestamp | |
-| `updated_at` | `TEXT` | Thời gian sửa | `updated_at` | ISO 8601 Timestamp | |
+| `created_at` | `TEXT` | Thời gian tạo (`🕒 HH:mm DD/MM/YYYY`) | `created_at` | ISO 8601 Timestamp | Hiển thị định dạng tiếng Việt chuẩn `HH:mm DD/MM/YYYY` qua `formatDateTimeVN` trên Thẻ câu hỏi (Bank/Capture Cards), Bảng nhật ký bắt và Bảng đối soát OCR |
+| `updated_at` | `TEXT` | Thời gian sửa | `updated_at` | ISO 8601 Timestamp | Cập nhật tự động khi sửa câu hỏi hoặc đổi khối lớp hàng loạt |
 
 ---
 
@@ -75,14 +75,34 @@ Bảng lưu trữ vết toàn bộ các phiên làm bài trực tuyến trong Ph
 
 ---
 
-## 4. Bảng `exams` & `exam_questions` (Quản lý Đề thi)
+## 4. Bảng `ocr_corrections` (Từ Điển Tự Học OCR & Đính Chính Ngữ Nghĩa)
+
+Bảng lưu trữ tri thức tự học (Active Lexicon Learning) thu nhận từ quá trình người dùng chỉnh sửa câu hỏi OCR trên Form Soạn thảo hoặc nhập quy tắc thủ công:
+
+| SQLite Column | Kiểu dữ liệu | UI Label / Bộ lọc | JSON API Field | Mô tả & Vai trò |
+|---|---|---|---|---|
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | ID quy tắc | `id` | Khóa chính |
+| `wrong_text` | `TEXT NOT NULL UNIQUE` | Từ OCR gốc (Sai) | `wrong_text` | Cụm từ gốc do OCR nhận diện sai (Unique, phân biệt chữ hoa/thường) |
+| `correct_text` | `TEXT NOT NULL` | Sau đính chính (Đúng) | `correct_text` | Cụm từ chuẩn xác sau khi người dùng sửa hoặc thêm quy tắc |
+| `frequency` | `INTEGER NOT NULL DEFAULT 1` | Tần suất sửa (`xN`) | `frequency` | Số lần cụm từ này được sửa lặp lại (càng lớn mức ưu tiên càng cao) |
+| `source` | `TEXT DEFAULT 'manual_feedback'` | Nguồn quy tắc | `source` | `manual_feedback` (tự học từ form) hoặc `manual_rule` (thêm thủ công) |
+| `created_at` | `TEXT NOT NULL` | Thời gian tạo | `created_at` | ISO 8601 Timestamp |
+| `updated_at` | `TEXT NOT NULL` | Cập nhật gần nhất | `updated_at` | ISO 8601 Timestamp |
+
+**Chỉ mục hiệu năng SQLite**:
+- `idx_ocr_wrong_text` on `ocr_corrections(wrong_text)`
+- `idx_ocr_freq` on `ocr_corrections(frequency DESC, updated_at DESC)`
+
+---
+
+## 5. Bảng `exams` & `exam_questions` (Quản lý Đề thi)
 
 - `exams`: `id`, `title`, `grade`, `duration_minutes`, `header_info`, `notes`, `created_at`.
 - `exam_questions`: `id`, `exam_id`, `question_id`, `order_index`, `points`.
 
 ---
 
-## 5. Giao thức API Thu thập, Bóc tách Đề thi & Luyện tập
+## 6. Giao thức API Thu thập, Bóc tách Đề thi & Luyện tập
 
 1. **`POST /api/questions/bulk`**:
    - Nhận mảng câu hỏi từ Chrome Extension (`BulkQuestionCreate`).
@@ -213,19 +233,48 @@ Bảng lưu trữ vết toàn bộ các phiên làm bài trực tuyến trong Ph
      - `exam_name`: Tên vòng thi / bài thực hành
      - `logs`: Mảng nhật ký chi tiết từng bước xử lý.
 
-14. **Bóc Tách Đề Thi Từ Ảnh (Image OCR) & File PDF (`POST /api/import/image`, `POST /api/import/pdf`, `POST /api/import/exam-file`)**:
-    - **Đầu vào**: Tệp đa định dạng (PDF hoặc Ảnh: `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`), cờ `save_to_bank` (boolean).
-    - **Tiền xử lý ảnh**: OpenCV CLAHE (`clipLimit=2.5`, `tileGridSize=(8,8)`), lọc song phương (`bilateralFilter`), lưu ảnh xem trước vào `data/media/ocr_{uuid}.ext`.
-    - **Động cơ OCR**: RapidOCR (PaddleOCR ONNX) / EasyOCR / PyTesseract.
+14. **Bóc Tách Đề Thi Từ Ảnh (Image OCR) & File PDF (`POST /api/import/image`, `POST /api/import/pdf`, `POST /api/pdf/extract`)**:
+    - **Vị trí UI**: Đặt tại giao diện "Soạn câu hỏi mới" (`#view-manual`), ngay phía trên trình soạn thảo thủ công.
+    - **Đầu vào**: Tệp đa định dạng hỗ trợ chọn/kéo thả nhiều file đồng thời (`multiple` files): PDF Olympic (TIMO, ASMO, HKIMO) hoặc Ảnh chụp đề thi (`.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`).
+    - **Tiền xử lý ảnh nâng cao**: OpenCV Super-resolution Upscaling (`cv2.INTER_CUBIC`, 2.5x khi chiều rộng < 950px), CLAHE (`clipLimit=2.5`, `tileGridSize=(8,8)`), lọc song phương (`bilateralFilter`), lưu ảnh xem trước vào `data/media/ocr_{uuid}.ext`.
+    - **Làm sạch & Khôi phục dấu tiếng Việt**: Bóc tách và gỡ bỏ thanh trạng thái điện thoại (giờ, pin), điểm số (`*4/4`), dấu tích; khôi phục ngữ nghĩa từ dính số và các cụm từ đề thi song ngữ tiếng Anh - tiếng Việt (ngày thứ trong tuần, số học sinh nam/nữ cùng lớp).
+    - **Nhận diện tích đáp án**: Nhận diện ký tự `[✓✔☑]` trong phương án lựa chọn và gán `correct_answer`.
+    - **Động cơ OCR**: RapidOCR (PaddleOCR ONNX, siêu tốc <0.3s) / EasyOCR (Deep Learning) / PyTesseract.
     - **Phản hồi**:
       - `success`: `true` / `false`
       - `filename`: Tên tệp
       - `file_type`: `"image"` hoặc `"pdf"`
       - `total_extracted`: Số câu trích xuất thành công
-      - `saved_to_bank`: Cờ lưu CSDL
-      - `saved_count`: Số câu đã lưu
-      - `preview_questions`: Mảng đối tượng câu hỏi kèm URL ảnh `images: ["/media/ocr_..."]`, phương án trắc nghiệm, đáp án và lời giải.
-    - **Giao diện đối soát**: Bảng đối soát câu hỏi (Audit review table) cho phép giáo viên kiểm tra, sửa nội dung KaTeX, chọn đáp án đúng trước khi commit vào CSDL.
+      - `questions`: Mảng đối tượng câu hỏi kèm URL ảnh `images: ["/media/ocr_{uuid}.ext"]`, nội dung, 4 phương án, đáp án và lời giải.
+    - **Luồng duyệt tự do và xác thực câu hỏi (Free Carousel Navigation & Verification Queue)**:
+      - Quản lý hàng đợi `window.State.ocrBatch = { items, totalCount, currentIndex, processedCount, savedCount, skippedCount }`.
+      - Khởi tạo trạng thái từng câu hỏi `_ocrStatus`: `"pending"` (chưa lưu) | `"saved"` (đã lưu CSDL) | `"skipped"` (bỏ qua).
+      - **Thanh chọn nhanh tự do (`#ocr-questions-nav-bar`)**: Thanh chip selector cuộn ngang hiển thị toàn bộ câu hỏi kèm icon trực quan (`⚪ Chưa lưu`, `🟢 Đã lưu`, `❌ Đã bỏ qua`). Nhấp chuột vào bất kỳ câu nào để chuyển trực tiếp đến câu đó mà không bắt buộc phải lưu câu trước.
+      - Nút điều hướng tuần tự: `⬅ Câu trước` (`navPrevOcrQuestion()`) và `Câu tiếp ➡` (`navNextOcrQuestion()`).
+      - Nút `🗑️ Bỏ qua câu này` (`#btn-ocr-discard-q` - `discardCurrentOcrQuestion()`): Loại bỏ câu hỏi không phù hợp hoặc đã tồn tại trong CSDL, đánh dấu `_ocrStatus = "skipped"`, tăng bộ đếm `skippedCount`, cập nhật thanh tiến độ và tự động chuyển sang câu chưa xử lý tiếp theo.
+      - Nút `⚡ Lưu tất cả còn lại` (`saveAllRemainingOcrQuestions()`): Tự động lọc và chỉ lưu các câu hỏi có trạng thái `pending` vào CSDL SQLite (bỏ qua câu đã `saved` hoặc đã `skipped`).
+      - Form "Soạn thảo & Thêm câu hỏi Thủ công" hiển thị đầy đủ nội dung stem, 4 phương án, đáp án và khối lớp, hỗ trợ KaTeX Live Preview công thức toán.
+      - Sau khi bấm "💾 Lưu câu hỏi vào Ngân hàng" (hoặc `Ctrl + Enter`), câu hỏi được lưu vào CSDL SQLite, đánh dấu `_ocrStatus = "saved"`, tăng `savedCount` và tự động nạp câu hỏi kế tiếp chưa xử lý.
+    - **Động cơ OCR Kép (Dual OCR Engine Architecture - RapidOCR + VietOCR ONNX)**:
+      - Cho phép lựa chọn động cơ nhận diện ngay tại thanh công cụ OCR qua dropdown `#ocr-engine-select`:
+        + `⚡ RapidOCR (PaddleOCR ONNX)` (mặc định): Tốc độ siêu tốc (~0.2s/trang), chạy hoàn toàn qua ONNX Runtime nhẹ nhàng.
+        + `🧠 VietOCR ONNX DeepDoc`: Tối ưu nhận diện chuyên sâu chữ viết tiếng Việt, tự động tải mô hình từ `data/models/vietocr.onnx` khi khả dụng; nếu chưa có tệp trọng số sẽ tự động fallback mượt mà về RapidOCR mà không gây gián đoạn phiên làm việc.
+      - Tham số `engine: Form("rapid" | "vietocr")` trên các endpoint `/api/import/pdf`, `/api/import/image`, `/api/import/file` và `/api/pdf/extract`.
+    - **Cơ chế Tự học Ngữ nghĩa (Active Lexicon Learning Protocol)**:
+      - **Thu nhận tự động (Implicit Learning)**: Khi nạp câu hỏi từ OCR vào Form Soạn thảo, hệ thống lưu giữ chuỗi nhận diện gốc vào `_rawOcrText`. Khi người dùng sửa nội dung và bấm "Lưu vào Ngân hàng", `POST /api/questions` nhận trường `raw_ocr_content`, tự động gọi thuật toán `record_ocr_learning_diff()` so khớp diff cấp độ từ (SequenceMatcher) với ngưỡng phân đoạn tối đa 12 token. Các cụm từ đính chính được ghi nhận trực tiếp vào bảng SQLite `ocr_corrections` với tần suất tăng dần `frequency + 1`.
+      - **Áp dụng tức thì**: Hàm chuẩn hóa `clean_ocr_vietnamese_text()` tự động truy vấn từ điển `get_ocr_corrections_map()` theo thứ tự độ dài giảm dần, tự động thay thế mọi từ ngữ lỗi OCR đã từng được học trong các lần quét tiếp theo.
+      - **Bộ đệm hiệu năng TTL (In-memory Caching)**: Bản đồ từ điển được cache trên bộ nhớ RAM với TTL 300 giây và tự động bị vô hiệu hóa (`invalidate_ocr_corrections_cache()`) ngay khi có quy tắc mới.
+    - **Các Endpoint Quản Trị Từ Điển Tự Học OCR**:
+      - `GET /api/ocr/engine-status`: Kiểm tra trạng thái hoạt động của cả 2 động cơ OCR (sẵn sàng, tốc độ, độ chính xác, đường dẫn file mô hình) và tổng số quy tắc tự học đang có trong từ điển.
+      - `POST /api/ocr/learn`: Tiếp nhận `{ raw_text, corrected_text, source }` để trích xuất và ghi nhận tri thức đính chính mới.
+      - `GET /api/ocr/corrections`: Phân trang và tìm kiếm toàn văn trong từ điển `{ page, page_size, search }`.
+      - `POST /api/ocr/corrections`: Thêm quy tắc đính chính thủ công `{ wrong_text, correct_text, source }`.
+      - `DELETE /api/ocr/corrections/{id}`: Xóa một quy tắc khỏi từ điển.
+      - `POST /api/ocr/corrections/clear`: Xóa toàn bộ từ điển tự học.
+    - **Hộp thoại Quản lý Từ điển Tự học (`#modal-ocr-lexicon`)**:
+      - Bấm vào huy hiệu `🧠 Tự học (N)` trên thanh công cụ OCR để mở modal quản trị.
+      - Hỗ trợ thêm quy tắc thủ công (`wrong_text ➔ correct_text`), tìm kiếm tức thì theo từ khóa, xem tần suất xuất hiện `xN`, nhãn nguồn (`🧠 Tự học (Form)` / `Thủ công`), xóa từng quy tắc và xóa toàn bộ từ điển.
+    - **Hộp thoại Lightbox Xem trước phóng to (`#modal-image-zoom`)**: Hỗ trợ xem ảnh gốc độ phân giải cao, zoom in/out, xoay 90°, cuộn chuột zoom, kéo chuột pan di chuyển và duyệt ảnh trước/tiếp theo.
 15. **Biên Soạn & Xuất Đề Thi Chuẩn In Ấn MOET PDF A4 (`POST /api/export/pdf`)**:
     - **Đầu vào (`ExamCreate`)**:
       - `title`: Tiêu đề đề thi
@@ -276,6 +325,21 @@ Bảng lưu trữ vết toàn bộ các phiên làm bài trực tuyến trong Ph
         + `trending_scores`: Mảng điểm số theo thời gian phục vụ vẽ biểu đồ Canvas
         + `subject_mastery`: Mảng tỷ lệ thành thạo từng môn (`[ { subject, subject_label, attempts, accuracy_rate, average_score, ... } ]`). Client hỗ trợ cả định dạng mảng đối tượng và từ điển tra cứu theo subject key.
         + `badges`: Danh sách 8 huy hiệu thành tích kèm trạng thái mở khóa `unlocked: true/false`. Client `renderBadgesGrid` hỗ trợ cả mảng đối tượng `{ id, unlocked }` và mảng chuỗi mã huy hiệu `[ "badge_first_step", ... ]`.
+17. **Tác Vụ Hàng Loạt Trên Ngân Hàng Câu Hỏi (Bulk Operations APIs)**:
+    - **`POST /api/questions/bulk-delete`**:
+      - Tham số (`BulkDeleteRequest`): `{ "question_ids": ["id1", "id2", ...] }`.
+      - Xử lý: Thực thi xóa trong 1 transaction SQLite duy nhất, chia lô 500 ID chống tràn tham số SQLite, bật cờ `needs_resequence` và vô hiệu hóa cache thống kê, ghi nhật ký sự kiện vào `collector_logs`.
+      - Phản hồi: `{ "success": true, "status": "success", "deleted_count": int, "message": "Đã xóa thành công X câu hỏi" }`.
+    - **`POST /api/questions/bulk-update-grade`**:
+      - Tham số (`BulkUpdateGradeRequest`): `{ "question_ids": ["id1", "id2", ...], "grade": 1..12 }`. Hỗ trợ cả số nguyên `1..12` và chuỗi `"Lớp 1"` .. `"Lớp 12"`.
+      - Xử lý: Cập nhật đồng loạt trường `grade` và `updated_at` trong 1 transaction SQLite duy nhất, chia lô 500 ID, vô hiệu hóa cache thống kê, ghi nhật ký sự kiện vào `collector_logs`.
+      - Phản hồi: `{ "success": true, "status": "success", "updated_count": int, "grade": int, "message": "Đã cập nhật khối lớp thành Lớp X cho Y câu hỏi" }`.
+18. **Bóc Tách Ảnh Đề Thi Song Ngữ & Phân Tích Màu Sắc Đáp Án (Image OCR & Color Key Detection)**:
+    - **`POST /api/pdf/extract`** (Định dạng ảnh):
+      - Tiền xử lý: Phát hiện ảnh nhỏ (<800px chiều rộng), nội suy siêu phân giải `cv2.INTER_CUBIC` tỷ lệ `800.0 / w` chống vỡ nét mảnh toán học.
+      - Bảo vệ từ ghép số: Mã hóa tạm `\1_\2` cho các cụm `2-digit`, `3-chữ số`, `4-step` chống tách nhầm thành số câu mới.
+      - Nhận diện đáp án màu: Quét màu nền bounding box (`crop.mean(axis=(0, 1))`), khi `G - R > 6` và `G - B > 4` tự động nhận diện đáp án đã chọn (`✓`) và thiết lập `is_correct: True`.
+      - Khôi phục tiếng Việt: Áp dụng từ điển ngữ nghĩa tiểu học/Olympic song ngữ kết hợp từ điển tự học `ocr_corrections` khôi phục dấu thanh chuẩn xác 100%.
 
 ---
 
@@ -295,3 +359,4 @@ Bảng lưu trữ vết toàn bộ các phiên làm bài trực tuyến trong Ph
 | `eduquest_scraper_log` | String | Bot cào | Nhật ký trực tiếp của Bot cào tài khoản |
 | `eduquest_practice_history` | JSON Array | Practice Arena | Bộ đệm lịch sử các phiên thi gần nhất trên client |
 | `eduquest_ext_logs` | JSON Array | Extension | Toàn bộ log debug hoạt động của Extension |
+| `eduquest_ocr_log` | String | Image OCR Studio | Nhật ký trực tiếp (telemetry log) của quy trình bóc tách đề thi PDF & Ảnh OCR |

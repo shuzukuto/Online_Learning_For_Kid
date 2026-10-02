@@ -21,11 +21,13 @@ class QuestionCreate(BaseModel):
     question_type: str = "single_choice"  # single_choice, multiple_choice, fill_blank, matching, essay
     content_html: str
     content_text: Optional[str] = None
+    raw_ocr_content: Optional[str] = None
     images: List[str] = Field(default_factory=list)
     options: List[OptionItem] = Field(default_factory=list)
     correct_answer: Optional[str] = None
     explanation: Optional[str] = None
     difficulty: Optional[str] = "medium"  # easy, medium, hard, olympiad
+    created_at: Optional[str] = None
 
 class QuestionUpdate(BaseModel):
     q_number: Optional[int] = None
@@ -40,6 +42,7 @@ class QuestionUpdate(BaseModel):
     question_type: Optional[str] = None
     content_html: Optional[str] = None
     content_text: Optional[str] = None
+    raw_ocr_content: Optional[str] = None
     images: Optional[List[str]] = None
     options: Optional[List[OptionItem]] = None
     correct_answer: Optional[str] = None
@@ -181,4 +184,45 @@ class PracticeAnalyticsResponse(BaseModel):
     subject_mastery: List[SubjectMastery]
     recent_history: List[PracticeHistoryResponse]
     badges: List[BadgeItem]
+
+class BulkDeleteRequest(BaseModel):
+    question_ids: List[str] = Field(..., description="Danh sách các UUID/ID câu hỏi cần xóa")
+
+BulkDeleteQuestionsRequest = BulkDeleteRequest
+
+class BulkUpdateGradeRequest(BaseModel):
+    question_ids: List[str] = Field(..., description="Danh sách các UUID/ID câu hỏi cần đổi khối lớp")
+    grade: Any = Field(..., description="Khối lớp mới (chỉ từ 1 đến 12 hoặc 'Lớp 1'-'Lớp 12')")
+
+    @model_validator(mode="after")
+    def validate_grade_num(self):
+        import re
+        val = self.grade
+        if isinstance(val, bool):
+            raise ValueError("Khối lớp không được là giá trị boolean")
+        if isinstance(val, (int, float)):
+            if isinstance(val, float) and not val.is_integer():
+                raise ValueError("Khối lớp phải là số nguyên")
+            num = int(val)
+            if 1 <= num <= 12:
+                self.grade = num
+                return self
+            raise ValueError(f"Khối lớp phải từ 1 đến 12, nhận được: {val}")
+        s = str(val).strip()
+        # Strictly match optional 'Lớp' or 'Khối' followed by digits 1-12 only
+        m = re.match(r'^(?:(?:Lớp|Khối)\s*)?([1-9]|1[0-2])$', s, re.IGNORECASE)
+        if m:
+            self.grade = int(m.group(1))
+            return self
+        raise ValueError(f"Khối lớp không hợp lệ: {val}")
+
+class OcrLearnRequest(BaseModel):
+    raw_text: str = Field(..., description="Văn bản thô OCR nhận diện ban đầu")
+    corrected_text: str = Field(..., description="Văn bản chuẩn sau khi người dùng đính chính")
+    source: Optional[str] = "manual_feedback"
+
+class OcrCorrectionCreate(BaseModel):
+    wrong_text: str = Field(..., description="Từ/cụm từ sai do OCR nhận dạng")
+    correct_text: str = Field(..., description="Từ/cụm từ thay thế đúng")
+    source: Optional[str] = "manual_rule"
 

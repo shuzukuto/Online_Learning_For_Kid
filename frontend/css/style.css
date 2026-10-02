@@ -50,6 +50,10 @@
   padding: 0;
 }
 
+button, input, select, textarea {
+  font-family: inherit;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--color-slate-50);
@@ -228,6 +232,7 @@ body {
 
 /* Buttons */
 .btn {
+  font-family: inherit;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1236,6 +1241,7 @@ body {
   overflow-x: auto;
 }
 .practice-tab-btn {
+  font-family: inherit;
   padding: 10px 18px;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   font-size: 13.5px;
@@ -1258,6 +1264,11 @@ body {
   background: #ffffff;
   border-bottom: 3px solid #2563eb;
   margin-bottom: -3px;
+}
+
+#btn-start-practice {
+  font-family: var(--font-sans);
+  letter-spacing: 0.3px;
 }
 
 /* Arena Fixed HUD */
@@ -1411,6 +1422,7 @@ body {
   margin-top: 14px;
 }
 .stepper-btn {
+  font-family: inherit;
   height: 40px;
   border-radius: var(--radius-md);
   font-weight: 700;
@@ -1607,6 +1619,81 @@ body {
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Tag Timestamp */
+.tag-timestamp {
+  font-size: 11px;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+/* Batch Selection and Action Floating Toolbar */
+.question-card.is-batch-selected {
+  border-color: #3b82f6 !important;
+  background-color: #f8faff !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+}
+
+.batch-selection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.batch-action-toolbar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  z-index: 9999;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  pointer-events: none;
+}
+.batch-action-toolbar.active {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.batch-toolbar-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.batch-toolbar-info strong {
+  color: #38bdf8;
+  font-size: 15px;
+}
+.batch-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 /* MOET A4 Print Layout */
 @media print {
   @page {
@@ -1649,5 +1736,194 @@ body {
     page-break-before: always;
   }
 }
+
+/* ==========================================================================
+   OCR Multi-file Dropzone, Batch Review Banner & Lightbox Image Zoom
+   ========================================================================== */
+.ocr-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.ocr-file-chip .chip-remove {
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1;
+}
+.ocr-file-chip .chip-remove:hover {
+  color: #ef4444;
+}
+
+/* Compact OCR Importer Card & Strip */
+.ocr-compact-card {
+  background: #ffffff;
+  border: 1px solid var(--color-slate-200);
+  border-radius: var(--radius-lg);
+  padding: 10px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 14px;
+  transition: all var(--transition-fast);
+}
+
+.ocr-compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dropzone-compact {
+  border: 1.5px dashed #93c5fd;
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-height: 40px;
+  text-align: center;
+  background: #f8fafc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all var(--transition-fast);
+  margin-top: 8px;
+}
+
+.dropzone-compact:hover, .dropzone-compact.dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+
+.ocr-batch-progress-card {
+  background: linear-gradient(135deg, #f0f7ff 0%, #f0fdf4 100%);
+  border: 2px solid #3b82f6;
+  border-radius: var(--radius-xl);
+  padding: 14px 20px;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12);
+  margin-bottom: 16px;
+  animation: slideDownFade 0.3s ease-out;
+}
+
+.ocr-q-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.ocr-q-pill:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.ocr-q-pill.active {
+  border: 2px solid #2563eb !important;
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  font-weight: 800 !important;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.25);
+}
+.ocr-q-pill.status-saved {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.ocr-q-pill.status-skipped {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ocr-progress-track {
+  width: 100%;
+  height: 9px;
+  background: #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 12px 0;
+}
+.ocr-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #10b981);
+  transition: width 0.35s ease;
+  border-radius: 6px;
+}
+
+/* Lightbox Modal for detailed image inspection */
+.lightbox-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(6px);
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.lightbox-content {
+  background: #0f172a;
+  border-radius: var(--radius-xl);
+  width: 95vw;
+  max-width: 1200px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  border: 1px solid #334155;
+}
+.lightbox-viewport {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background: #0b0f19;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+}
+.lightbox-viewport:active {
+  cursor: grabbing;
+}
+.lightbox-viewport img {
+  max-width: 90%;
+  max-height: 85vh;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform 0.1s ease-out;
+  pointer-events: none;
+}
+
 
 

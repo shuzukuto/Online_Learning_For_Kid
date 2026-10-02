@@ -1,4 +1,7 @@
 // EduQuest Pro - Question Bank View with Deduplication, Diagnostics & Editing
+if (!State.batchSelectedIds) {
+  State.batchSelectedIds = new Set();
+}
 let cachedEditingQuestion = null;
 
 async function loadQuestions() {
@@ -98,6 +101,11 @@ async function loadQuestions() {
     // Render KaTeX for all math formulas in this container
     renderMath(container);
 
+    // Sync Batch Action Toolbar & Header Checkbox
+    if (typeof updateBatchToolbar === "function") {
+      updateBatchToolbar();
+    }
+
     // Render pagination
     renderPagination(data.total_pages, data.page, data.total);
 
@@ -109,6 +117,7 @@ async function loadQuestions() {
 
 function renderQuestionCard(q, idx) {
   const isSelected = State.selectedQuestionIds.has(q.id);
+  const isBatchSelected = State.batchSelectedIds && State.batchSelectedIds.has(q.id);
   // Permanent global question number across the entire database
   const qNumber = q.q_number || ((State.filters.page - 1) * State.filters.page_size + idx + 1);
 
@@ -207,9 +216,19 @@ function renderQuestionCard(q, idx) {
   const platBadgeText = platformLabelMap[q.source_platform] || (q.source_platform || "").toUpperCase();
 
   return `
-    <div class="question-card" id="qcard-${q.id}">
+    <div class="question-card ${isBatchSelected ? 'is-batch-selected' : ''}" id="qcard-${q.id}">
       <div class="card-header">
         <div class="card-tags" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <label class="q-batch-checkbox-wrap" style="display: inline-flex; align-items: center; margin-right: 4px; cursor: pointer;" title="Chọn câu hỏi này để thực hiện tác vụ hàng loạt">
+            <input 
+              type="checkbox" 
+              class="q-batch-checkbox" 
+              data-qid="${q.id}" 
+              ${isBatchSelected ? 'checked' : ''} 
+              onchange="toggleBatchQuestion('${q.id}', this.checked)" 
+              style="width: 17px; height: 17px; cursor: pointer; accent-color: #2563eb; border-radius: 4px;"
+            />
+          </label>
           <span class="q-number-pill">Câu ${qNumber}</span>
           <span class="tag-badge subject-${q.subject || 'math'}">${subMap[q.subject] || q.subject || '📐 Toán'}</span>
           <span class="tag-badge platform-${q.source_platform}">${platBadgeText}</span>
@@ -219,8 +238,9 @@ function renderQuestionCard(q, idx) {
           <span class="tag-grade" style="background: #f1f5f9; color: #475569;">${diffMap[q.difficulty] || q.difficulty}</span>
           <span class="tag-topic">${q.topic || q.exam_name || ""}</span>
         </div>
-        <div style="font-size: 12.5px; color: #1e3a8a; font-family: monospace; font-weight: 700;">
-          ID: #${qNumber} <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">(#${q.id.substring(0, 8)})</span>
+        <div style="font-size: 12.5px; color: #1e3a8a; font-family: monospace; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          ${q.created_at ? `<span class="tag-timestamp">🕒 ${typeof formatDateTimeVN === 'function' ? formatDateTimeVN(q.created_at) : q.created_at}</span>` : ''}
+          <span>ID: #${qNumber} <span style="font-size: 11px; color: #94a3b8; font-weight: normal;">(#${q.id.substring(0, 8)})</span></span>
         </div>
       </div>
 
@@ -256,7 +276,7 @@ function renderQuestionCard(q, idx) {
           <button class="btn btn-secondary btn-sm" title="Sao chép LaTeX" onclick="copyLatex('${q.id}')">
             LaTeX
           </button>
-          <button class="btn btn-secondary btn-sm" style="color: #ef4444;" title="Xóa câu hỏi" onclick="confirmDeleteQuestion('${q.id}')">
+          <button class="btn btn-secondary btn-sm" style="color: #ef4444;" title="Xóa câu hỏi" onclick="confirmDeleteQuestion('${q.id}', event)">
             ✕
           </button>
         </div>
@@ -311,20 +331,77 @@ function copyLatex(qid) {
   });
 }
 
-async function confirmDeleteQuestion(qid) {
+async function confirmDeleteQuestion(qid, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (document.activeElement && typeof document.activeElement.blur === "function") {
+    document.activeElement.blur();
+  }
   if (!confirm("Bạn có chắc chắn muốn xóa câu hỏi này khỏi ngân hàng?")) return;
+
+  const card = document.getElementById(`qcard-${qid}`);
+  const currentScrollY = window.scrollY;
+
   try {
     const res = await fetch(`${API_BASE}/questions/${qid}`, { method: "DELETE" });
     const data = await res.json();
     if (data.success) {
-      showToast("Đã xóa câu hỏi");
+      showToast("Đã xóa câu hỏi thành công");
       State.selectedQuestionIds.delete(qid);
+      if (State.batchSelectedIds) State.batchSelectedIds.delete(qid);
       updateSelectedBadge();
-      loadQuestions();
+      if (typeof updateBatchToolbar === "function") updateBatchToolbar();
+
+      // Cập nhật State.cachedQuestions
+      State.cachedQuestions = State.cachedQuestions.filter(item => item.id !== qid);
+
+      // Hiệu ứng xóa mượt mà
+      if (card) {
+        card.style.transition = "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
+        card.style.opacity = "0";
+        card.style.transform = "translateY(-12px) scale(0.97)";
+        card.style.maxHeight = card.offsetHeight + "px";
+        card.offsetHeight; // trigger reflow
+        card.style.maxHeight = "0px";
+        card.style.marginTop = "0px";
+        card.style.marginBottom = "0px";
+        card.style.paddingTop = "0px";
+        card.style.paddingBottom = "0px";
+        card.style.borderWidth = "0px";
+        card.style.overflow = "hidden";
+
+        setTimeout(() => {
+          card.remove();
+          const container = document.getElementById("questions-list-container");
+          if (container && container.querySelectorAll(".question-card").length === 0) {
+            loadQuestions();
+          }
+        }, 360);
+      }
+
+      // Cập nhật bộ đếm hiển thị trên UI
+      updateBankCountersAfterDelete(1);
       loadDashboardStats();
+      window.scrollTo({ top: currentScrollY, behavior: "instant" });
+    } else {
+      showToast(data.detail || "Không thể xóa câu hỏi", "error");
     }
   } catch (err) {
-    showToast("Lỗi xóa câu hỏi", "error");
+    showToast("Lỗi kết nối khi xóa câu hỏi", "error");
+  }
+}
+
+function updateBankCountersAfterDelete(deletedCount) {
+  const totalCountEl = document.getElementById("bank-total-count");
+  if (totalCountEl) {
+    const match = totalCountEl.innerText.match(/^(\d+)/);
+    if (match) {
+      const current = parseInt(match[1]);
+      const nextCount = Math.max(0, current - deletedCount);
+      totalCountEl.innerText = `${nextCount} câu hỏi`;
+    }
   }
 }
 
@@ -889,5 +966,198 @@ async function runDbAutoFix() {
       btn.disabled = false;
       btn.innerText = "🛠️ Tự động Sửa Chữa Toàn Diện";
     }
+  }
+}
+
+// ----------------- Batch Operations: Multiple Selection & Actions -----------------
+
+function toggleBatchQuestion(qid, isChecked) {
+  if (!State.batchSelectedIds) State.batchSelectedIds = new Set();
+  const card = document.getElementById(`qcard-${qid}`);
+  if (isChecked) {
+    State.batchSelectedIds.add(qid);
+    if (card) card.classList.add("is-batch-selected");
+  } else {
+    State.batchSelectedIds.delete(qid);
+    if (card) card.classList.remove("is-batch-selected");
+  }
+  updateBatchToolbar();
+}
+
+function toggleSelectAllPage(isChecked) {
+  if (!State.batchSelectedIds) State.batchSelectedIds = new Set();
+  const checkboxes = document.querySelectorAll(".q-batch-checkbox");
+  checkboxes.forEach(cb => {
+    const qid = cb.dataset.qid;
+    cb.checked = isChecked;
+    const card = document.getElementById(`qcard-${qid}`);
+    if (isChecked) {
+      State.batchSelectedIds.add(qid);
+      if (card) card.classList.add("is-batch-selected");
+    } else {
+      State.batchSelectedIds.delete(qid);
+      if (card) card.classList.remove("is-batch-selected");
+    }
+  });
+  updateBatchToolbar();
+}
+
+function selectAllPage() {
+  const chk = document.getElementById("chk-select-all-page");
+  if (chk) chk.checked = true;
+  toggleSelectAllPage(true);
+}
+
+function deselectAllBatch() {
+  if (!State.batchSelectedIds) State.batchSelectedIds = new Set();
+  State.batchSelectedIds.clear();
+  document.querySelectorAll(".q-batch-checkbox").forEach(cb => cb.checked = false);
+  document.querySelectorAll(".question-card.is-batch-selected").forEach(card => card.classList.remove("is-batch-selected"));
+  const chk = document.getElementById("chk-select-all-page");
+  if (chk) chk.checked = false;
+  updateBatchToolbar();
+}
+
+function updateBatchToolbar() {
+  if (!State.batchSelectedIds) State.batchSelectedIds = new Set();
+  const count = State.batchSelectedIds.size;
+  const toolbar = document.getElementById("batch-action-toolbar");
+  const countEl = document.getElementById("batch-toolbar-count");
+  const delCountEl = document.getElementById("batch-delete-btn-count");
+  const labelEl = document.getElementById("page-selected-count-label");
+  const chkAll = document.getElementById("chk-select-all-page");
+
+  if (countEl) countEl.innerText = count;
+  if (delCountEl) delCountEl.innerText = count;
+  if (labelEl) labelEl.innerText = `(Đã chọn ${count} câu)`;
+
+  if (toolbar) {
+    if (count >= 1) {
+      toolbar.classList.add("active");
+    } else {
+      toolbar.classList.remove("active");
+    }
+  }
+
+  // Check if all on current page are selected
+  const pageCheckboxes = document.querySelectorAll(".q-batch-checkbox");
+  if (pageCheckboxes.length > 0 && chkAll) {
+    const allChecked = Array.from(pageCheckboxes).every(cb => cb.checked);
+    chkAll.checked = allChecked;
+  }
+}
+
+async function executeBulkDelete() {
+  if (!State.batchSelectedIds || State.batchSelectedIds.size === 0) {
+    showToast("Vui lòng chọn ít nhất 1 câu hỏi để xóa hàng loạt", "error");
+    return;
+  }
+  const count = State.batchSelectedIds.size;
+  if (!confirm(`Bạn có chắc chắn muốn xóa ${count} câu hỏi đã chọn? Thao tác này không thể hoàn tác.`)) {
+    return;
+  }
+
+  if (document.activeElement && typeof document.activeElement.blur === "function") {
+    document.activeElement.blur();
+  }
+  const currentScrollY = window.scrollY;
+  const idsToDelete = Array.from(State.batchSelectedIds);
+
+  try {
+    const res = await fetch(`${API_BASE}/questions/bulk-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question_ids: idsToDelete })
+    });
+    const data = await res.json();
+    if (data.success || data.status === "success") {
+      const deletedCount = data.deleted_count || idsToDelete.length;
+      showToast(`Đã xóa thành công ${deletedCount} câu hỏi!`);
+
+      // Animate and remove cards
+      idsToDelete.forEach(qid => {
+        State.selectedQuestionIds.delete(qid);
+        State.batchSelectedIds.delete(qid);
+        State.cachedQuestions = State.cachedQuestions.filter(item => item.id !== qid);
+
+        const card = document.getElementById(`qcard-${qid}`);
+        if (card) {
+          card.style.transition = "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
+          card.style.opacity = "0";
+          card.style.transform = "translateY(-12px) scale(0.97)";
+          card.style.maxHeight = card.offsetHeight + "px";
+          card.offsetHeight;
+          card.style.maxHeight = "0px";
+          card.style.marginTop = "0px";
+          card.style.marginBottom = "0px";
+          card.style.paddingTop = "0px";
+          card.style.paddingBottom = "0px";
+          card.style.borderWidth = "0px";
+          card.style.overflow = "hidden";
+          setTimeout(() => card.remove(), 360);
+        }
+      });
+
+      updateSelectedBadge();
+      updateBatchToolbar();
+      updateBankCountersAfterDelete(deletedCount);
+      loadDashboardStats();
+      window.scrollTo({ top: currentScrollY, behavior: "instant" });
+
+      setTimeout(() => {
+        const container = document.getElementById("questions-list-container");
+        if (container && container.querySelectorAll(".question-card").length === 0) {
+          loadQuestions();
+        }
+      }, 400);
+    } else {
+      showToast(data.detail || data.message || "Lỗi khi xóa hàng loạt", "error");
+    }
+  } catch (err) {
+    showToast(`Lỗi kết nối khi xóa hàng loạt: ${err.message}`, "error");
+  }
+}
+
+async function executeBulkUpdateGrade() {
+  if (!State.batchSelectedIds || State.batchSelectedIds.size === 0) {
+    showToast("Vui lòng chọn ít nhất 1 câu hỏi để đổi khối lớp", "error");
+    return;
+  }
+  const gradeSelect = document.getElementById("batch-target-grade");
+  const targetGrade = parseInt(gradeSelect?.value) || 5;
+  const idsToUpdate = Array.from(State.batchSelectedIds);
+
+  try {
+    const res = await fetch(`${API_BASE}/questions/bulk-update-grade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question_ids: idsToUpdate, grade: targetGrade })
+    });
+    const data = await res.json();
+    if (data.success || data.status === "success") {
+      const updatedCount = data.updated_count || idsToUpdate.length;
+      showToast(`Đã cập nhật khối lớp thành Lớp ${targetGrade} cho ${updatedCount} câu hỏi!`);
+
+      // Update cards in-place
+      idsToUpdate.forEach(qid => {
+        const card = document.getElementById(`qcard-${qid}`);
+        if (card) {
+          const gradeTags = card.querySelectorAll(".tag-grade");
+          gradeTags.forEach(gt => {
+            if (gt.innerText.includes("Lớp")) {
+              gt.innerText = `Lớp ${targetGrade}`;
+            }
+          });
+        }
+        const cachedItem = State.cachedQuestions.find(item => item.id === qid);
+        if (cachedItem) cachedItem.grade = targetGrade;
+      });
+
+      loadDashboardStats();
+    } else {
+      showToast(data.detail || data.message || "Lỗi khi đổi khối lớp", "error");
+    }
+  } catch (err) {
+    showToast(`Lỗi kết nối khi đổi khối lớp: ${err.message}`, "error");
   }
 }

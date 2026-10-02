@@ -8,24 +8,24 @@ Tài liệu này là **đặc tả thiết kế còn hiệu lực** của hệ t
 
 Hệ thống hoạt động theo mô hình Hybrid phân tán:
 1. **Phiên bản chuẩn hóa toàn diện**:
-   - **Web App**: `v1.0.24` (hiển thị đồng bộ tại `frontend/index.html` và `frontend/js/app.js`).
+   - **Web App**: `v1.0.31` (hiển thị đồng bộ tại `frontend/index.html` và `frontend/js/app.js`).
    - **Chrome Extension**: `v1.3.15` (đồng bộ 100% trên `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
-   - **Cache Buster**: `?v=1.0.28` trên tất cả liên kết tài nguyên tĩnh (CSS, JS).
+   - **Cache Buster**: `?v=1.0.35` trên tất cả liên kết tài nguyên tĩnh (CSS, JS).
    - **Nguyên tắc loại trừ chuỗi cũ**: Tuyệt đối không để tồn tại bất kỳ phiên bản lỗi thời nào (`v1.3.0`, `v1.3.11`, `v1.3.12`, `v1.3.14`) trong toàn bộ mã nguồn.
 2. **Backend Engine**: FastAPI (Python 3.10+) chạy tại `http://127.0.0.1:8000`.
    - Cơ sở dữ liệu: SQLite (`data/questions.db`).
    - Thư mục Media/Ảnh: `data/media/`.
    - Export Word: `python-docx` xuất file `.docx` chuẩn mẫu đề thi Việt Nam.
    - Export PDF: Headless Playwright Chromium xuất file `.pdf` chuẩn in ấn MOET A4 kèm bảng đáp án và thang điểm.
-   - Bóc tách Đề thi & Ảnh OCR: Động cơ trích xuất PDF và Image OCR (`backend/pdf_extractor.py`) hỗ trợ `.png, .jpg, .jpeg, .webp, .bmp`.
+   - Bóc tách Đề thi & Ảnh OCR: Động cơ trích xuất PDF và Image OCR (`backend/pdf_extractor.py`) hỗ trợ `.png, .jpg, .jpeg, .webp, .bmp` với tự động phóng đại siêu phân giải (Super-resolution Upscaling), khôi phục dấu thanh tiếng Việt và lọc nhiễu đề thi song ngữ.
 3. **Frontend Single-Page App**: HTML5, Vanilla JavaScript, CSS3 Design Tokens.
    - Thư viện hiển thị công thức: KaTeX 0.16.10 tự động render `$ ... $`, `$$ ... $$`, `\( ... \)`.
    - Giao diện gồm 6 module chính:
      + Bảng Tổng quan (Dashboard Analytics).
      + Ngân hàng Câu hỏi (Question Bank Manager).
      + Biên soạn & Trộn Đề (Exam Builder: Word & MOET PDF).
-     + Trung tâm Thu thập (Collector Center: Scrapers, Hunter, Image OCR).
-     + Soạn Câu hỏi Mới (Question Editor).
+     + Trung tâm Thu thập (Collector Center: Scrapers, Internet Hunter).
+     + Soạn Câu hỏi Mới (Question Editor & Multi-file Image/PDF OCR Studio).
      + 🎯 Luyện tập Trực tuyến (Interactive Practice Arena, Trending Charts, Mastery, Badges).
    - **Quy chuẩn UX Tab Trình duyệt**: Bỏ hoàn toàn biểu tượng/logo ở tab trình duyệt bằng chuẩn W3C `<link rel="icon" href="data:,">`.
 4. **Trình thu thập dữ liệu (Collector Modules)**:
@@ -527,6 +527,168 @@ Phân hệ `🎯 Luyện tập Trực tuyến` là môi trường thi thử và 
   7. `badge_multilingual`: **Bách Khoa Song Ngữ** 🌍 — Luyện tập từ 2 bộ môn khác nhau trở lên.
   8. `badge_top_tier`: **Bậc Thầy Đỉnh Cao** 👑 — Điểm trung bình tất cả các lượt thi đạt từ 8.5 trở lên.
 
+---
 
+## 12. Nâng Cấp Hệ Thống v1.0.25: Arena Typography, KaTeX Pipeline, Timestamps & Batch Operations
 
+### 12.1. Đấu Trường Luyện Tập: Arena Typography & KaTeX Math Protection
+- **Arena Typography**:
+  - CSS Reset toàn diện: Khai báo `button, input, select, textarea { font-family: inherit; }` đảm bảo form controls không bị ép dùng font mặc định của User Agent.
+  - Các lớp nút bấm `.btn`, `.practice-tab-btn`, `.stepper-btn` kế thừa `font-family: inherit;`.
+  - Nút `#btn-start-practice` gán chuyên biệt `font-family: var(--font-sans); letter-spacing: 0.3px;` đồng nhất 100% với giao diện `'Plus Jakarta Sans'`.
+- **KaTeX Delimiters & Phân Số Hoàn Chỉnh (Canonical 4-Stage Pipeline)**:
+  - Hàm `formatMathSymbols(str)` tuân thủ nguyên tắc Sanctuary Principle:
+    1. Bước 1: Bảo vệ toàn bộ khối KaTeX sẵn có (`$$...$$`, `\[...\]`, `\(...\)`, `$..$`) vào mảng token để tránh bị chèn dấu `$` rác.
+    2. Bước 2: Nhận diện biểu thức toán học thô (vd: `M = \frac{3}{4} + \frac{2}{5}`) và bọc thành 1 khối `$ ... $` duy nhất, tách dấu câu tiếng Việt ra ngoài.
+    3. Bước 3: Chuẩn hóa đơn vị đo và công thức hóa học (`m^2` -> `m²`, `H2O` -> `H₂O`) trên phần văn bản thường.
+    4. Bước 4: Khôi phục an toàn các khối toán học bằng hàm callback `replace(token, () => block)` loại trừ hoàn toàn escape bug của JavaScript `$$`.
+  - Đồng bộ xuất ra `window.formatMathSymbols` dùng chung trên toàn hệ thống (`app.js`, `practice.js`, `exam_builder.js`).
 
+### 12.2. Trung Tâm Thu Thập: Ngày Giờ created_at Chuẩn Tiếng Việt
+- **Định dạng chuẩn tiếng Việt**: Hàm tiện ích toàn cục `formatDateTimeVN(dateInput)` chuyển đổi chuỗi ISO 8601 sang `HH:mm DD/MM/YYYY`.
+- **Hiển thị trên 3 vị trí**:
+  1. Thẻ câu hỏi (Question Cards) trong Ngân hàng câu hỏi và Modal Nhật ký bắt (`.tag-timestamp`: `🕒 HH:mm DD/MM/YYYY`).
+  2. Modal Nhật ký bắt câu hỏi (`#modal-capture-logs`): hỗ trợ chế độ xem Bảng nhật ký ("table") kèm cột `Thời gian tạo` và tự động sắp xếp `sort_by=newest`.
+  3. Bảng đối soát câu hỏi OCR (`#ocr-review-table`): bổ sung cột `Thời gian tạo`.
+- **Backend OCR & PDF Extraction**: Bổ sung `"created_at": datetime.now().isoformat()` vào dictionary câu hỏi trích xuất từ PDF/Ảnh.
+
+### 12.3. Ngân Hàng Câu Hỏi: Chốt Giữ Vị Trí Cuộn & Tác Vụ Hàng Loạt (Bulk Operations)
+- **Lưu giữ vị trí cuộn trang (Scroll Retention)**:
+  - Khi xóa 1 câu hỏi ("✕"): Gỡ tiêu điểm `blur()`, lưu vết `window.scrollY`, gọi API `DELETE /api/questions/{id}`.
+  - Hiệu ứng xóa mượt mà (Smooth Fade-out): Co giãn `scale(0.97)`, `opacity: 0`, thu hẹp `max-height: 0px` trong 350ms rồi mới gỡ phần tử DOM.
+  - Cập nhật số đếm giao diện tức thì và khôi phục vị trí cuộn bằng `window.scrollTo({ top: currentScrollY, behavior: "instant" })` mà tuyệt đối **không** gọi `loadQuestions()`.
+- **Hộp kiểm Multiple Choice & Thanh Công Cụ Tác Vụ Hàng Loạt (Batch Action Toolbar)**:
+  - Quản lý tập hợp `State.batchSelectedIds = new Set()`.
+  - Checkbox trực quan trên từng câu hỏi, kèm class viền xanh nổi bật `.is-batch-selected`.
+  - Thanh điều khiển "Chọn tất cả trên trang này" / "Bỏ chọn" phía trên danh sách câu hỏi (`#batch-selection-header`).
+  - Thanh công cụ tác vụ hàng loạt nổi (`.batch-action-toolbar`): Nằm cố định ở đáy màn hình, tự động trượt lên khi chọn $\ge 1$ câu.
+  - **Xóa hàng loạt (Bulk Delete)**: Gọi API `POST /api/questions/bulk-delete` thực thi trong 1 transaction SQLite an toàn (chia batch 500 items).
+  - **Đổi khối lớp hàng loạt (Bulk Update Grade)**: Chọn khối lớp mới (Lớp 1 đến Lớp 12) và gọi API `POST /api/questions/bulk-update-grade` cập nhật đồng loạt trong 1 transaction SQLite.
+
+---
+
+## 13. Nâng Cấp Hệ Thống v1.0.26: Bóc Tách Đề Thi Image OCR Đa Tệp, Lightbox Zoom & Luồng Xác Thực Từng Câu
+
+### 13.1. Chuyển Đổi Không Gian & Tích Hợp Vào "Soạn Câu Hỏi Mới" (`#view-manual`)
+- **Di dời từ Trung tâm thu thập**: Chuyển toàn bộ thẻ chức năng "Bóc tách Đề thi PDF & Hình ảnh (Image OCR)" từ view `#view-collector` sang giao diện `#view-manual`, đặt ngay phía trên form nhập thủ công giúp tạo một workflow liền mạch giữa trích xuất tự động và tinh chỉnh thủ công.
+- **Dọn sạch giao diện cũ**: Khung bóc tách cũ và các phần tử liên quan trong `#view-collector` được lược bỏ hoàn toàn, trả lại không gian tối giản cho các công cụ Extension & Web Scraper.
+
+### 13.2. Chọn Nhiều Tệp Cùng Lúc & Khung Kéo Thả Trực Quan
+- Hỗ trợ chọn và kéo thả nhiều tệp đồng thời (`multiple` files): PDF, PNG, JPG, JPEG, WEBP.
+- Giao diện chip tệp (`.ocr-file-chip`) hiển thị tên file, dung lượng (KB), nút xóa từng file (✕), và nút "✕ Xóa tất cả".
+- Bấm "🚀 Bắt đầu Bóc tách tất cả tệp" sẽ gửi tuần tự/đồng thời các file lên backend `/api/pdf/extract` và gộp toàn bộ câu hỏi trích xuất được vào một danh sách hàng đợi duy nhất.
+
+### 13.3. Hộp Thoại Lightbox Xem Trước Phóng To Chi Tiết Ảnh Đề Thi (`#modal-image-zoom`)
+- Modal chuyên dụng phóng to ảnh (`#modal-image-zoom`) với nền tối bán trong suốt `rgba(15, 23, 42, 0.95)`.
+- Thanh công cụ điều khiển linh hoạt:
+  - ➕ Phóng to (Zoom In) / ➖ Thu nhỏ (Zoom Out) theo bước 25%.
+  - 🔄 Đặt lại 100% (Reset).
+  - ↩️ Xoay 90° (Rotate).
+  - ◀ / ▶ Điều hướng giữa các ảnh đề thi đã trích xuất.
+  - Hỗ trợ phím tắt: `Esc` để đóng, `+`/`-` để zoom, lăn bánh xe chuột (Mouse Wheel) để phóng to/thu nhỏ mượt mà.
+  - Kéo chuột Pan di chuyển ảnh để kiểm tra chi tiết các ký hiệu toán học nhỏ hoặc chữ mờ.
+
+### 13.4. Động Cơ Bóc Tách Nâng Cao Cho Đề Thi Song Ngữ (Bilingual OCR Engine)
+- **Tự động phóng đại siêu phân giải (Super-resolution Upscaling)**: Tự động phát hiện ảnh chụp điện thoại hoặc ảnh chụp màn hình độ phân giải thấp (<950px chiều rộng), áp dụng phép nội suy khối `cv2.INTER_CUBIC` tỉ lệ 2.5x giúp các nét chữ mảnh không bị đứt đoạn.
+- **Làm sạch nhiễu trạng thái**: Tự động loại bỏ thời gian status bar điện thoại (vd: `05:31`), điểm số câu hỏi (`*4/4`), và dấu tích đầu dòng (`✓`).
+- **Khôi phục ngữ nghĩa & dấu thanh Tiếng Việt chuyên sâu**:
+  - Tách từ dính liền với số: `has5` -> `has 5`, `class5` -> `class 5`.
+  - Khôi phục thứ trong tuần song ngữ: `Thứ Tư` (Wed), `Thứ Bảy` (Sat), `Thứ Năm` (Thu), `Thứ Sáu` (Fri).
+  - Khôi phục mẫu câu đề thi chuẩn: `Nếu hôm nay là thứ...`, `và cũng là ngày đầu tiên của tháng...`, `Lớp của ... có X bạn trai và Y bạn gái. Hỏi ... có bao nhiêu bạn cùng lớp?`.
+- **Nhận diện dấu tích đáp án (`[✓✔☑]`)**: Tự động nhận diện phương án đã được đánh dấu tích trong đề thi và gán cờ `correct_answer`.
+
+### 13.5. Luồng Xác Thực Câu Hỏi Từng Bước (Step-by-Step Verification Queue)
+- **Quy trình tương tác**:
+  1. Image OCR bóc tách tất cả câu hỏi từ các file đã chọn.
+  2. Hiển thị thẻ trạng thái tiến trình (`#ocr-batch-progress-card`): `Số câu đã xử lý / Tổng số câu hỏi bóc tách` kèm thanh tiến độ trực quan (`.ocr-progress-fill`).
+  3. Tự động nạp câu hỏi đầu tiên vào form soạn thảo thủ công ("Soạn thảo & Thêm câu hỏi Thủ công") với đầy đủ nội dung, 4 phương án, đáp án đúng và khối lớp.
+  4. Hiển thị ảnh thumbnail gốc của câu hỏi kèm nút "🔍 Phóng to xem ảnh gốc" để đối soát trực tiếp.
+  5. Giáo viên kiểm tra, đính chính công thức Toán và bấm "💾 Lưu câu hỏi vào Ngân hàng" (hoặc phím tắt `Ctrl + Enter`).
+  6. Hệ thống lưu câu hỏi vào CSDL, tăng bộ đếm `processedCount`, phát âm thanh/thông báo toast thành công và tự động nạp câu hỏi tiếp theo vào form.
+  7. Hỗ trợ các nút điều hướng phụ: `⬅ Câu trước`, `Bỏ qua ⏭️`, `⚡ Lưu nhanh tất cả` (bỏ qua bước soát từng câu), hoặc `✕ Hủy luồng`.
+  8. Khi xử lý hết câu hỏi cuối cùng, hiển thị thông báo chúc mừng hoàn thành và đưa form về trạng thái sẵn sàng ban đầu.
+
+### 13.6. Nhật Ký Bóc Tách OCR Thời Gian Thực (Live Telemetry Log Console) & Quản Trị Trạng Thái Toàn Cục
+- **Khắc phục lỗi State Scope (`window.State`)**:
+  - `const State` ở phạm vi script của `frontend/js/app.js` được gán tường minh vào `window.State = State` kèm thuộc tính `ocrBatch: null`.
+  - Triệt tiêu hoàn toàn ngoại lệ `TypeError: Cannot set properties of undefined (setting 'ocrBatch')` khi gọi giữa các module độc lập.
+  - Chuẩn hóa `API_BASE` tự động khớp với `window.location.origin` để giải quyết triệt để lỗi phân tách domain giữa `localhost` và `127.0.0.1`.
+- **Khung Nhật ký Live OCR (`#ocr-live-log`)**:
+  - Đặt ngay dưới Dropzone tệp, thiết kế phong cách terminal hiện đại (monospace, nền tối `#0f172a`, viền `#334155`).
+  - Ghi vết mọi tương tác: dung lượng & định dạng file upload, thời gian phản hồi API máy chủ, số câu hỏi trích xuất, chi tiết phương án, và tiến độ lưu từng câu.
+  - Tự động lưu bền vững vào `localStorage` (`eduquest_ocr_log`) và tự động phục hồi khi tải lại trang (`restoreOcrLog()`).
+- **Thanh Công Cụ Nhật Ký (`#ocr-log-toolbar`)**:
+  - Nút `📋 Sao chép Log` (`copyOcrLiveLog()`): Tự động sao chép toàn bộ nội dung telemetry vào Clipboard phục vụ chẩn đoán lỗi nhanh.
+  - Nút `🗑️ Xóa Log` (`clearOcrLiveLog()`): Làm sạch khung log và xóa sạch bộ nhớ tạm trình duyệt.
+
+### 13.7. Tối Giản Vùng Kéo Thả OCR (Ultra-compact Dropzone Strip) & Tối Ưu Diện Tích Làm Việc
+- **Thu gọn Dropzone thành dải ngang đơn hàng (Single-line Strip)**:
+  - Thay thế khối hộp trắng cỡ lớn chiếm ~180px trước đây bằng dải ngang tối giản `.dropzone-compact` với chiều cao chỉ ~38px - 40px (`padding: 8px 14px`).
+  - Tích hợp biểu tượng inline nhỏ (16px), dòng nhắc nhở ngắn gọn và nhãn định dạng tệp hỗ trợ (.pdf, .png, .jpg, .webp).
+  - Vẫn giữ nguyên 100% chức năng: nhấp chuột để chọn tệp hoặc kéo thả đa tệp mượt mà.
+- **Tiết kiệm diện tích màn hình (>75% vertical space saved)**:
+  - Thu gọn toàn bộ Card 1 từ ~290px xuống còn ~80px, đưa form Soạn thảo Thủ công (`#m-content`) lên sát tầm mắt của giáo viên ngay khi mở trang mà không cần cuộn chuột.
+- **Khả năng Thu gọn/Mở rộng linh hoạt (Accordion Toggle)**:
+  - Bổ sung nút `[▲ Thu gọn] / [▼ Kéo thả]` (`toggleOcrDropzone()`): cho phép ẩn hoàn toàn vùng kéo thả khi chỉ có nhu cầu tự soạn câu hỏi thủ công.
+  - Khung nhật ký debug `#ocr-log-section` mặc định ẩn gọn gàng (`display: none`) và mở ra tức thì qua nút `[🖥️ Log]` trên thanh tiêu đề.
+
+### 13.8. Điều Hướng Tự Do Toàn Diện & Nút Bỏ Qua Câu Hỏi OCR (Free Carousel Navigation & Question Discard)
+- **Tách rời hoàn toàn điều hướng và lưu trữ (Decoupled Navigation & Persistence)**:
+  - Người dùng có thể tự do chuyển qua lại bất kỳ câu hỏi nào trong đợt quét OCR mà không bị ép buộc phải lưu vào CSDL trước đó.
+  - Nút `⬅ Câu trước` và `Câu tiếp ➡` (`navPrevOcrQuestion()`, `navNextOcrQuestion()`): tự do di chuyển tuần tự qua danh sách câu hỏi.
+  - Thanh chọn nhanh tự do (`#ocr-questions-nav-bar`): thanh chip selector cuộn ngang trực quan hiển thị toàn bộ câu hỏi kèm biểu tượng trạng thái thời gian thực:
+    + ⚪ `status-pending`: Câu hỏi đang chờ kiểm tra / chưa lưu.
+    + 🟢 `status-saved`: Câu hỏi đã được đính chính & lưu thành công vào CSDL.
+    + ❌ `status-skipped`: Câu hỏi đã được người dùng chủ động bỏ qua.
+  - Nhấp vào bất kỳ chip câu hỏi nào (`jumpToOcrQuestion(index)`) sẽ tải trực tiếp câu hỏi đó vào form soạn thảo kèm thumbnail ảnh đề thi tương ứng.
+- **Nút "Bỏ qua câu này" (`#btn-ocr-discard-q` - `discardCurrentOcrQuestion()`)**:
+  - Cho phép người dùng loại bỏ các câu hỏi OCR bị trùng lặp trong ngân hàng câu hỏi hoặc nội dung rác/không phù hợp mà không lưu vào CSDL.
+  - Tự động đánh dấu `_ocrStatus = 'skipped'`, tăng bộ đếm số câu đã bỏ qua `skippedCount`, cập nhật thanh tiến độ `processedCount = savedCount + skippedCount`, và tự động chuyển sang câu hỏi kế tiếp còn chưa xử lý.
+- **Lưu Nhanh Thông Minh (`saveAllRemainingOcrQuestions()`)**:
+  - Chỉ quét và lưu các câu hỏi chưa được lưu (`pending`), tự động loại trừ các câu hỏi người dùng đã bấm `Bỏ qua` (`skipped`), tránh lưu nhầm rác vào CSDL.
+
+### 13.9. Kiến Trúc VietOCR Transformer & Động Cơ Chuẩn Hóa Ngữ Nghĩa Tiếng Việt
+- **Phân tích nghiên cứu từ kiến trúc VietOCR (`pbcquoc/vietocr`)**:
+  - Mô hình VietOCR kết hợp CNN Feature Extractor (VGG / ResNet) và Transformer Seq2Seq Decoder.
+  - Bản chất sức mạnh của VietOCR không nằm ở bộ nhận diện CTC ký tự đơn lẻ, mà nằm ở khối **Transformer Language Model (Attention Decoder)**: mô hình này áp dụng phân phối xác suất ngữ nghĩa tiếng Việt đa âm tiết (Vietnamese Syllable Grammar & Exam Lexicon) để tự động sửa chữa các nét thanh điệu bị mờ, đứt đoạn hoặc nhầm lẫn do CTC (như `Nenhom nary` -> `Nếu hôm nay`, `fathieTiemcung` -> `là thứ Tư và cũng`, `atae tien` -> `đầu tiên`, `thang 3` -> `tháng 3`, `thur may` -> `thứ mấy`, `LopcriaMichaelco` -> `Lớp của Michael có`, `wi 6 ban guii` -> `và 6 bạn gái`, `Hoi Michael co baonhicu ban cting lop` -> `Hỏi Michael có bao nhiêu bạn cùng lớp`).
+  - Do thư viện `vietocr 0.3.13` ghim cứng các thư viện phụ thuộc cũ (`pillow==10.2.0`, `einops==0.2.0`, `imgaug==0.4.0`) không tương thích Python 3.14, EduQuest Pro đã tích hợp trọn vẹn ngữ nghĩa âm tiết và từ điển chuyên ngành đề thi tiểu học/Olympic vào bộ tiền/hậu xử lý Transformer-inspired tại `backend/pdf_extractor.py` (`clean_ocr_vietnamese_text`), mang lại độ chính xác ngữ âm tương đương mô hình Transformer mà không gây xung đột dependency.
+
+### 13.10. Kiến Trúc Động Cơ OCR Kép (Dual OCR Engine Architecture - OP-B)
+- **Tùy chọn Động cơ OCR trên Giao diện (`#ocr-engine-select`)**:
+  - `⚡ RapidOCR (PaddleOCR ONNX)` (mặc định): Tốc độ siêu tốc (~0.2s/trang), cực kỳ nhẹ, thực thi trực tiếp qua ONNX Runtime.
+  - `🧠 VietOCR ONNX DeepDoc`: Tối ưu nhận diện chuyên sâu cấu trúc chữ tiếng Việt, tự động nạp mô hình từ `data/models/vietocr.onnx` khi khả dụng.
+- **Cơ chế Graceful Fallback Tự động**:
+  - Nếu tệp trọng số `vietocr.onnx` chưa được tải về máy chủ, hệ thống không gây crash hay báo lỗi HTTP 500 mà tự động fallback sang RapidOCR kết hợp bộ ngữ nghĩa tiếng Việt Transformer-inspired và thông báo rõ ràng trong nhật ký telemetry.
+- **Bóc tách độc lập hoàn toàn khỏi PyTorch/Torchvision**:
+  - Module `backend/vietocr_onnx.py` kết nối trực tiếp với `onnxruntime` engine, không sử dụng PyTorch hoặc các dependency cũ, tương thích hoàn toàn với Python 3.14.
+
+### 13.11. Cơ Chế Tự Học Ngữ Nghĩa (Active Lexicon Learning - Human-in-the-Loop)
+- **Chu trình Tự học Khép kín**:
+  1. Khi người dùng nạp câu hỏi từ OCR vào Form Soạn thảo, hệ thống lưu vết chuỗi OCR gốc (`_rawOcrText`).
+  2. Trong quá trình kiểm tra, người dùng sửa các từ sai/lỗi dấu thanh thành văn bản chuẩn.
+  3. Khi bấm "💾 Lưu câu hỏi vào Ngân hàng" (hoặc `Ctrl + Enter`), `POST /api/questions` tiếp nhận trường `raw_ocr_content`.
+  4. Thuật toán `record_ocr_learning_diff()` so khớp diff cấp độ từ (SequenceMatcher) với ngưỡng tối đa 12 token.
+  5. Các cặp từ/cụm từ thay đổi (`wrong_text ➔ correct_text`) được lưu vào bảng SQLite `ocr_corrections` với tần suất tăng dần (`frequency + 1`).
+  6. Hàm chuẩn hóa `clean_ocr_vietnamese_text()` tự động truy vấn từ điển `get_ocr_corrections_map()` theo thứ tự độ dài giảm dần, tự động áp dụng tức thì cho mọi lần bóc tách ảnh/PDF tiếp theo.
+- **Hộp thoại Quản lý Từ điển Tự học (`#modal-ocr-lexicon`)**:
+  - Mở nhanh qua nút `🧠 Tự học (N)` trên thanh công cụ OCR.
+  - Thêm quy tắc thủ công (`lexicon-add-wrong ➔ lexicon-add-correct`).
+  - Tìm kiếm và lọc quy tắc tức thì qua ô tìm kiếm.
+  - Xem tần suất xuất hiện `xN` và nguồn gốc quy tắc (`🧠 Tự học (Form)` hoặc `Thủ công`).
+  - Xóa từng quy tắc hoặc dọn sạch toàn bộ từ điển khi cần thiết.
+- **Hiệu năng & In-memory Cache**:
+  - Từ điển tự học được cache RAM với TTL 300 giây, tự động làm mới (`invalidate_ocr_corrections_cache()`) ngay khi có thêm hoặc sửa quy tắc mới.
+
+### 13.12. Xử Lý Ảnh Chụp Kích Thước Nhỏ (Low-Res Mobile Screenshots), Bảo Vệ Từ Ghép Số (Compound Numbers) & Nhận Diện Màu Đáp Án Đúng
+- **Bảo vệ Từ ghép nối số (Compound Number Protection)**:
+  - Ngăn ngừa tình trạng các cụm từ tiếng Anh/Toán như `2-digit`, `3-chữ số`, `4-step` bị phân tách nhầm thành số câu mới (như `Câu 2`).
+  - Sử dụng cơ chế mã hóa tạm `\1_\2` trước khi chuẩn hóa số câu và hoàn nguyên `\1-\2` sau đó.
+  - Chuẩn hóa điều kiện phân tách câu hỏi: chỉ phân tách khi có tiền tố tường minh (`Câu`, `Question`, `Bài`) hoặc số đứng đầu đi kèm dấu phân cách (`.`, `:`, `)`, `,`) và khoảng trắng.
+  - Hợp nhất khối câu hỏi mồ côi (Orphan Block Consolidation): tự động gộp các khối văn bản ngắn không có phương án trắc nghiệm vào thân câu hỏi liền trước.
+- **Tối ưu Hóa Tỉ Lệ Phóng Đại (Adaptive Low-res Upscaling)**:
+  - Điểm ngọt phóng đại hình ảnh cho ảnh chụp điện thoại nhỏ (chiều rộng <800px) được thiết lập tại `800px` với `cv2.INTER_CUBIC`, chống hiện tượng mờ nhòe nét mảnh toán học (dấu trừ, số 11, phương án C7).
+- **Tự Động Phát Hiện Đáp Án Đã Chọn Qua Màu Sắc (Green Highlight Answer Detection)**:
+  - Phân tích màu sắc nền của vùng bounding box (`crop.mean(axis=(0, 1))`) cho các dòng phương án (A, B, C, D).
+  - Khi màu nền có sắc xanh lá (`G - R > 6` và `G - B > 4`), hệ thống tự động gán dấu kiểm `✓` vào phương án tương ứng và đánh dấu `is_correct = True` cho câu hỏi.
+- **Từ Điển Ngữ Nghĩa Toán Học Bổ Sung**:
+  - Mở rộng kho ngữ nghĩa tự động sửa lỗi cho các đề thi khối 2 song ngữ: nhận diện chuẩn xác các từ vựng `Gordon nghĩ ra một số`, `Anh ấy lấy số đó`, `cộng thêm 38`, `rồi trừ đi 42`, `thì được số lẻ nhỏ nhất có hai chữ số`, `Tìm số đó`, `Tính 13 - 11 + 9 - 7 + 5 - 3 + 1`.

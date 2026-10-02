@@ -18,7 +18,7 @@
   <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.28">
+  <link rel="stylesheet" href="css/style.css?v=1.0.35">
 </head>
 <body>
   <div class="app-container">
@@ -29,7 +29,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.24</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.31</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -71,7 +71,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;">Phiên bản: v1.0.24</span>
+          <span style="color: #38bdf8; font-weight: 600;">Phiên bản: v1.0.31</span>
         </div>
       </div>
     </aside>
@@ -90,8 +90,8 @@
           <button class="btn btn-outline-primary btn-sm" onclick="seedSampleQuestions()" title="Nạp 7 câu hỏi mẫu chuẩn quốc tế & học đường">
             ⚡ Nạp câu hỏi mẫu
           </button>
-          <button class="btn btn-secondary btn-sm" onclick="switchView('collector')">
-            📥 Nhập đề thi PDF
+          <button class="btn btn-secondary btn-sm" onclick="switchView('manual')">
+            📥 Bóc tách Đề thi (PDF/OCR)
           </button>
           <button class="btn btn-primary btn-sm" onclick="switchView('manual')">
             + Thêm câu hỏi
@@ -293,6 +293,25 @@
           </div>
         </div>
 
+        <!-- Batch Selection Header -->
+        <div class="batch-selection-header" id="batch-selection-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: #1e293b; cursor: pointer;">
+              <input type="checkbox" id="chk-select-all-page" onchange="toggleSelectAllPage(this.checked)" style="width: 17px; height: 17px; accent-color: #2563eb; cursor: pointer;" />
+              <span>Chọn tất cả trên trang này</span>
+            </label>
+            <span id="page-selected-count-label" style="font-size: 12px; color: #64748b; font-weight: 500;">(Đã chọn 0 câu)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="selectAllPage()" style="font-size: 12px; font-weight: 600; padding: 4px 10px;">
+              ✓ Chọn cả trang
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="deselectAllBatch()" style="font-size: 12px; font-weight: 600; padding: 4px 10px; color: #64748b;">
+              ✕ Bỏ chọn
+            </button>
+          </div>
+        </div>
+
         <!-- Questions Stream -->
         <div class="questions-list" id="questions-list-container">
           <!-- Filled by JS -->
@@ -434,55 +453,35 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
 
           <!-- Card 1: Chrome Extension Integration -->
           <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-              <span style="font-size: 24px;">🔌</span>
-              <div>
-                <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.15</span></h3>
-                <span style="font-size: 12px; color: #10b981; font-weight: 600;">● Tự động bắt trọn 100% đề thi VioEdu & Trạng Nguyên</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">🔌</span>
+                <div>
+                  <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.15</span></h3>
+                  <span style="font-size: 12px; color: #10b981; font-weight: 600;">● Tự động bắt trọn 100% đề thi VioEdu & Trạng Nguyên</span>
+                </div>
               </div>
+              <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.15 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
+                📁 Vị trí thư mục Extension (v1.3.15)
+              </button>
             </div>
-            <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 16px;">
+            <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 14px;">
               Cài đặt extension vào trình duyệt để tự động bắt gói tin đề thi và đáp án 1-click khi học sinh làm bài hoặc xem lại lịch sử đấu trường mà không lo captcha hay khóa tài khoản.
             </p>
 
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; margin-bottom: 16px; line-height: 1.6;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6;">
               <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.15):</strong><br/>
               1. Mở Chrome/Edge, vào: <code>chrome://extensions</code><br/>
               2. Bật công tắc <strong>Developer mode (Chế độ cho nhà phát triển)</strong> ở góc trên bên phải.<br/>
-              3. Nhấn <strong>Load unpacked (Tải tiện ích đã giải nén)</strong> hoặc bấm 🔄 Làm mới tiện ích đã nạp:<br/>
+              3. Nhấn <strong>Load unpacked (Tải tiện ích đã giải nén)</strong> hoặc bấm 🔄 Làm mới tiện ích đã nạp:
               <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 600;">g:\Mina\Online_Learning\extension</code>
-            </div>
-
-            <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.15 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
-              📁 Vị trí thư mục Extension (v1.3.15)
-            </button>
-          </div>
-
-          <!-- Card 2: PDF & Image OCR Importer (TIMO, HKIMO, ASMO & Ảnh đề thi) -->
-          <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-              <span style="font-size: 24px;">📄🖼️</span>
-              <div>
-                <h3 style="font-size: 16px; font-weight: 700;">Bóc tách Đề thi PDF & Hình ảnh (Image OCR)</h3>
-                <span style="font-size: 12px; color: #2563eb; font-weight: 600;">Hỗ trợ tệp PDF Olympic & Ảnh chụp đề thi (.png, .jpg, .webp)</span>
-              </div>
-            </div>
-
-            <div class="dropzone" id="pdf-dropzone">
-              <div class="dropzone-icon">📥</div>
-              <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">Kéo & Thả file PDF đề thi hoặc Ảnh chụp vào đây</h4>
-              <p style="font-size: 12px; color: #64748b;">Hỗ trợ PDF (TIMO, ASMO) & Ảnh (.png, .jpg, .jpeg, .webp, .bmp) có xem trước & đối soát</p>
-              <input type="file" id="pdf-file-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp" style="display: none;" />
             </div>
           </div>
         </div>
-
-        <!-- PDF Extraction Result Container -->
-        <div id="pdf-result-container" style="display: none; margin-bottom: 24px;"></div>
 
         <!-- Internet Question Hunter Card (Feature 2) -->
         <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); margin-bottom: 24px;">
@@ -864,7 +863,7 @@
               </div>
 
               <div style="display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 20px;">
-                <button class="btn btn-primary" id="btn-start-practice" onclick="startPracticeSession()" style="font-size: 15px; font-weight: 800; padding: 12px 28px; background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+                <button class="btn btn-primary" id="btn-start-practice" onclick="startPracticeSession()" style="font-family: inherit; font-size: 15px; font-weight: 800; padding: 12px 28px; background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
                   🚀 BẮT ĐẦU LÀM BÀI
                 </button>
               </div>
@@ -1109,11 +1108,183 @@
 
       </main>
 
-      <!-- View 5: Manual Question Editor -->
+      <!-- View 5: Manual Question Editor & PDF/Image OCR Studio -->
       <main class="view-container" id="view-manual">
+
+        <!-- Card 1: PDF & Image OCR Importer (Compact Minimal Strip) -->
+        <div class="ocr-compact-card" id="ocr-importer-card">
+          <div class="ocr-compact-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 19px;">📄🖼️</span>
+              <strong style="font-size: 13.5px; color: #0f172a;">Bóc tách Đề thi PDF & Ảnh (OCR)</strong>
+              <span class="tag-badge" style="background: #e0f2fe; color: #0284c7; font-weight: 700; font-size: 10.5px; padding: 2px 7px;">ĐA TỆP & SONG NGỮ</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <select id="ocr-engine-select" class="form-control" style="font-size: 11.5px; padding: 2px 8px; height: 28px; width: auto; border-radius: 6px; font-weight: 600; background: white; border: 1px solid #cbd5e1;" title="Chọn động cơ nhận dạng quang học OCR">
+                <option value="rapid">⚡ RapidOCR (Siêu tốc)</option>
+                <option value="vietocr">🧠 VietOCR ONNX (Chuyên sâu)</option>
+              </select>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-open-ocr-lexicon" onclick="openOcrLexiconModal()" style="font-size: 11.5px; padding: 2px 9px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #4338ca; border-color: #c7d2fe; background: #eef2ff;" title="Xem và quản lý các từ/cụm từ AI đã tự học từ các lần sửa trước">
+                <span>🧠</span> Tự học (<span id="ocr-lexicon-count-badge">0</span>)
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('pdf-file-input').click()" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 12px; padding: 4px 11px; height: 28px;">
+                <span>📁</span> Chọn tệp...
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-ocr-log" onclick="toggleOcrLogSection()" style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 4px 9px; font-weight: 600; height: 28px;" title="Bật/Tắt xem nhật ký bóc tách">
+                <span>🖥️</span> Log <span id="ocr-log-badge" class="tag-badge" style="background: #e2e8f0; color: #475569; font-size: 10px; padding: 1px 5px;">0</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-ocr-dropzone" onclick="toggleOcrDropzone()" style="font-size: 12px; padding: 4px 8px; font-weight: 600; height: 28px;" title="Ẩn/Hiện vùng kéo thả">
+                ▲ Thu gọn
+              </button>
+            </div>
+          </div>
+
+          <!-- Compact Dropzone Strip (Single-line, minimal vertical space) -->
+          <div class="dropzone dropzone-compact" id="pdf-dropzone" style="cursor: pointer;">
+            <span style="font-size: 16px; line-height: 1;">📥</span>
+            <span style="font-size: 12.5px; color: #334155;">
+              <strong>Kéo thả file PDF hoặc Ảnh chụp đề thi vào đây</strong>, hoặc <span style="color: #2563eb; text-decoration: underline; font-weight: 600;">nhấp chọn</span>
+            </span>
+            <span style="font-size: 11px; color: #64748b; background: #e2e8f0; padding: 1px 7px; border-radius: 10px; margin-left: 4px;">
+              .pdf, .png, .jpg, .webp — Chọn nhiều tệp
+            </span>
+            <input type="file" id="pdf-file-input" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp" style="display: none;" />
+          </div>
+
+          <!-- Selected Files Pill List -->
+          <div id="ocr-selected-files-bar" style="display: none; margin-top: 8px; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: #334155;">
+                📋 Danh sách tệp đã chọn (<span id="ocr-selected-count">0</span> tệp):
+              </span>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-start-ocr-batch" onclick="processSelectedFilesOcr()" style="font-size: 12px; padding: 4px 10px; font-weight: 700;">
+                  ⚡ Bắt đầu bóc tách
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearOcrSelectedFiles()" style="font-size: 11px; padding: 3px 8px; color: #ef4444;">
+                  ✕ Hủy chọn
+                </button>
+              </div>
+            </div>
+            <div id="ocr-selected-files-chips" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 100px; overflow-y: auto;">
+              <!-- Chips inserted by JS -->
+            </div>
+          </div>
+
+          <!-- Loading state -->
+          <div id="ocr-loading-container" style="display: none; margin-top: 8px; padding: 10px 14px; text-align: center; background: #eff6ff; border: 1px dashed #93c5fd; border-radius: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+              <div style="font-size: 20px; animation: spin 1.5s linear infinite; display: inline-block;">⏳</div>
+              <div style="text-align: left;">
+                <h4 id="ocr-loading-title" style="font-size: 13px; font-weight: 700; color: #1e40af; margin: 0;">Đang nhận diện văn bản (OCR) & bóc tách câu hỏi...</h4>
+                <p id="ocr-loading-desc" style="font-size: 11.5px; color: #3b82f6; margin: 2px 0 0 0;">Đang xử lý cấu trúc đề thi, phân loại khối lớp và phương án A, B, C, D...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- OCR Live Diagnostic / Debug Log Toolbar & Console (Collapsed by default to maximize space) -->
+          <div id="ocr-log-section" style="display: none; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+            <div id="ocr-log-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+              <span style="font-size: 12px; font-weight: 700; color: #334155; display: inline-flex; align-items: center; gap: 6px;">
+                <span style="font-size: 14px;">🖥️</span> Nhật ký Bóc tách & Debug OCR:
+              </span>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="copyOcrLiveLog()" style="font-size: 11.5px; padding: 3px 9px;" title="Sao chép toàn bộ nhật ký bóc tách">
+                  📋 Sao chép Log
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearOcrLiveLog()" style="font-size: 11.5px; padding: 3px 9px; color: #ef4444;" title="Xóa màn hình nhật ký">
+                  🗑️ Xóa Log
+                </button>
+              </div>
+            </div>
+            <div id="ocr-live-log" style="background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 10px 12px; border-radius: 8px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);">[Hệ thống] Trình bóc tách OCR đã sẵn sàng. Hãy chọn hoặc kéo thả tệp đề thi (PDF / Ảnh) vào khung bên trên để bắt đầu.</div>
+          </div>
+        </div>
+
+        <!-- OCR Batch Review Progress & Image Preview Banner (Hidden by default, shown during batch review) -->
+        <div id="ocr-batch-progress-card" class="ocr-batch-progress-card" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">🎯</span>
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span id="ocr-batch-status-badge" class="tag-badge" style="background: #2563eb; color: white; font-weight: 800; font-size: 12px; padding: 4px 10px;">
+                    ✨ ĐÃ BÓC TÁCH: 0 CÂU HỎI
+                  </span>
+                  <span id="ocr-batch-active-badge" style="font-size: 13.5px; font-weight: 700; color: #0f172a;">
+                    Đang xem: <span style="color: #2563eb;" id="ocr-batch-current-step">Câu 1 / 1</span>
+                  </span>
+                </div>
+                <div style="font-size: 12.5px; color: #475569; margin-top: 2px;">
+                  Tiến độ: <strong id="ocr-batch-progress-text" style="color: #16a34a;">0 / 0 đã lưu CSDL</strong>
+                  <span id="ocr-batch-skipped-text" style="color: #b91c1c; font-weight: 600; margin-left: 8px;">(Đã bỏ qua: 0 câu)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Action Buttons: Free Navigation & Discard -->
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-ocr-prev-q" onclick="navPrevOcrQuestion()" style="font-weight: 700;" disabled title="Xem câu trước đó">
+                ⬅ Câu trước
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-ocr-next-q" onclick="navNextOcrQuestion()" style="font-weight: 700;" title="Xem câu tiếp theo mà không cần lưu trước">
+                Câu tiếp ➡
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-ocr-discard-q" onclick="discardCurrentOcrQuestion()" style="font-weight: 700; color: #b91c1c; border-color: #fca5a5; background: #fff1f2;" title="Loại bỏ câu hỏi bóc tách này nếu thấy đã có trong database hoặc thấy không phù hợp">
+                🗑️ Bỏ qua câu này
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-ocr-zoom-source" onclick="openCurrentQuestionImageZoom()" style="font-weight: 700; color: #1e40af; border-color: #93c5fd; background: white; display: inline-flex; align-items: center; gap: 5px;" title="Phóng to ảnh đề thi gốc để đối chiếu">
+                <span>🔍</span> Soi ảnh gốc
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="saveAllRemainingOcrQuestions()" style="font-weight: 700; color: #059669; border-color: #a7f3d0; background: #ecfdf5;" title="Lưu nhanh tất cả các câu chưa lưu vào CSDL">
+                ⚡ Lưu tất cả còn lại
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="cancelOcrBatchSession()" style="color: #64748b; border-color: #cbd5e1;" title="Đóng đợt bóc tách này">
+                ✕ Đóng
+              </button>
+            </div>
+          </div>
+
+          <!-- Question Selector Pills / Carousel Strip (Freely jump to any question) -->
+          <div style="margin: 8px 0 10px 0; background: rgba(255,255,255,0.7); border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: #1e293b; display: inline-flex; align-items: center; gap: 6px;">
+                <span>📑</span> Danh sách câu hỏi đã quét (nhấp để chuyển câu tùy ý):
+              </span>
+              <span style="font-size: 11px; color: #64748b;">
+                ⚪ Chưa lưu &bull; 🟢 Đã lưu &bull; ❌ Đã bỏ qua
+              </span>
+            </div>
+            <div id="ocr-questions-nav-bar" style="display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px; align-items: center;">
+              <!-- Generated by renderOcrQuestionsNavBar() -->
+            </div>
+          </div>
+
+          <!-- Visual Progress Bar -->
+          <div class="ocr-progress-track">
+            <div id="ocr-batch-progress-bar-fill" class="ocr-progress-fill" style="width: 0%;"></div>
+          </div>
+
+          <!-- Source Image Mini Preview Bar -->
+          <div id="ocr-source-image-bar" style="display: flex; align-items: center; gap: 12px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 14px;">
+            <img id="ocr-source-image-thumb" src="" alt="Thumbnail ảnh đề thi" style="height: 48px; width: 64px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0; cursor: pointer;" onclick="openCurrentQuestionImageZoom()" />
+            <div style="flex: 1; font-size: 12px; color: #334155; line-height: 1.4;">
+              <div>Ảnh nguồn: <strong id="ocr-source-image-name">exam.png</strong></div>
+              <div style="color: #64748b;">(Nhấp vào ảnh nhỏ hoặc bấm nút "🔍 Phóng to xem ảnh gốc" để soi chi tiết)</div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openCurrentQuestionImageZoom()" style="font-size: 11.5px; padding: 4px 10px;">
+              🔍 Soi ảnh chi tiết
+            </button>
+          </div>
+        </div>
+
+        <!-- Manual Question Editor Card -->
         <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
-          <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 6px;">Soạn thảo & Thêm câu hỏi Thủ công</h3>
-          <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Hỗ trợ soạn công thức Toán học chuẩn LaTeX bằng ký hiệu $...$ hoặc $$...$$</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+            <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Soạn thảo & Thêm câu hỏi Thủ công</h3>
+            <span id="editor-mode-badge" class="tag-badge" style="background: #f1f5f9; color: #475569; font-weight: 700;">CHẾ ĐỘ: TỰ SOẠN THỦ CÔNG</span>
+          </div>
+          <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Kiểm tra đính chính nội dung bóc tách OCR hoặc biên soạn câu hỏi mới với công thức LaTeX trực tiếp ($...$ hoặc $$...$$)</p>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <!-- Left: Inputs -->
@@ -1123,6 +1294,8 @@
                   <label class="form-label">Nguồn câu hỏi</label>
                   <select id="m-platform" class="form-control">
                     <option value="manual">Tự biên soạn</option>
+                    <option value="image_ocr">Ảnh đề thi (Image OCR)</option>
+                    <option value="pdf">Tệp PDF</option>
                     <option value="vioedu">VioEdu</option>
                     <option value="tnmath">Trạng Nguyên</option>
                     <option value="timo">TIMO</option>
@@ -1203,17 +1376,25 @@
                 <textarea id="m-explanation" class="form-control" rows="3" placeholder="Hướng dẫn giải chi tiết..."></textarea>
               </div>
 
-              <button class="btn btn-primary" onclick="submitManualQuestion()">
-                💾 Lưu câu hỏi vào Ngân hàng
-              </button>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn btn-primary" id="btn-submit-manual-q" onclick="submitManualQuestion()" style="flex: 1; font-weight: 700; padding: 11px 22px; font-size: 14.5px;">
+                  💾 Lưu câu hỏi vào Ngân hàng
+                </button>
+                <button type="button" class="btn btn-secondary" id="btn-reset-form" onclick="resetManualForm()" title="Xóa trắng để soạn câu mới">
+                  🔄 Làm mới
+                </button>
+              </div>
             </div>
 
             <!-- Right: Live Preview Box -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px;">
-              <div style="font-weight: 700; font-size: 14px; margin-bottom: 12px; color: #475569;">
-                👁️ Xem trước Hiển thị KaTeX Trực tiếp
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; display: flex; flex-direction: column;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="font-weight: 700; font-size: 14px; color: #475569;">
+                  👁️ Xem trước Hiển thị KaTeX Trực tiếp
+                </div>
+                <span style="font-size: 11.5px; color: #64748b;">(Render tự động khi nhập)</span>
               </div>
-              <div id="m-preview-box" style="background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; min-height: 250px;">
+              <div id="m-preview-box" style="background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; min-height: 250px; flex: 1;">
                 <p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>
               </div>
             </div>
@@ -1439,6 +1620,7 @@
       <div style="display: flex; justify-content: space-between; align-items: center; background: #eef2ff; border: 1px solid #c7d2fe; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
         <div style="display: flex; gap: 8px;">
           <button class="btn btn-secondary btn-sm" onclick="renderCapturedQuestionsView('cards')">Thẻ câu hỏi</button>
+          <button class="btn btn-secondary btn-sm" onclick="renderCapturedQuestionsView('table')">Bảng nhật ký</button>
           <button class="btn btn-secondary btn-sm" onclick="renderCapturedQuestionsView('json')">Mã JSON thô</button>
         </div>
         <button class="btn btn-primary btn-sm" id="btn-reinject-questions" onclick="reinjectCapturedQuestions()" style="background: #4f46e5; border-color: #4338ca; font-weight: 700;">
@@ -1454,6 +1636,168 @@
     </div>
   </div>
 
+  <!-- Floating Batch Action Toolbar -->
+  <div class="batch-action-toolbar" id="batch-action-toolbar">
+    <div class="batch-toolbar-info">
+      <span class="batch-icon">⚡</span>
+      <span>Đã chọn <strong id="batch-toolbar-count">0</strong> câu hỏi</span>
+    </div>
+
+    <div class="batch-toolbar-actions">
+      <!-- 1. Đổi khối lớp hàng loạt -->
+      <div class="batch-grade-picker" style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 12.5px; color: #cbd5e1; white-space: nowrap;">Đổi sang:</span>
+        <select id="batch-target-grade" class="select-filter" style="padding: 5px 8px; font-size: 12.5px; font-weight: 700; border-radius: 6px; background: #334155; color: white; border: 1px solid #475569;">
+          <option value="1">Lớp 1</option>
+          <option value="2">Lớp 2</option>
+          <option value="3">Lớp 3</option>
+          <option value="4">Lớp 4</option>
+          <option value="5" selected>Lớp 5</option>
+          <option value="6">Lớp 6</option>
+          <option value="7">Lớp 7</option>
+          <option value="8">Lớp 8</option>
+          <option value="9">Lớp 9</option>
+          <option value="10">Lớp 10</option>
+          <option value="11">Lớp 11</option>
+          <option value="12">Lớp 12</option>
+        </select>
+        <button type="button" class="btn btn-warning btn-sm" onclick="executeBulkUpdateGrade()" style="font-weight: 700; white-space: nowrap; background: #f59e0b; border-color: #d97706; color: #78350f;">
+          🏷️ Cập nhật Khối lớp
+        </button>
+      </div>
+
+      <!-- 2. Xóa hàng loạt -->
+      <button type="button" class="btn btn-danger btn-sm" onclick="executeBulkDelete()" style="font-weight: 700; background: #ef4444; border-color: #dc2626; color: white; white-space: nowrap;">
+        🗑️ Xóa hàng loạt (<span id="batch-delete-btn-count">0</span>)
+      </button>
+
+      <!-- 3. Hủy bỏ -->
+      <button type="button" class="btn btn-secondary btn-sm" onclick="deselectAllBatch()" style="background: #334155; border-color: #475569; color: #f1f5f9; white-space: nowrap;" title="Bỏ chọn tất cả câu hỏi">
+        ✕ Bỏ chọn
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: Image Zoom & Pan Lightbox (Phóng to chi tiết ảnh đề thi) -->
+  <div class="lightbox-modal" id="modal-image-zoom" style="display: none;">
+    <div class="lightbox-content">
+      
+      <!-- Lightbox Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #1e293b; border-bottom: 1px solid #334155; color: white;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">🖼️</span>
+          <div>
+            <h4 id="zoom-modal-title" style="font-size: 14.5px; font-weight: 700; margin: 0; color: #f8fafc;">Bản xem trước chi tiết ảnh đề thi gốc</h4>
+            <span id="zoom-modal-subtitle" style="font-size: 11.5px; color: #94a3b8;">Cuộn chuột để Phóng to/Thu nhỏ, Kéo chuột để di chuyển (Pan)</span>
+          </div>
+        </div>
+
+        <!-- Controls Toolbar -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="zoomImage(-0.25)" title="Thu nhỏ (Zoom Out)" style="background: #334155; color: white; border-color: #475569;">
+            ➖ Thu nhỏ
+          </button>
+          <span id="zoom-modal-level" style="font-size: 12px; font-weight: 700; color: #38bdf8; min-width: 48px; text-align: center;">100%</span>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="zoomImage(0.25)" title="Phóng to (Zoom In)" style="background: #334155; color: white; border-color: #475569;">
+            ➕ Phóng to
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="resetImageZoom()" title="Đặt lại 100%" style="background: #334155; color: white; border-color: #475569;">
+            🔄 100%
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="rotateImageZoom()" title="Xoay 90 độ" style="background: #334155; color: white; border-color: #475569;">
+            ↩️ Xoay 90°
+          </button>
+          <div style="width: 1px; height: 20px; background: #475569; margin: 0 4px;"></div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-zoom-prev-img" onclick="navZoomImage(-1)" title="Ảnh trước" style="background: #334155; color: white; border-color: #475569;">
+            ◀
+          </button>
+          <span id="zoom-modal-page" style="font-size: 12px; color: #cbd5e1; font-weight: 600;">1/1</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-zoom-next-img" onclick="navZoomImage(1)" title="Ảnh tiếp theo" style="background: #334155; color: white; border-color: #475569;">
+            ▶
+          </button>
+          <button type="button" onclick="closeImageZoomModal()" style="background: none; border: none; font-size: 22px; color: #94a3b8; cursor: pointer; padding: 2px 8px; margin-left: 10px;" title="Đóng (Esc)">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Lightbox Viewport -->
+      <div id="zoom-viewport" class="lightbox-viewport">
+        <img id="zoom-target-img" src="" alt="Đề thi chi tiết" style="max-width: 90%; max-height: 85vh; object-fit: contain; transform-origin: center center; transition: transform 0.1s ease-out; pointer-events: none;" />
+      </div>
+
+      <!-- Footer Info -->
+      <div style="padding: 10px 20px; background: #1e293b; border-top: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #94a3b8;">
+        <span>💡 <strong>Hướng dẫn:</strong> Dùng con lăn chuột để zoom mượt, bấm giữ và kéo chuột để soi các dòng chữ nhỏ hoặc công thức toán.</span>
+        <button type="button" class="btn btn-primary btn-sm" onclick="closeImageZoomModal()">
+          Đóng cửa sổ xem ảnh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: OCR Active Lexicon Management (Từ điển Tự học OCR) -->
+  <div class="lightbox-modal" id="modal-ocr-lexicon" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
+    <div style="width: 90%; max-width: 850px; height: 85vh; background: white; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: #312e81; border-bottom: 1px solid #4338ca; color: white;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">🧠</span>
+          <div>
+            <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: #f8fafc;">Từ điển Tự học OCR & Đính chính Ngữ nghĩa</h4>
+            <span style="font-size: 12px; color: #c7d2fe;">AI tự động ghi nhớ các cụm từ bạn đính chính trên Form và áp dụng tức thì cho các lần bóc tách tiếp theo</span>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeOcrLexiconModal()" style="color: white; border-color: #6366f1; background: rgba(255,255,255,0.1); font-size: 14px; padding: 4px 10px;">✕</button>
+      </div>
+
+      <!-- Add Rule Toolbar -->
+      <div style="padding: 12px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <input type="text" id="lexicon-add-wrong" class="form-control" placeholder="Từ/cụm từ sai do OCR nhận diện (vd: Nenhom nary)" style="flex: 1; min-width: 200px; font-size: 12.5px;" />
+        <span style="font-size: 14px; color: #64748b;">➔</span>
+        <input type="text" id="lexicon-add-correct" class="form-control" placeholder="Cụm từ sửa đổi đúng (vd: Nếu hôm nay)" style="flex: 1; min-width: 200px; font-size: 12.5px;" />
+        <button type="button" class="btn btn-primary btn-sm" onclick="submitManualLexiconRule()" style="font-weight: 700; font-size: 12px; padding: 7px 14px;">
+          ➕ Thêm quy tắc
+        </button>
+      </div>
+
+      <!-- Search & Stats Bar -->
+      <div style="padding: 10px 20px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="text" id="lexicon-search-input" class="form-control" placeholder="🔍 Tìm kiếm quy tắc..." oninput="filterOcrLexiconList()" style="width: 240px; font-size: 12px; padding: 4px 10px;" />
+          <span id="lexicon-stats-text" style="font-size: 12px; color: #64748b; font-weight: 600;">Đang tải...</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllOcrLexiconRules()" style="font-size: 11.5px; color: #ef4444; border-color: #fca5a5;">
+          🗑️ Xóa toàn bộ từ điển
+        </button>
+      </div>
+
+      <!-- Lexicon List Table -->
+      <div style="flex: 1; overflow-y: auto; padding: 14px 20px;">
+        <table class="table" style="width: 100%; font-size: 12.5px; margin: 0; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f1f5f9; text-align: left; color: #334155;">
+              <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1;">Từ OCR gốc (Sai)</th>
+              <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1;">Sau đính chính (Đúng)</th>
+              <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Tần suất</th>
+              <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1;">Nguồn</th>
+              <th style="padding: 8px 12px; border-bottom: 2px solid #cbd5e1; text-align: center;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="ocr-lexicon-table-body">
+            <!-- Rendered by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding: 10px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b;">
+        <span>💡 Các quy tắc này sẽ được tự động áp dụng để làm sạch văn bản OCR trước khi hiển thị lên Form.</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeOcrLexiconModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -1462,13 +1806,13 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.28"></script>
-  <script src="js/bank.js?v=1.0.28"></script>
-  <script src="js/exam_builder.js?v=1.0.28"></script>
-  <script src="js/collector.js?v=1.0.28"></script>
-  <script src="js/practice.js?v=1.0.28"></script>
+  <script src="js/app.js?v=1.0.35"></script>
+  <script src="js/bank.js?v=1.0.35"></script>
+  <script src="js/exam_builder.js?v=1.0.35"></script>
+  <script src="js/collector.js?v=1.0.35"></script>
+  <script src="js/practice.js?v=1.0.35"></script>
 
-  <!-- Manual Question Live Preview Script -->
+  <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>
     const mContent = document.getElementById("m-content");
     const mPreview = document.getElementById("m-preview-box");
@@ -1481,8 +1825,46 @@
           return;
         }
         mPreview.innerHTML = `<div style="font-size: 14.5px; line-height: 1.6;">${val.replace(/\n/g, '<br/>')}</div>`;
-        renderMath(mPreview);
+        if (typeof renderMath === "function") renderMath(mPreview);
       });
+    }
+
+    // Keyboard shortcut: Ctrl+Enter / Cmd+Enter inside manual form to submit question
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        if (State.currentView === "manual") {
+          e.preventDefault();
+          submitManualQuestion();
+        }
+      }
+    });
+
+    function resetManualForm() {
+      document.getElementById("m-platform").value = "manual";
+      document.getElementById("m-grade").value = "5";
+      document.getElementById("m-subject").value = "math";
+      document.getElementById("m-topic").value = "";
+      document.getElementById("m-content").value = "";
+      document.getElementById("m-opt-a").value = "";
+      document.getElementById("m-opt-b").value = "";
+      document.getElementById("m-opt-c").value = "";
+      document.getElementById("m-opt-d").value = "";
+      document.getElementById("m-correct").value = "A";
+      document.getElementById("m-diff").value = "medium";
+      document.getElementById("m-explanation").value = "";
+      if (mPreview) {
+        mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
+      }
+      const btnSave = document.getElementById("btn-submit-manual-q");
+      if (btnSave) {
+        btnSave.innerHTML = `💾 Lưu câu hỏi vào Ngân hàng`;
+      }
+      const modeBadge = document.getElementById("editor-mode-badge");
+      if (modeBadge) {
+        modeBadge.textContent = "CHẾ ĐỘ: TỰ SOẠN THỦ CÔNG";
+        modeBadge.style.background = "#f1f5f9";
+        modeBadge.style.color = "#475569";
+      }
     }
 
     async function submitManualQuestion() {
@@ -1503,6 +1885,14 @@
       if (optC) options.push({ id: "C", content: optC, is_correct: document.getElementById("m-correct").value === "C" });
       if (optD) options.push({ id: "D", content: optD, is_correct: document.getElementById("m-correct").value === "D" });
 
+      let rawOcrText = "";
+      if (window.State && window.State.ocrBatch && window.State.ocrBatch.items) {
+        const curQ = window.State.ocrBatch.items[window.State.ocrBatch.currentIndex];
+        if (curQ) {
+          rawOcrText = curQ._rawOcrText || curQ.content_text || "";
+        }
+      }
+
       const payload = {
         source_platform: document.getElementById("m-platform").value,
         grade: parseInt(document.getElementById("m-grade").value) || 5,
@@ -1511,6 +1901,7 @@
         question_type: options.length > 0 ? "single_choice" : "fill_blank",
         content_html: `<p>${content}</p>`,
         content_text: content,
+        raw_ocr_content: rawOcrText,
         options: options,
         correct_answer: document.getElementById("m-correct").value,
         difficulty: document.getElementById("m-diff").value,
@@ -1525,24 +1916,90 @@
         });
         const data = await res.json();
         if (data.success) {
-          showToast("Đã lưu câu hỏi thành công!");
           if (typeof broadcastNewQuestions === "function") {
-            broadcastNewQuestions(1, "Soạn thủ công");
+            broadcastNewQuestions(1, "Soạn câu hỏi");
           }
-          document.getElementById("m-content").value = "";
-          document.getElementById("m-opt-a").value = "";
-          document.getElementById("m-opt-b").value = "";
-          document.getElementById("m-opt-c").value = "";
-          document.getElementById("m-opt-d").value = "";
-          document.getElementById("m-explanation").value = "";
-          mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
           loadDashboardStats();
           if (typeof loadQuestions === "function" && State.currentView === "bank") {
             loadQuestions();
           }
+
+          if (data.learned_count > 0) {
+            if (typeof appendOcrLog === "function") {
+              appendOcrLog(`🧠 AI đã tự động học được ${data.learned_count} cụm từ đính chính mới từ câu này vào Từ điển!`, "batch");
+            }
+            if (typeof refreshOcrLexiconCountBadge === "function") {
+              refreshOcrLexiconCountBadge();
+            }
+          }
+
+          // Check if active OCR Batch Verification flow is running
+          if (window.State && window.State.ocrBatch && window.State.ocrBatch.items && window.State.ocrBatch.items.length > 0) {
+            const batch = window.State.ocrBatch;
+            const items = batch.items;
+            const currentSavedIdx = batch.currentIndex;
+            const total = batch.totalCount;
+
+            // Mark this specific question as saved
+            if (items[currentSavedIdx]._ocrStatus !== "saved") {
+              items[currentSavedIdx]._ocrStatus = "saved";
+              batch.savedCount = (batch.savedCount || 0) + 1;
+              batch.processedCount = batch.savedCount;
+            }
+
+            if (typeof appendOcrLog === "function") {
+              const learnNote = data.learned_count > 0 ? ` (Tự học +${data.learned_count} từ)` : "";
+              appendOcrLog(`✅ Đã đính chính & lưu thành công Câu ${currentSavedIdx + 1}/${total} vào CSDL!${learnNote} (Tổng đã lưu: ${batch.savedCount}/${total})`, "success");
+            }
+
+            // Refresh Question Nav Bar
+            if (typeof renderOcrQuestionsNavBar === "function") {
+              renderOcrQuestionsNavBar();
+            }
+
+            // Find next un-saved / pending question
+            let nextTargetIdx = -1;
+            for (let i = currentSavedIdx + 1; i < total; i++) {
+              if (items[i]._ocrStatus === "pending") {
+                nextTargetIdx = i;
+                break;
+              }
+            }
+            if (nextTargetIdx === -1) {
+              for (let i = 0; i < currentSavedIdx; i++) {
+                if (items[i]._ocrStatus === "pending") {
+                  nextTargetIdx = i;
+                  break;
+                }
+              }
+            }
+
+            if (nextTargetIdx !== -1) {
+              showToast(`✓ Đã lưu câu ${currentSavedIdx + 1}! Đang chuyển sang câu tiếp theo (Câu ${nextTargetIdx + 1}/${total})...`, "success");
+              if (typeof loadOcrQuestionToForm === "function") {
+                loadOcrQuestionToForm(nextTargetIdx);
+              }
+            } else {
+              showToast(`🎉 Toàn bộ ${total} câu hỏi đã được xử lý (Đã lưu: ${batch.savedCount}, Đã bỏ qua: ${batch.skippedCount || 0})!`, "success");
+              if (typeof loadOcrQuestionToForm === "function") {
+                loadOcrQuestionToForm(currentSavedIdx);
+              }
+            }
+          } else {
+            showToast("Đã lưu câu hỏi thành công!", "success");
+            resetManualForm();
+          }
+        } else {
+          if (typeof appendOcrLog === "function" && window.State && window.State.ocrBatch) {
+            appendOcrLog(`❌ Lỗi khi lưu câu hỏi vào CSDL: ${data.message || 'Không rõ'}`, "error");
+          }
+          showToast(data.message || "Lỗi lưu câu hỏi", "error");
         }
       } catch (err) {
-        showToast("Lỗi lưu câu hỏi", "error");
+        if (typeof appendOcrLog === "function" && window.State && window.State.ocrBatch) {
+          appendOcrLog(`❌ Lỗi mạng khi lưu câu hỏi: ${err.message}`, "error");
+        }
+        showToast("Lỗi lưu câu hỏi: " + err.message, "error");
       }
     }
   </script>

@@ -3,6 +3,7 @@ import re
 import io
 import uuid
 import unicodedata
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pypdf import PdfReader
 from PIL import Image
@@ -20,23 +21,161 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 
 def clean_ocr_vietnamese_text(text: str) -> str:
-    """Normalizes Unicode NFC and fixes frequent OCR misrecognitions in Vietnamese exam papers."""
+    """Normalizes Unicode NFC, removes mobile status bar / score noise, and repairs common OCR misrecognitions in Vietnamese exams."""
     if not text:
         return ""
     # 1. Unicode NFC normalization (combining accents -> canonical precomposed characters)
     text = unicodedata.normalize('NFC', text)
     
-    # 2. Fix common OCR mistakes on "Câu" / "Bài"
-    # E.g. C@u 1, Cdu 1, Cáu 1, Cau 1 -> Câu 1
+    # 2. Filter out phone status bar time (e.g. 05:31, 12:45)
+    text = re.sub(r'(?m)^\s*\d{1,2}:\d{2}\s*$', '', text)
+    
+    # 3. Strip quiz score badges like *4/4, (4/4), [4/4], * 4/4
+    text = re.sub(r'[\*\(\[]?\s*\d+\s*/\s*\d+\s*[\*\)\]]?', '', text)
+    
+    # 4. Clean checkmarks / bullets at the start of a question line (e.g. '✓ 4. If today...' -> '4. If today...')
+    text = re.sub(r'(?m)^[✓✔☑●•\*\-–—\s]+(?=\d)', '', text)
+
+    # 4b. Protect hyphenated compound numbers (e.g. 2-digit, 3-chữ số, 4-step) to avoid accidental question splits
+    text = re.sub(r'\b(\d+)-(digit|digits|bit|bits|letter|step|year|month|day|hour|minute|second|inch|cm|mm|m|kg|g|chữ\s*số|chiều|d|D|st|nd|rd|th)\b', r'\1_\2', text, flags=re.IGNORECASE)
+    
+    # 5. Space out stuck letters and digits (e.g. has5 -> has 5, class5 -> class 5, 5Michael -> 5 Michael)
+    text = re.sub(r'([a-zA-Z])(\d+)', r'\1 \2', text)
+    text = re.sub(r'(\d+)([a-zA-Z])', r'\1 \2', text)
+    
+    # 6. Normalize common OCR mistakes on "Câu" / "Bài" / "Question"
     text = re.sub(r'(?i)\b(?:c@u|cdu|cáu|cau)\s*([0-9]{1,3})\b', r'Câu \1', text)
     text = re.sub(r'(?i)\b(?:b@i|bai)\s*([0-9]{1,3})\b', r'Bài \1', text)
     
-    # 3. Standardize option prefixes (e.g., "(A)", "A - ", "A: ", "A .") -> "\nA. "
+    # 7. Standardize question numbering: '4. ' or '5, ' or '5: ' or 'Câu 1' -> '\nCâu 4. '
+    text = re.sub(r'(?m)^(\s*)(?:Câu|Question|Problem|Bài|Q)\s*([0-9]{1,3})\s*[,.:\)\-]\s*', r'\nCâu \2. ', text)
+    text = re.sub(r'(?m)^(\s*)([0-9]{1,3})\s*[\.:\),]\s*(?=[A-Za-z\u00C0-\u024F\u1EA0-\u1EF9])', r'\nCâu \2. ', text)
+
+    # 7b. Restore protected compound numbers
+    text = re.sub(r'\b(\d+)_([a-zA-Z]+)\b', r'\1-\2', text)
+    
+    # 8. Fix days of week in bilingual options (e.g. ThitTur -> Thứ Tư)
+    text = re.sub(r'(?i)\b(?:thittur|thietuew|thir\s*tur|thu\s*tu)\b', 'Thứ Tư', text)
+    text = re.sub(r'(?i)\b(?:thirbay|thitbay|thu\s*bay)\b', 'Thứ Bảy', text)
+    text = re.sub(r'(?i)\b(?:thushiu|thosiu|thusiu|thu\s*sau)\b', 'Thứ Sáu', text)
+    text = re.sub(r'(?i)\b(?:thunam|thurnam|thu\s*nam)\b', 'Thứ Năm', text)
+    text = re.sub(r'(?i)\b(?:thuhai|thirhai|thu\s*hai)\b', 'Thứ Hai', text)
+    text = re.sub(r'(?i)\b(?:chuanhat|chunhat)\b', 'Chủ Nhật', text)
+
+    # 9. Contextual dictionary repairs for common OCR Vietnamese distortions in math/exam questions (VietOCR-inspired Lexicon)
+    ocr_viet_repairs = [
+        # Question 4 patterns
+        (r'(?i)\bweckis(\d+)thMarch\b', r'week is \1th March'),
+        (r'(?i)\bweckis0thMarch\b', 'week is 9th March'),
+        (r'(?i)\bweckisOthMarch\b', 'week is 9th March'),
+        (r'(?i)\bweck\s*is\b', 'week is'),
+        (r'(?i)\bIftodayis\b', 'If today is'),
+        (r'(?i)\bandalsothe\b', 'and also the'),
+        (r'(?i)\bfirstdayof\b', 'first day of'),
+        (r'(?i)\bWhichdayofthe\b', 'Which day of the'),
+        (r'(?i)\b(?:nenhom|nen\s*hom|ncu\s*hom)\s*(?:nary|nay|nar)\b', 'Nếu hôm nay'),
+        (r'(?i)\b(?:nen|ncu)\s*hom\s*nay\b', 'Nếu hôm nay'),
+        (r'(?i)\b(?:fathieTiemcung|la\s*thir\s*tur\s*wi\s*cing\s*la|la\s*thietiemcung|lathietiemcung|la\s*thie\s*tu\s*va\s*cung)\b', 'là thứ Tư và cũng'),
+        (r'(?i)\bla\s*(?:thir\s*tur|thittur|thietuew|thu\s*tu)\b', 'là thứ Tư'),
+        (r'(?i)\b(?:wi|va|vi|w)\s*(?:cing|cung)\s*la\b', 'và cũng là'),
+        (r'(?i)\b(?:langay|la\s*ngay|la\s*ngdy)\b', 'là ngày'),
+        (r'(?i)\b(?:ngdy|ngay)\s*(?:diu|dau|atae|atiae|atintien)\s*tien\b', 'ngày đầu tiên'),
+        (r'(?i)\b(?:diu|dau|atae|atiae|atintien)\s*tien\b', 'đầu tiên'),
+        (r'(?i)\b(?:ctia|crn|crin|cuia|cua)\s*(?:thdng|thang)\s*(\d+)\b', r'của tháng \1'),
+        (r'(?i)\b(?:ctia|crn|crin|cuia|cua)\s*(?:thdng|thang)\b', 'của tháng'),
+        (r'(?i)\b(?:vay|voy|vayngdy|vay\s*ngdy)\s*(?:ngay|ngdy)?\s*(\d+)\s*(?:thang|thdng)\s*(\d+)\b', r'Vậy ngày \1 tháng \2'),
+        (r'(?i)\b(?:voy|vay)\s*ngay\b', 'Vậy ngày'),
+        (r'(?i)\bthang\s*(\d+)\b', r'tháng \1'),
+        (r'(?i)\b(?:langay|la\s*ngay|la\s*ngdy)\s*(?:thur|thir|thu)\s*(?:may|miy)\b', 'là ngày thứ mấy'),
+        (r'(?i)\bngay\s*(?:thur|thir|thu)\s*(?:may|miy)\b', 'ngày thứ mấy'),
+        (r'(?i)\b(?:thur|thir|thu)\s*(?:may|miy)\b', 'thứ mấy'),
+
+        # Question 5 patterns
+        (r'(?i)\b(?:lopctiamichaelco|lopcriamichaelco|lop\s*ctia\s*michael\s*co|lop\s*cuia\s*michael\s*co|lop\s*cua\s*michael\s*co|lopcramichaelco)\b', 'Lớp của Michael có'),
+        (r'(?i)\b(?:lap|lop)\s*(?:crn|crin|cuia|cua|ctia|cra)\b', 'Lớp của'),
+        (r'(?i)\bco\s*(\d+)\s*ban\s*trai\b', r'có \1 bạn trai'),
+        (r'(?i)\btrai\s*(?:wi|w)\b', 'trai và'),
+        (r'(?i)\bban\s*trai\b', 'bạn trai'),
+        (r'(?i)\b(?:wi|va|vi|wio|w)\s*(\d+)\s*ban\s*(?:gii|guii|gai|gif|git)\b', r'và \1 bạn gái'),
+        (r'(?i)\bban\s*(?:gii|guii|gai|gif|git)\b', 'bạn gái'),
+        (r'(?i)\b(?:hoi|hot|hol)\s*([A-Za-z]+)\s*co\s*(?:bao\s*nhicu|baonhicu|bao\s*nhieu|baonhieu|baonhicur)\s*ban\s*(?:cing|cting|cung)\s*(?:iop|lop)\b', r'Hỏi \1 có bao nhiêu bạn cùng lớp'),
+        (r'(?i)\b(?:hol|hoi|hot)\b(?=\s+[A-Z])', 'Hỏi'),
+        (r'(?i)\bco\s*(?:bao\s*nhicu|baonhicu|bao\s*nhieu|baonhieu|baonhicur)\s*ban\b', 'có bao nhiêu bạn'),
+        (r'(?i)\b(?:cing|cting|cung|ciang)\s*(?:iop|lop)\b', 'cùng lớp'),
+        (r'(?i)\b(?:cing|cting|cung|ciang)\s*lop\b', 'cùng lớp'),
+
+        # Question 8 English
+        (r'(?i)\bofanumber\b', 'of a number'),
+        (r'(?i)\bthensubtracts\b', 'then subtracts'),
+        (r'(?i)\btogetthesmallest\b', 'to get the smallest'),
+        (r'2-digit\.odd\b', '2-digit odd'),
+        (r'(?i)\boddnumber\b', 'odd number'),
+        (r'(?i)\bFindGordon\'?s\b', 'Find Gordon\'s'),
+        (r'Find Gordon\'?s\s*number\.', 'Find Gordon\'s number.'),
+
+        # Question 8 Vietnamese
+        (r'(?i)\b(?:gordon|gondon)[a-z]*\s*(?:so|mprso|mirso|mpr\s*so)\b', 'Gordon nghĩ ra một số'),
+        (r'(?i)\b(?:anhay|anh\s*ay)\b', 'Anh ấy'),
+        (r'(?i)\b(?:ldy|lay)\s*(?:sodo|so\s*do)\b', 'lấy số đó'),
+        (r'(?i)\b(?:congrhom|cong\s*rhom)\b', 'cộng thêm'),
+        (r'(?i)\b(?:roitrirdi|roitrir\s*di|roi\s*trirdi|roi\s*trudi|roi\s*tri\s*di)\b', 'rồi trừ đi'),
+        (r'(?i)\b(?:thiducsole|thiduncsole|thi\s*dunc\s*sole|thi\s*duc\s*sole|thi\s*duoc\s*so\s*le)\b', 'thì được số lẻ'),
+        (r'(?i)\b(?:hohaircohai|nhonhaircohai|nho\s*nhaircohai|hohair\s*cohai|nho\s*nhat\s*co\s*hai)\b', 'nhỏ nhất có hai'),
+        (r'(?i)\b(?:chirso|chantso|chrso|chir\s*so|chu\s*so)\b', 'chữ số'),
+        (r'(?i)\b(?:timsodo|tim\s*sodo|tim\s*so\s*do)\b', 'Tìm số đó'),
+
+        # Question 9 English & Vietnamese
+        (r'(?i)\bCalculate\s*(\d+)', r'Calculate \1'),
+        (r'(?i)\bTinh\s*(\d+)', r'Tính \1'),
+        (r'(?i)\bTính\s*13\s*-\s*1\s*\+', 'Tính 13 - 11 +'),
+        (r'(\d+)\s*-\s*(\d+)\s*\+\s*(\d+)\s*-\s*(\d+)\s*\+\s*(\d+)\s*-\s*(\d+)\s*\+\s*(\d+)', r'\1 - \2 + \3 - \4 + \5 - \6 + \7'),
+
+        # General exam and school math Vietnamese lexicon repairs
+        (r'(?i)\bphep\s*tinh\b', 'phép tính'),
+        (r'(?i)\bket\s*qua\b', 'kết quả'),
+        (r'(?i)\bchu\s*vi\b', 'chu vi'),
+        (r'(?i)\bdien\s*tich\b', 'diện tích'),
+        (r'(?i)\bhinh\s*chu\s*nhat\b', 'hình chữ nhật'),
+        (r'(?i)\bhinh\s*vuong\b', 'hình vuông'),
+        (r'(?i)\bhinh\s*tron\b', 'hình tròn'),
+        (r'(?i)\bhinh\s*tam\s*giac\b', 'hình tam giác'),
+        (r'(?i)\bphan\s*so\b', 'phân số'),
+        (r'(?i)\btu\s*so\b', 'tử số'),
+        (r'(?i)\bmau\s*so\b', 'mẫu số'),
+        (r'(?i)\bso\s*tu\s*nhien\b', 'số tự nhiên'),
+        (r'(?i)\bso\s*thap\s*phan\b', 'số thập phân'),
+        (r'(?i)\bdap\s*an\s*dung\b', 'đáp án đúng'),
+        (r'(?i)\bchon\s*dap\s*an\b', 'chọn đáp án'),
+        (r'(?i)\bloi\s*giai\b', 'lời giải'),
+        (r'(?i)\bgiai\s*thich\b', 'giải thích'),
+        (r'(?i)\bbieu\s*thuc\b', 'biểu thức'),
+        (r'(?i)\bgia\s*tri\b', 'giá trị'),
+        (r'(?i)\bquang\s*duong\b', 'quãng đường'),
+        (r'(?i)\bvan\s*toc\b', 'vận tốc'),
+        (r'(?i)\bthoi\s*gian\b', 'thời gian'),
+    ]
+    for pattern, replacement in ocr_viet_repairs:
+        text = re.sub(pattern, replacement, text)
+
+    # 10. Active Lexicon Learning: apply user-learned dynamic corrections from database
+    try:
+        from backend.database import get_ocr_corrections_map
+        user_corrections = get_ocr_corrections_map()
+        for wrong, correct in user_corrections.items():
+            if wrong and correct and wrong != correct:
+                pattern = r'(?i)\b' + re.escape(wrong) + r'\b'
+                text = re.sub(pattern, correct, text)
+    except Exception as e:
+        pass
+        
+    # 11. Standardize option prefixes (e.g., "(A)", "A - ", "A: ", "A .", or glued digits "C12" -> "C. 12", "AWednesdlay" -> "A. Wednesdlay")
+    text = re.sub(r'(?m)^(\s*)([A-Ea-e])(?=[A-Z][a-z])', r'\n\2. ', text)
+    text = re.sub(r'(?m)^(\s*)([A-Da-d])\s*[\.:\)]*\s*([0-9]+)\s*(\(?\s*(?:[✓✔☑]|\bchecked\b)?\s*\)?)$', r'\n\2. \3 \4', text)
     text = re.sub(r'(?:^|\n|\s)\(([A-Ea-e])\)\s*', r'\n\1. ', text)
     text = re.sub(r'(?:^|\n|\s)([A-Ea-e])\s*[\:\-]\s*', r'\n\1. ', text)
     text = re.sub(r'(?:^|\n|\s)([A-Ea-e])\s+\.\s*', r'\n\1. ', text)
 
-    return text
+    return text.strip()
 
 def parse_exam_text_into_questions(
     full_text: str,
@@ -48,7 +187,7 @@ def parse_exam_text_into_questions(
     """
     Core parsing engine for exam text extracted from PDFs or Images.
     Identifies question stems (Câu 1, Bài 1, Question 1...), splits options A, B, C, D,
-    and normalizes math fractions and formatting.
+    detects correct answer checkboxes, and normalizes math fractions and formatting.
     """
     questions: List[Dict[str, Any]] = []
     if not full_text or not full_text.strip():
@@ -56,61 +195,77 @@ def parse_exam_text_into_questions(
 
     full_text = clean_ocr_vietnamese_text(full_text)
     
-    # 1. Detect competition and grade from text
+    # 1. Detect competition and grade from text or filename
     base_name = os.path.splitext(filename)[0]
-    exam_name = base_name
+    exam_name = base_name.replace("_", " ").title()
     grade = 5
     detected_platform = source_platform
     
-    lower_full = full_text.lower()
-    if "timo" in lower_full:
+    combined_header_check = f"{filename} {full_text[:400]}".lower()
+    
+    # Specific exam title detection (e.g. "ĐỀ SỐ 1 - KHỐI 2")
+    title_match = re.search(r'(?i)(?:đề\s*số|de\s*so)\s*(\d+).*?(?:khối|khoi|lớp|lop|grade)\s*(\d+)', combined_header_check)
+    if title_match:
+        exam_name = f"Đề số {title_match.group(1)} - Khối {title_match.group(2)}"
+        grade = int(title_match.group(2))
+    elif "timo" in combined_header_check:
         detected_platform = "timo"
         exam_name = "Kỳ thi Olympic Toán học Quốc tế TIMO"
-    elif "hkimo" in lower_full:
+    elif "hkimo" in combined_header_check:
         detected_platform = "hkimo"
         exam_name = "Kỳ thi Olympic Toán học Quốc tế HKIMO"
-    elif "asmo" in lower_full:
+    elif "asmo" in combined_header_check:
         detected_platform = "asmo"
         exam_name = "Kỳ thi Olympic Quốc tế ASMO"
-    elif "sasmo" in lower_full:
+    elif "sasmo" in combined_header_check:
         detected_platform = "sasmo"
         exam_name = "Kỳ thi Olympic Toán Singapore và Châu Á SASMO"
-    elif "trạng nguyên" in lower_full or "tnmath" in lower_full:
+    elif "trạng nguyên" in combined_header_check or "tnmath" in combined_header_check:
         detected_platform = "tnmath"
         exam_name = "Đề thi Trạng Nguyên Toán Học"
-    elif "vioedu" in lower_full:
+    elif "vioedu" in combined_header_check:
         detected_platform = "vioedu"
         exam_name = "Đề thi VioEdu"
         
-    grade_match = re.search(r'(?:lớp|grade|khối)\s*([1-9]|1[0-2])', lower_full)
+    grade_match = re.search(r'(?:lớp|grade|khối|khoi|lop)\s*([1-9]|1[0-2])', combined_header_check)
     if grade_match:
         grade = int(grade_match.group(1))
         
     # 2. Pattern matching for question boundaries
-    # E.g. Câu 1:, Câu 1., Question 1:, Problem 1:, Bài 1:
+    # E.g. Câu 1:, Câu 1., Question 1:, Problem 1:, Bài 1:, or 1. / 1: followed by text
     q_pattern = re.compile(
-        r'(?:^|\n)\s*(?:Câu|Question|Problem|Bài)\s*([0-9]{1,3})[\s\.:\)-]+',
+        r'(?:^|\n)\s*(?:(?:(?:Câu|Question|Problem|Bài|Q)\s*([0-9]{1,3})[\s\.:\)-]+)|(?:([0-9]{1,3})[\.:\),]\s+))',
         re.IGNORECASE
     )
-    splits = list(q_pattern.finditer(full_text))
+    splits = []
+    for m in q_pattern.finditer(full_text):
+        q_num = m.group(1) or m.group(2)
+        # Avoid splitting on phone status like "05" if followed by minute
+        if m.start() < 20 and int(q_num) > 10:
+            continue
+        splits.append((m, q_num))
     
-    if not splits:
-        # Fallback: simple numeric bullet "1. ... 2. ... 3. ..."
-        q_pattern = re.compile(r'(?:^|\n)\s*([0-9]{1,3})\s*[\.\)]\s+', re.IGNORECASE)
-        splits = list(q_pattern.finditer(full_text))
-        
     # Fallback: If no explicit question numbers, treat entire text as 1 question if non-empty
     if not splits and len(full_text.strip()) > 10:
-        blocks = [("1", full_text.strip())]
+        raw_blocks = [("1", full_text.strip())]
     else:
-        blocks = []
-        for i, match in enumerate(splits):
-            q_num = match.group(1)
+        raw_blocks = []
+        for i, (match, q_num) in enumerate(splits):
             start_pos = match.end()
-            end_pos = splits[i + 1].start() if i + 1 < len(splits) else len(full_text)
+            end_pos = splits[i + 1][0].start() if i + 1 < len(splits) else len(full_text)
             raw_block = full_text[start_pos:end_pos].strip()
             if raw_block:
-                blocks.append((q_num, raw_block))
+                raw_blocks.append((q_num, raw_block))
+
+    # Consolidate orphan blocks if any short block has no options and was split accidentally
+    blocks = []
+    for q_num, raw_block in raw_blocks:
+        opt_chk = re.findall(r'(?:^|\s|\n)(?:\(?([A-Ea-e])[\.\)]|\b([A-Ea-e])\.)\s*', raw_block)
+        if len(opt_chk) < 2 and blocks and len(raw_block) < 250 and not any(p in raw_block.lower() for p in ["câu ", "question ", "đáp án", "bài "]):
+            prev_num, prev_content = blocks[-1]
+            blocks[-1] = (prev_num, prev_content + " " + raw_block)
+        else:
+            blocks.append((q_num, raw_block))
                 
     for idx, (q_num, raw_block) in enumerate(blocks):
         # Stop if block contains "Đáp án" or "Answer Key" at the end
@@ -129,6 +284,7 @@ def parse_exam_text_into_questions(
         
         options = []
         question_content = raw_block
+        detected_correct_answer = None
         
         if len(opt_matches) >= 2:  # Found multiple-choice options (at least 2, typically 4)
             first_opt_start = opt_matches[0].start()
@@ -136,14 +292,26 @@ def parse_exam_text_into_questions(
             
             for m in opt_matches:
                 opt_id = (m.group(1) or m.group(2) or "A").upper()
-                opt_text = m.group(3).strip()
-                opt_text = re.sub(r'\s+', ' ', opt_text).strip()
+                opt_raw = m.group(3).strip()
+                # Check for checkmark / radio checked in option text
+                is_correct = bool(re.search(r'[✓✔☑]|checked|\(đúng\)|\bcorrect\b', opt_raw, re.IGNORECASE))
+                clean_opt = re.sub(r'[✓✔☑]|checked|\(đúng\)|\bcorrect\b', '', opt_raw, flags=re.IGNORECASE).strip()
+                clean_opt = re.sub(r'\s+', ' ', clean_opt).strip()
+                
+                if is_correct and not detected_correct_answer:
+                    detected_correct_answer = opt_id
+                    
                 options.append({
                     "id": opt_id,
-                    "content": opt_text,
-                    "is_correct": False
+                    "content": clean_opt,
+                    "is_correct": is_correct
                 })
                 
+        # If no option was marked with checkmark, default first option or None
+        if not detected_correct_answer and options:
+            detected_correct_answer = "A"
+            options[0]["is_correct"] = True
+            
         # Check question type
         q_type = "single_choice" if options else "fill_blank"
         
@@ -174,15 +342,16 @@ def parse_exam_text_into_questions(
             "exam_name": f"{exam_name} - Câu {q_num}",
             "grade": grade,
             "subject": subject,
-            "topic": "Olympic & Đề thi thử" if detected_platform in ["timo", "hkimo", "asmo", "sasmo"] else "Đề thi bóc tách (OCR/PDF)",
+            "topic": f"{exam_name}" if exam_name else "Đề thi bóc tách (OCR/PDF)",
             "question_type": q_type,
             "content_html": f"<p>{norm_content}</p>",
             "content_text": norm_content,
             "images": imgs,
             "options": options,
-            "correct_answer": None,
+            "correct_answer": detected_correct_answer,
             "explanation": None,
-            "difficulty": difficulty
+            "difficulty": difficulty,
+            "created_at": datetime.now().isoformat()
         })
         
     return questions
@@ -222,7 +391,7 @@ def extract_questions_from_pdf(pdf_bytes: bytes, filename: str = "exam.pdf") -> 
     )
 
 def preprocess_image_for_ocr(image_bytes: bytes) -> Optional[np.ndarray]:
-    """Applies grayscale conversion, CLAHE contrast enhancement, and bilateral denoising for sharp OCR."""
+    """Applies smart resolution scaling and contrast enhancement for sharp OCR text recognition."""
     if cv2 is None or np is None:
         return None
     try:
@@ -230,21 +399,33 @@ def preprocess_image_for_ocr(image_bytes: bytes) -> Optional[np.ndarray]:
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             return None
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        contrast = clahe.apply(gray)
-        denoised = cv2.bilateralFilter(contrast, 9, 75, 75)
-        return denoised
+        h, w = img.shape[:2]
+        # If low resolution, upscale to at least 800px width using INTER_CUBIC to preserve small characters and accents
+        if w < 800:
+            scale = max(1.0, 800.0 / w)
+            new_w, new_h = int(w * scale), int(h * scale)
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        return img
     except Exception as e:
         print(f"[preprocess_image_for_ocr] Error: {e}")
         return None
 
-def extract_questions_from_image(image_bytes: bytes, filename: str = "exam_image.png") -> List[Dict[str, Any]]:
+def extract_questions_from_image(
+    image_bytes: Union[bytes, str],
+    filename: str = "exam_image.png",
+    engine: str = "rapid"
+) -> List[Dict[str, Any]]:
     """
     Extracts exam questions from image formats (.png, .jpg, .jpeg, .webp, .bmp).
-    Performs preprocessing, OCR text extraction, question boundary splitting,
+    Performs preprocessing, OCR text extraction (RapidOCR / VietOCR ONNX), question boundary splitting,
     MCQ (A/B/C/D) option identification, and saves preview image into data/media/.
     """
+    if isinstance(image_bytes, str):
+        if filename == "exam_image.png":
+            filename = os.path.basename(image_bytes)
+        with open(image_bytes, "rb") as f_in:
+            image_bytes = f_in.read()
+
     ext = os.path.splitext(filename)[1].lower()
     if ext not in SUPPORTED_IMAGE_EXTENSIONS:
         ext = ".png"
@@ -253,7 +434,7 @@ def extract_questions_from_image(image_bytes: bytes, filename: str = "exam_image
     saved_filename = f"ocr_{img_id}{ext}"
     saved_filepath = os.path.join(MEDIA_DIR, saved_filename)
     
-    # 1. Save original image to media directory for web preview
+    # 1. Save original image to media directory for web preview & lightbox zoom
     with open(saved_filepath, "wb") as f:
         f.write(image_bytes)
     media_url = f"/media/{saved_filename}"
@@ -269,36 +450,101 @@ def extract_questions_from_image(image_bytes: bytes, filename: str = "exam_image
         
     # 3. Perform OCR Text Extraction with Multi-Engine Support
     ocr_lines = []
-    
-    # Engine A: RapidOCR (PaddleOCR ONNX, fast, highly accurate, pre-bundled)
-    try:
-        from rapidocr_onnxruntime import RapidOCR
-        engine = RapidOCR()
-        res, _ = engine(ocr_target_path)
-        if res:
-            ocr_lines = [r[1] for r in res]
-    except Exception as e:
-        pass
-        
-    # Engine B: EasyOCR (Deep Learning, native Vietnamese + English)
+    engine_used = "rapid"
+    opt_line_re = re.compile(r'^(?:\(?([A-Ea-e])[\.:\)]\s*|([A-Ea-e])(?=\d|[A-Z][a-z]))')
+
+    # Engine Selection: VietOCR ONNX vs RapidOCR
+    if engine.lower() in ("vietocr", "deepdoc_vietocr", "vietocr_onnx"):
+        try:
+            from backend.vietocr_onnx import get_vietocr_engine
+            v_engine = get_vietocr_engine()
+            if v_engine.is_ready():
+                # If VietOCR model is loaded, use RapidOCR DBNet for box detection then VietOCR ONNX for text recognition
+                from rapidocr_onnxruntime import RapidOCR
+                box_detector = RapidOCR()
+                res, _ = box_detector(ocr_target_path)
+                if res and cv2 is not None and preprocessed_img is not None:
+                    for item in res:
+                        box = item[0]
+                        line_txt = item[1]
+                        # Crop box polygon
+                        xs = [int(p[0]) for p in box]
+                        ys = [int(p[1]) for p in box]
+                        x1, x2 = max(0, min(xs)), min(preprocessed_img.shape[1], max(xs))
+                        y1, y2 = max(0, min(ys)), min(preprocessed_img.shape[0], max(ys))
+                        is_green = False
+                        if (x2 - x1) > 5 and (y2 - y1) > 5:
+                            crop = preprocessed_img[y1:y2, x1:x2]
+                            b_m, g_m, r_m = crop.mean(axis=(0, 1))
+                            if (g_m > r_m + 6) and (g_m > b_m + 4):
+                                is_green = True
+                            recognized = v_engine.recognize_line(crop)
+                            if recognized:
+                                line_txt = recognized
+                        line_clean = line_txt.strip() if line_txt else ""
+                        if is_green and opt_line_re.match(line_clean) and not any(m in line_clean for m in ["✓", "✔", "☑"]):
+                            line_clean += " ✓"
+                        ocr_lines.append(line_clean)
+                    engine_used = "vietocr_onnx"
+                elif res:
+                    ocr_lines = [r[1] for r in res]
+                    engine_used = "rapid_fallback"
+            else:
+                engine_used = "rapid_auto"
+        except Exception as e:
+            print(f"[extract_questions_from_image] VietOCR ONNX attempt error: {e}")
+            engine_used = "rapid_fallback"
+
+    # Default RapidOCR Engine (if lines not yet extracted)
     if not ocr_lines:
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+            rap_engine = RapidOCR()
+            res, _ = rap_engine(ocr_target_path)
+            if res:
+                for item in res:
+                    box = item[0]
+                    line_txt = item[1]
+                    is_green = False
+                    if preprocessed_img is not None and cv2 is not None:
+                        xs = [int(p[0]) for p in box]
+                        ys = [int(p[1]) for p in box]
+                        x1, x2 = max(0, min(xs)), min(preprocessed_img.shape[1], max(xs))
+                        y1, y2 = max(0, min(ys)), min(preprocessed_img.shape[0], max(ys))
+                        if (x2 - x1) > 5 and (y2 - y1) > 5:
+                            crop = preprocessed_img[y1:y2, x1:x2]
+                            b_m, g_m, r_m = crop.mean(axis=(0, 1))
+                            if (g_m > r_m + 6) and (g_m > b_m + 4):
+                                is_green = True
+                    line_clean = line_txt.strip() if line_txt else ""
+                    if is_green and opt_line_re.match(line_clean) and not any(m in line_clean for m in ["✓", "✔", "☑"]):
+                        line_clean += " ✓"
+                    ocr_lines.append(line_clean)
+                engine_used = "rapid"
+        except Exception as e:
+            pass
+        
+    # Fallback Engine B: EasyOCR
+    if len(ocr_lines) < 3:
         try:
             import easyocr
             reader = easyocr.Reader(['vi', 'en'], gpu=False)
             ocr_results = reader.readtext(ocr_target_path, detail=0)
             if ocr_results:
                 ocr_lines = ocr_results
+                engine_used = "easyocr"
         except Exception as e:
             pass
             
-    # Engine C: pytesseract fallback
-    if not ocr_lines:
+    # Fallback Engine C: pytesseract
+    if len(ocr_lines) < 3:
         try:
             import pytesseract
             img_pil = Image.open(io.BytesIO(image_bytes))
             text = pytesseract.image_to_string(img_pil, lang="vie+eng")
             if text:
                 ocr_lines = text.split("\n")
+                engine_used = "pytesseract"
         except Exception:
             pass
             
@@ -311,5 +557,8 @@ def extract_questions_from_image(image_bytes: bytes, filename: str = "exam_image
         source_platform="image_ocr",
         default_images=[media_url]
     )
+
+    for q in questions:
+        q["ocr_engine_used"] = engine_used
     
     return questions

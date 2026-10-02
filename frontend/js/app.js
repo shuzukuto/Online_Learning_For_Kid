@@ -1,6 +1,8 @@
 // EduQuest Pro - Core Application & Router
-const APP_VERSION = "v1.0.24";
-const API_BASE = "http://localhost:8000/api";
+const APP_VERSION = "v1.0.31";
+const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
+  ? `${window.location.origin}/api`
+  : "http://localhost:8000/api";
 
 let lastKnownQuestionCount = null;
 let realtimeSyncInterval = null;
@@ -11,6 +13,7 @@ const State = {
   selectedQuestionIds: new Set(),
   stats: null,
   cachedQuestions: [],
+  ocrBatch: null,
   filters: {
     platform: "all",
     subject: "all",
@@ -26,6 +29,7 @@ const State = {
     page_size: 50
   }
 };
+window.State = State;
 
 // UI Notifications
 function showToast(message, type = "success") {
@@ -44,6 +48,24 @@ function showToast(message, type = "success") {
     setTimeout(() => toast.remove(), 250);
   }, 3500);
 }
+
+/**
+ * Chuyển đổi thời gian ISO 8601 / Date sang định dạng tiếng Việt chuẩn: HH:mm DD/MM/YYYY
+ * Ví dụ: "2026-10-02T07:31:00.123456" -> "07:31 02/10/2026"
+ */
+function formatDateTimeVN(dateInput) {
+  if (!dateInput) return "";
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+  const pad = (n) => String(n).padStart(2, '0');
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const dd = pad(d.getDate());
+  const MM = pad(d.getMonth() + 1);
+  const yyyy = d.getFullYear();
+  return `${hh}:${mm} ${dd}/${MM}/${yyyy}`;
+}
+window.formatDateTimeVN = formatDateTimeVN;
 
 // View Routing
 function switchView(viewName) {
@@ -105,8 +127,10 @@ async function loadDashboardStats() {
       lastKnownQuestionCount = data.total_questions || 0;
     }
 
-    document.getElementById("stat-total-q").innerText = data.total_questions || 0;
-    document.getElementById("stat-total-exams").innerText = data.total_exams || 0;
+    const elTotalQ = document.getElementById("stat-total-q");
+    if (elTotalQ) elTotalQ.innerText = data.total_questions || 0;
+    const elTotalExams = document.getElementById("stat-total-exams");
+    if (elTotalExams) elTotalExams.innerText = data.total_exams || 0;
 
     // Platform counts
     const pVio = data.by_platform?.vioedu || 0;
@@ -116,9 +140,12 @@ async function loadDashboardStats() {
     const pHts = data.by_platform?.hanhtrangso || 0;
     const pManual = data.by_platform?.manual || 0;
 
-    document.getElementById("stat-vioedu-count").innerText = pVio;
-    document.getElementById("stat-tnmath-count").innerText = pTn;
-    document.getElementById("stat-olympiad-count").innerText = pTimo;
+    const elVio = document.getElementById("stat-vioedu-count");
+    if (elVio) elVio.innerText = pVio;
+    const elTn = document.getElementById("stat-tnmath-count");
+    if (elTn) elTn.innerText = pTn;
+    const elOlym = document.getElementById("stat-olympiad-count");
+    if (elOlym) elOlym.innerText = pTimo;
 
     // Render platform grid
     const pGrid = document.getElementById("dashboard-platform-grid");
@@ -267,6 +294,108 @@ async function seedSampleQuestions() {
     showToast("Lỗi nạp câu hỏi mẫu", "error");
   }
 }
+
+/**
+ * Chuẩn hóa biểu thức toán học và ký hiệu khoa học (Canonical 4-stage pipeline)
+ * Bảo vệ tuyệt đối các khối KaTeX sẵn có, tự động bọc công thức thô thành khối hoàn chỉnh.
+ */
+function formatMathSymbols(str) {
+  if (!str) return "";
+  let s = String(str);
+
+  // ---------------------------------------------------------
+  // BƯỚC 1: Bảo vệ toàn bộ các khối toán học sẵn có
+  // ---------------------------------------------------------
+  const mathBlocks = [];
+  const saveMath = (match) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(match);
+    return `___MATH_BLOCK_${idx}___`;
+  };
+
+  // Nhận diện: $$...$$, \[...\], \(...\), $...$ (nội dung không rỗng)
+  const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$(?:\\\$|[^\$\n])+?\$)/g;
+  s = s.replace(mathBlockRegex, saveMath);
+
+  // ---------------------------------------------------------
+  // BƯỚC 2: Nhận diện biểu thức toán thô chưa bọc delimiter
+  // Ví dụ: M=\frac{3}{4}+\frac{2}{5} hoặc \frac{1}{2} + \frac{3}{4}
+  // ---------------------------------------------------------
+  const formulaRegex = /(^|[\s:;,\(])((?:[A-Za-z]\s*=\s*)?(?:\\frac\{[^{}]+\}\{[^{}]+\}|\\sqrt\{[^{}]+\}|[0-9]+|[+\-*/=><\(\)\.]|\s+)*(?:\\frac\{[^{}]+\}\{[^{}]+\}|\\sqrt\{[^{}]+\})(?:\\frac\{[^{}]+\}\{[^{}]+\}|\\sqrt\{[^{}]+\}|[0-9]+|[+\-*/=><\(\)\.]|\s+)*)([\s\.,;:!?\)]|$)/g;
+
+  s = s.replace(formulaRegex, (match, prefix, formulaGroup, suffix) => {
+    let raw = formulaGroup;
+    const leadingSpace = raw.match(/^\s*/)[0];
+    const trailingSpace = raw.match(/\s*$/)[0];
+    raw = raw.trim();
+
+    // Tách dấu câu tiếng Việt nếu bị dính ở cuối (., :, ;)
+    let trailingPunct = "";
+    const punctMatch = raw.match(/[\.,;:!?]+$/);
+    if (punctMatch) {
+      trailingPunct = punctMatch[0];
+      raw = raw.slice(0, -trailingPunct.length).trim();
+    }
+
+    // Tách cặp ngoặc đơn bao trọn bên ngoài nếu có: (formula) -> ($formula$)
+    if (raw.startsWith("(") && raw.endsWith(")")) {
+      let depth = 0;
+      let allEnclosed = true;
+      for (let i = 0; i < raw.length - 1; i++) {
+        if (raw[i] === "(") depth++;
+        else if (raw[i] === ")") {
+          depth--;
+          if (depth === 0) { allEnclosed = false; break; }
+        }
+      }
+      if (allEnclosed && depth === 1) {
+        prefix += "(";
+        suffix = ")" + suffix;
+        raw = raw.slice(1, -1).trim();
+      }
+    }
+    if (!raw) return match;
+
+    const idx = mathBlocks.length;
+    mathBlocks.push(`$${raw}$`);
+    return `${prefix}${leadingSpace}___MATH_BLOCK_${idx}___${trailingPunct}${trailingSpace}${suffix}`;
+  });
+
+  // Xử lý vét cạn cho các phân số hoặc căn thức đơn lẻ nếu còn sót
+  s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (match, num, den) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(`$\\frac{${num}}{${den}}$`);
+    return `___MATH_BLOCK_${idx}___`;
+  });
+
+  s = s.replace(/\\sqrt\{([^{}]+)\}/g, (match, inner) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(`$\\sqrt{${inner}}$`);
+    return `___MATH_BLOCK_${idx}___`;
+  });
+
+  // ---------------------------------------------------------
+  // BƯỚC 3: Xử lý ký hiệu đơn vị và công thức hóa học trong văn bản thường
+  // ---------------------------------------------------------
+  s = s.replace(/(\b(?:m|cm|dm|mm|km))\^2\b/g, '$1²');
+  s = s.replace(/(\b(?:m|cm|dm|mm|km))\^3\b/g, '$1³');
+  s = s.replace(/\bH2O\b/g, 'H₂O');
+  s = s.replace(/\bCO2\b/g, 'CO₂');
+  s = s.replace(/\bO2\b/g, 'O₂');
+  s = s.replace(/\bN2\b/g, 'N₂');
+  s = s.replace(/\bH2SO4\b/g, 'H₂SO₄');
+  s = s.replace(/\bCaCO3\b/g, 'CaCO₃');
+
+  // ---------------------------------------------------------
+  // BƯỚC 4: Khôi phục an toàn các khối toán học bằng hàm callback
+  // ---------------------------------------------------------
+  for (let idx = 0; idx < mathBlocks.length; idx++) {
+    s = s.replace(`___MATH_BLOCK_${idx}___`, () => mathBlocks[idx]);
+  }
+
+  return s;
+}
+window.formatMathSymbols = formatMathSymbols;
 
 // Render KaTeX formulas in an element
 function renderMath(container) {

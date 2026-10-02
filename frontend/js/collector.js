@@ -1,20 +1,178 @@
-// EduQuest Pro - Collector Hub, PDF & Image OCR Importer, Auto-Hunter & Auto-Crawl
+// EduQuest Pro - Collector Hub, Multi-file PDF & Image OCR Importer, Auto-Hunter & Auto-Crawl
 const SUPPORTED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp"];
-let currentUploadedFile = null;
-let currentUploadedImageUrl = null;
-let currentReviewedQuestions = [];
+let selectedOcrFiles = [];
+let ocrLightboxState = {
+  zoom: 1.0,
+  rotation: 0,
+  panX: 0,
+  panY: 0,
+  isDragging: false,
+  startX: 0,
+  startY: 0,
+  imageUrls: [],
+  currentIndex: 0
+};
 let autoHunterTimer = null;
 let autoHunterCountdown = 300; // 5 minutes countdown
 let countdownInterval = null;
 
+// ============================================================================
+// OCR Debug Live Log & Telemetry
+// ============================================================================
+function appendOcrLog(message, type = "info") {
+  const logBox = document.getElementById("ocr-live-log");
+  const badge = document.getElementById("ocr-log-badge");
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+  const typeLabels = {
+    info: "[INFO]",
+    upload: "[UPLOAD]",
+    success: "[THÀNH CÔNG]",
+    warning: "[CẢNH BÁO]",
+    error: "[LỖI]",
+    batch: "[ĐỐI SOÁT]",
+    step: "[CÂU HỎI]",
+    preview: "[XEM ẢNH]"
+  };
+  const typeTag = typeLabels[type] || `[${type.toUpperCase()}]`;
+  const formattedLine = `[${timeStr}] ${typeTag} ${message}`;
+
+  console.log(`[OCR-DEBUG] ${formattedLine}`);
+
+  if (logBox) {
+    if (!logBox.dataset.hasLogs) {
+      logBox.innerText = formattedLine;
+      logBox.dataset.hasLogs = "true";
+    } else {
+      logBox.innerText += "\n" + formattedLine;
+    }
+    // Auto-scroll to bottom
+    logBox.scrollTop = logBox.scrollHeight;
+
+    // Update badge count
+    const lines = logBox.innerText.trim().split("\n");
+    if (badge) badge.textContent = `${lines.length} bản ghi`;
+
+    // Persist up to 60 lines in localStorage
+    try {
+      const stored = lines.slice(-60).join("\n");
+      localStorage.setItem("eduquest_ocr_log", stored);
+    } catch (e) {}
+  }
+}
+window.appendOcrLog = appendOcrLog;
+
+function copyOcrLiveLog() {
+  const logBox = document.getElementById("ocr-live-log");
+  if (!logBox || !logBox.innerText.trim()) {
+    showToast("Chưa có nội dung nhật ký để sao chép", "warning");
+    return;
+  }
+  const text = logBox.innerText.trim();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("📋 Đã sao chép toàn bộ nhật ký bóc tách OCR!", "success"))
+      .catch(() => fallbackCopyOcrLog(text));
+  } else {
+    fallbackCopyOcrLog(text);
+  }
+}
+window.copyOcrLiveLog = copyOcrLiveLog;
+
+function fallbackCopyOcrLog(text) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast("📋 Đã sao chép toàn bộ nhật ký bóc tách OCR!", "success");
+  } catch (e) {
+    showToast("Không thể sao chép nhật ký vào Clipboard", "error");
+  }
+}
+
+function clearOcrLiveLog() {
+  const logBox = document.getElementById("ocr-live-log");
+  const badge = document.getElementById("ocr-log-badge");
+  if (logBox) {
+    logBox.innerText = "[Hệ thống] Đã làm sạch màn hình nhật ký. Sẵn sàng bóc tách tệp mới.";
+    logBox.dataset.hasLogs = "true";
+    if (badge) badge.textContent = "1 bản ghi";
+  }
+  localStorage.removeItem("eduquest_ocr_log");
+  showToast("🗑️ Đã xóa sạch màn hình nhật ký OCR", "info");
+}
+window.clearOcrLiveLog = clearOcrLiveLog;
+
+function restoreOcrLog() {
+  try {
+    const saved = localStorage.getItem("eduquest_ocr_log");
+    const logBox = document.getElementById("ocr-live-log");
+    const badge = document.getElementById("ocr-log-badge");
+    if (saved && logBox) {
+      logBox.innerText = saved;
+      logBox.dataset.hasLogs = "true";
+      const lines = saved.trim().split("\n");
+      if (badge) badge.textContent = `${lines.length} bản ghi`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+  } catch (e) {}
+}
+window.restoreOcrLog = restoreOcrLog;
+
+function toggleOcrLogSection() {
+  const sec = document.getElementById("ocr-log-section");
+  if (!sec) return;
+  const isHidden = (sec.style.display === "none" || !sec.style.display);
+  sec.style.display = isHidden ? "block" : "none";
+  const btn = document.getElementById("btn-toggle-ocr-log");
+  if (btn) {
+    btn.style.background = isHidden ? "#e0f2fe" : "";
+    btn.style.borderColor = isHidden ? "#38bdf8" : "";
+    btn.style.color = isHidden ? "#0369a1" : "";
+  }
+}
+window.toggleOcrLogSection = toggleOcrLogSection;
+
+function toggleOcrDropzone() {
+  const dz = document.getElementById("pdf-dropzone");
+  const btn = document.getElementById("btn-toggle-ocr-dropzone");
+  if (!dz) return;
+  const isHidden = (dz.style.display === "none");
+  dz.style.display = isHidden ? "flex" : "none";
+  if (btn) {
+    btn.textContent = isHidden ? "▲ Thu gọn" : "▼ Kéo thả";
+    btn.title = isHidden ? "Thu gọn vùng kéo thả" : "Mở rộng vùng kéo thả";
+  }
+}
+window.toggleOcrDropzone = toggleOcrDropzone;
+
+// ============================================================================
+// 1. Dropzone & Multi-file Upload Handler
+// ============================================================================
 function setupDropzone() {
   const dropzone = document.getElementById("pdf-dropzone");
   const fileInput = document.getElementById("pdf-file-input");
   if (!dropzone || !fileInput) return;
 
   fileInput.setAttribute("accept", ".pdf,.png,.jpg,.jpeg,.webp,.bmp");
+  fileInput.setAttribute("multiple", "multiple");
 
-  dropzone.addEventListener("click", () => fileInput.click());
+  // Prevent file input click event from bubbling to dropzone
+  fileInput.addEventListener("click", (e) => e.stopPropagation());
+
+  dropzone.addEventListener("click", (e) => {
+    if (e.target !== fileInput) {
+      fileInput.click();
+    }
+  });
 
   dropzone.addEventListener("dragover", (e) => {
     e.preventDefault();
@@ -28,337 +186,728 @@ function setupDropzone() {
   dropzone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropzone.classList.remove("dragover");
-    if (e.dataTransfer.files.length > 0) {
-      handleExamFileUpload(e.dataTransfer.files[0]);
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleOcrFilesSelection(e.dataTransfer.files);
     }
   });
 
   fileInput.addEventListener("change", (e) => {
-    if (e.target.files.length > 0) {
-      handleExamFileUpload(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      handleOcrFilesSelection(e.target.files);
     }
   });
+
+  // Setup Lightbox Modal Interactive Events (Zoom & Pan)
+  setupLightboxEvents();
 }
 
 function handlePdfUpload(file) {
-  return handleExamFileUpload(file);
+  return handleOcrFilesSelection([file]);
 }
 
-async function handleExamFileUpload(file) {
-  const ext = "." + file.name.split(".").pop().toLowerCase();
-  if (!SUPPORTED_EXTENSIONS.includes(ext)) {
-    showToast("Vui lòng chọn file định dạng PDF đề thi hoặc Ảnh (.png, .jpg, .jpeg, .webp, .bmp)", "error");
+function handleExamFileUpload(file) {
+  return handleOcrFilesSelection([file]);
+}
+
+function handleOcrFilesSelection(fileList) {
+  const newFiles = Array.from(fileList).filter(file => {
+    const ext = "." + file.name.split(".").pop().toLowerCase();
+    return SUPPORTED_EXTENSIONS.includes(ext);
+  });
+
+  if (newFiles.length === 0) {
+    appendOcrLog("⚠️ Người dùng chọn tệp không đúng định dạng hỗ trợ (.pdf, .png, .jpg, .jpeg, .webp, .bmp).", "warning");
+    showToast("Vui lòng chọn tệp định dạng PDF đề thi hoặc Ảnh (.png, .jpg, .jpeg, .webp, .bmp)", "error");
     return;
   }
 
-  currentUploadedFile = file;
-  const isImage = [".png", ".jpg", ".jpeg", ".webp", ".bmp"].includes(ext);
+  selectedOcrFiles = newFiles;
+  renderSelectedOcrFilesChips();
 
-  const resultContainer = document.getElementById("pdf-result-container");
-  if (!resultContainer) return;
-  resultContainer.style.display = "block";
+  appendOcrLog(`📁 Đã nhận ${newFiles.length} tệp: ${newFiles.map(f => `${f.name} (${(f.size / 1024).toFixed(1)} KB)`).join(", ")}`, "info");
 
-  // Image Preview Container if it is an image
-  let imagePreviewHtml = "";
-  if (isImage) {
-    if (currentUploadedImageUrl) URL.revokeObjectURL(currentUploadedImageUrl);
-    currentUploadedImageUrl = URL.createObjectURL(file);
-    imagePreviewHtml = `
-      <div id="image-preview-container" class="image-preview-container">
-        <div class="image-preview-toolbar">
-          <span>🖼️ Bản xem trước ảnh đề thi gốc: <strong>${file.name}</strong> (${(file.size/1024).toFixed(1)} KB)</span>
-        </div>
-        <img id="image-preview-img" src="${currentUploadedImageUrl}" alt="Ảnh xem trước đề thi" />
-      </div>
-    `;
-  } else {
-    imagePreviewHtml = `<div id="image-preview-container" style="display: none;"></div>`;
-  }
-
-  resultContainer.innerHTML = `
-    ${imagePreviewHtml}
-    <div style="text-align: center; padding: 30px; color: #64748b; background: white; border: 1px solid #e2e8f0; border-radius: 14px;">
-      <div style="font-size: 28px; margin-bottom: 8px;">⏳</div>
-      <p>Đang phân tích cấu trúc, nhận diện văn bản (OCR) & bóc tách câu hỏi từ file <strong>${file.name}</strong>...</p>
-    </div>
-  `;
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("save_to_bank", "false"); // Preview & audit first
-
-  try {
-    const endpoint = isImage ? `${API_BASE}/import/image` : `${API_BASE}/import/pdf`;
-    const res = await fetch(endpoint, {
-      method: "POST",
-      body: formData
-    });
-    const data = await res.json();
-
-    if (!data.success || !data.preview_questions || data.preview_questions.length === 0) {
-      resultContainer.innerHTML = `
-        ${imagePreviewHtml}
-        <div style="padding: 20px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 10px; color: #be123c;">
-          ⚠️ Không tìm thấy câu hỏi trắc nghiệm nào trong tệp này. Vui lòng kiểm tra độ nét của ảnh hoặc định dạng PDF.
-        </div>
-      `;
-      return;
-    }
-
-    currentReviewedQuestions = data.preview_questions.map((q, idx) => ({
-      ...q,
-      selected: true,
-      idx: idx
-    }));
-
-    renderOcrReviewTable(data.total_extracted, file.name, isImage);
-
-  } catch (err) {
-    resultContainer.innerHTML = `
-      ${imagePreviewHtml}
-      <div style="color: #ef4444; padding: 20px; background: white; border: 1px solid #fee2e2; border-radius: 10px;">
-        Lỗi xử lý file: ${err.message}
-      </div>
-    `;
-  }
+  // Automatically start OCR extraction for the selected files
+  processSelectedFilesOcr();
 }
 
-function renderOcrReviewTable(totalExtracted, filename, isImage) {
-  const resultContainer = document.getElementById("pdf-result-container");
-  if (!resultContainer) return;
+function renderSelectedOcrFilesChips() {
+  const bar = document.getElementById("ocr-selected-files-bar");
+  const chipsContainer = document.getElementById("ocr-selected-files-chips");
+  const countEl = document.getElementById("ocr-selected-count");
 
-  const rowsHtml = currentReviewedQuestions.map((q, idx) => {
-    const cleanStem = q.content_text || q.content_html || "";
-    const options = q.options || [
-      { id: "A", content: "" }, { id: "B", content: "" }, { id: "C", content: "" }, { id: "D", content: "" }
-    ];
-    const correctOpt = q.correct_answer || (options.find(o => o.is_correct)?.id) || "A";
+  if (!bar || !chipsContainer) return;
 
+  if (selectedOcrFiles.length === 0) {
+    bar.style.display = "none";
+    return;
+  }
+
+  bar.style.display = "block";
+  if (countEl) countEl.textContent = String(selectedOcrFiles.length);
+
+  chipsContainer.innerHTML = selectedOcrFiles.map((file, idx) => {
+    const isImage = !file.name.toLowerCase().endsWith(".pdf");
+    const icon = isImage ? "🖼️" : "📄";
+    const sizeKb = (file.size / 1024).toFixed(0);
     return `
-      <tr id="ocr-row-${idx}" class="${q.selected ? 'selected' : ''}">
-        <td style="width: 40px; text-align: center;">
-          <input type="checkbox" id="ocr-check-${idx}" ${q.selected ? 'checked' : ''} onchange="toggleOcrQuestionSelect(${idx}, this.checked)" />
-        </td>
-        <td style="width: 65px; font-weight: 800; color: #2563eb;">
-          Câu ${idx + 1}
-        </td>
-        <td>
-          <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
-            <select id="ocr-sub-${idx}" class="form-control" style="width: 140px; font-size: 12px; height: 32px;" onchange="updateOcrQuestionField(${idx}, 'subject', this.value)">
-              <option value="math" ${q.subject === 'math' ? 'selected' : ''}>Toán học</option>
-              <option value="vietnamese" ${q.subject === 'vietnamese' ? 'selected' : ''}>Tiếng Việt</option>
-              <option value="english" ${q.subject === 'english' ? 'selected' : ''}>Tiếng Anh</option>
-              <option value="science" ${q.subject === 'science' ? 'selected' : ''}>Khoa học</option>
-            </select>
-            <select id="ocr-grade-${idx}" class="form-control" style="width: 110px; font-size: 12px; height: 32px;" onchange="updateOcrQuestionField(${idx}, 'grade', parseInt(this.value))">
-              ${[1,2,3,4,5,6,7,8,9,10,11,12].map(g => `<option value="${g}" ${g === (q.grade || 5) ? 'selected' : ''}>Lớp ${g}</option>`).join("")}
-            </select>
-          </div>
-          <textarea id="ocr-stem-${idx}" class="ocr-stem-editor" placeholder="Nội dung câu hỏi..." oninput="onOcrStemInput(${idx}, this.value)">${cleanStem}</textarea>
-          <div id="ocr-stem-preview-${idx}" class="stem-live-preview">${typeof formatMathSymbols === 'function' ? formatMathSymbols(cleanStem) : cleanStem}</div>
-        </td>
-        <td style="width: 380px;">
-          <div style="display: flex; flex-direction: column; gap: 4px;">
-            ${options.map(opt => `
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <input type="radio" name="ocr-correct-${idx}" value="${opt.id}" ${correctOpt === opt.id ? 'checked' : ''} onchange="updateOcrCorrectAnswer(${idx}, '${opt.id}')" title="Chọn đáp án đúng" />
-                <strong style="min-width: 18px;">${opt.id}.</strong>
-                <input type="text" id="ocr-opt-${idx}-${opt.id}" class="ocr-option-input" value="${opt.content || ''}" oninput="updateOcrOptionContent(${idx}, '${opt.id}', this.value)" placeholder="Phương án ${opt.id}" />
-              </div>
-            `).join("")}
-          </div>
-        </td>
-      </tr>
+      <div class="ocr-file-chip" title="${file.name}">
+        <span>${icon}</span>
+        <span style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+        <span style="color: #64748b; font-size: 11px;">(${sizeKb} KB)</span>
+        <span class="chip-remove" onclick="removeSelectedOcrFile(${idx})" title="Bỏ tệp này">✕</span>
+      </div>
     `;
   }).join("");
-
-  const imagePreviewHtml = (isImage && currentUploadedImageUrl) ? `
-    <div id="image-preview-container" class="image-preview-container">
-      <div class="image-preview-toolbar">
-        <span>🖼️ Bản xem trước ảnh đề thi gốc: <strong>${filename}</strong></span>
-      </div>
-      <img id="image-preview-img" src="${currentUploadedImageUrl}" alt="Ảnh xem trước đề thi" />
-    </div>
-  ` : '';
-
-  resultContainer.innerHTML = `
-    ${imagePreviewHtml}
-    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 22px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
-        <div>
-          <h4 style="font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">
-            🔍 Bảng Đối Soát Câu Hỏi Bóc Tách (${totalExtracted} câu)
-          </h4>
-          <span style="font-size: 12.5px; color: #64748b;">
-            Tệp nguồn: <strong>${filename}</strong> • Bạn có thể chỉnh sửa nội dung, phương án và chọn đáp án trước khi lưu.
-          </span>
-        </div>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <button class="btn btn-secondary btn-sm" onclick="cancelOcrReview()" style="color: #ef4444;">
-            ✕ Hủy bỏ
-          </button>
-          <button class="btn btn-success" id="btn-save-ocr-bank" onclick="saveOcrReviewedQuestions()">
-            ✓ Lưu <span id="ocr-selected-count">${totalExtracted}</span> câu đã chọn vào Ngân hàng
-          </button>
-        </div>
-      </div>
-
-      <div style="overflow-x: auto; max-height: 520px; overflow-y: auto;">
-        <table class="audit-review-table" id="ocr-review-table">
-          <thead>
-            <tr>
-              <th style="width: 40px; text-align: center;">
-                <input type="checkbox" id="ocr-select-all" checked onchange="toggleOcrSelectAll(this.checked)" title="Chọn tất cả" />
-              </th>
-              <th style="width: 65px;">STT</th>
-              <th>Nội dung câu hỏi (Chỉnh sửa & KaTeX Preview)</th>
-              <th style="width: 380px;">Phương án (A, B, C, D) & Đáp án đúng (○)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-
-  // Render KaTeX in previews
-  currentReviewedQuestions.forEach((_, idx) => {
-    const prevEl = document.getElementById(`ocr-stem-preview-${idx}`);
-    if (prevEl && typeof renderMath === "function") {
-      renderMath(prevEl);
-    }
-  });
 }
 
-function onOcrStemInput(idx, val) {
-  if (currentReviewedQuestions[idx]) {
-    currentReviewedQuestions[idx].content_text = val;
-    currentReviewedQuestions[idx].content_html = val;
-  }
-  const prevEl = document.getElementById(`ocr-stem-preview-${idx}`);
-  if (prevEl) {
-    prevEl.innerHTML = typeof formatMathSymbols === 'function' ? formatMathSymbols(val) : val;
-    if (typeof renderMath === "function") renderMath(prevEl);
+function removeSelectedOcrFile(idx) {
+  if (idx >= 0 && idx < selectedOcrFiles.length) {
+    const removed = selectedOcrFiles[idx];
+    selectedOcrFiles.splice(idx, 1);
+    renderSelectedOcrFilesChips();
+    appendOcrLog(`🗑️ Đã gỡ tệp khỏi danh sách: ${removed.name}`, "info");
   }
 }
 
-function updateOcrOptionContent(idx, optId, val) {
-  if (currentReviewedQuestions[idx]) {
-    if (!currentReviewedQuestions[idx].options) currentReviewedQuestions[idx].options = [];
-    const opt = currentReviewedQuestions[idx].options.find(o => o.id === optId);
-    if (opt) {
-      opt.content = val;
-    } else {
-      currentReviewedQuestions[idx].options.push({ id: optId, content: val, is_correct: false });
-    }
-  }
+function clearOcrSelectedFiles() {
+  selectedOcrFiles = [];
+  renderSelectedOcrFilesChips();
+  const fileInput = document.getElementById("pdf-file-input");
+  if (fileInput) fileInput.value = "";
+  appendOcrLog("🗑️ Đã xóa sạch danh sách tệp đề thi đã chọn.", "info");
 }
 
-function updateOcrCorrectAnswer(idx, optId) {
-  if (currentReviewedQuestions[idx]) {
-    currentReviewedQuestions[idx].correct_answer = optId;
-    if (currentReviewedQuestions[idx].options) {
-      currentReviewedQuestions[idx].options.forEach(o => {
-        o.is_correct = (o.id === optId);
-      });
-    }
-  }
-}
-
-function updateOcrQuestionField(idx, field, val) {
-  if (currentReviewedQuestions[idx]) {
-    currentReviewedQuestions[idx][field] = val;
-  }
-}
-
-function toggleOcrQuestionSelect(idx, checked) {
-  if (currentReviewedQuestions[idx]) {
-    currentReviewedQuestions[idx].selected = checked;
-    const row = document.getElementById(`ocr-row-${idx}`);
-    if (row) row.classList.toggle("selected", checked);
-  }
-  updateOcrSelectedCounter();
-}
-
-function toggleOcrSelectAll(checked) {
-  currentReviewedQuestions.forEach((q, idx) => {
-    q.selected = checked;
-    const cb = document.getElementById(`ocr-check-${idx}`);
-    if (cb) cb.checked = checked;
-    const row = document.getElementById(`ocr-row-${idx}`);
-    if (row) row.classList.toggle("selected", checked);
-  });
-  updateOcrSelectedCounter();
-}
-
-function updateOcrSelectedCounter() {
-  const selectedCount = currentReviewedQuestions.filter(q => q.selected).length;
-  const countEl = document.getElementById("ocr-selected-count");
-  if (countEl) countEl.innerText = String(selectedCount);
-  const btnSave = document.getElementById("btn-save-ocr-bank");
-  if (btnSave) btnSave.disabled = (selectedCount === 0);
-}
-
-async function saveOcrReviewedQuestions() {
-  const selectedQuestions = currentReviewedQuestions.filter(q => q.selected);
-  if (!selectedQuestions || selectedQuestions.length === 0) {
-    showToast("Vui lòng chọn ít nhất 1 câu hỏi để lưu vào Ngân hàng", "warning");
+// ============================================================================
+// 2. Process Files & Multi-File OCR Pipeline
+// ============================================================================
+async function processSelectedFilesOcr() {
+  if (!selectedOcrFiles || selectedOcrFiles.length === 0) {
+    showToast("Vui lòng chọn ít nhất 1 file đề thi hoặc ảnh", "warning");
+    appendOcrLog("⚠️ Chưa chọn tệp đề thi nào để bóc tách.", "warning");
     return;
   }
 
-  const btnSave = document.getElementById("btn-save-ocr-bank");
-  if (btnSave) {
-    btnSave.disabled = true;
-    btnSave.innerText = "⏳ Đang lưu vào Ngân hàng...";
+  const loadingContainer = document.getElementById("ocr-loading-container");
+  const loadingTitle = document.getElementById("ocr-loading-title");
+  const loadingDesc = document.getElementById("ocr-loading-desc");
+  const batchCard = document.getElementById("ocr-batch-progress-card");
+
+  if (loadingContainer) loadingContainer.style.display = "block";
+  if (batchCard) batchCard.style.display = "none";
+
+  const allExtractedQuestions = [];
+  const allImages = [];
+  const totalFiles = selectedOcrFiles.length;
+
+  appendOcrLog(`🚀 Bắt đầu quá trình bóc tách ${totalFiles} tệp đã chọn...`, "info");
+
+  for (let i = 0; i < totalFiles; i++) {
+    const file = selectedOcrFiles[i];
+    const ext = "." + file.name.split(".").pop().toLowerCase();
+    const isImage = [".png", ".jpg", ".jpeg", ".webp", ".bmp"].includes(ext);
+
+    if (loadingTitle) {
+      loadingTitle.textContent = `Đang bóc tách tệp ${i + 1}/${totalFiles}: ${file.name}...`;
+    }
+    if (loadingDesc) {
+      loadingDesc.textContent = `Đang nhận diện văn bản (OCR), phân loại khối lớp và trích xuất phương án...`;
+    }
+
+    appendOcrLog(`⏳ [Tệp ${i + 1}/${totalFiles}] Đang gửi '${file.name}' (${(file.size / 1024).toFixed(1)} KB) tới máy chủ...`, "upload");
+
+    const ocrEngine = document.getElementById("ocr-engine-select")?.value || "rapid";
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("save_to_bank", "false");
+    formData.append("engine", ocrEngine);
+
+    try {
+      const endpoint = isImage ? `${API_BASE}/import/image` : `${API_BASE}/import/pdf`;
+      const startTime = performance.now();
+      const res = await fetch(endpoint, {
+        method: "POST",
+        body: formData
+      });
+      const latency = ((performance.now() - startTime) / 1000).toFixed(2);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        appendOcrLog(`❌ [Tệp ${i + 1}/${totalFiles}] '${file.name}' lỗi HTTP ${res.status} (${latency}s): ${errText.substring(0, 150)}`, "error");
+        showToast(`Lỗi xử lý file ${file.name}: HTTP ${res.status}`, "error");
+        continue;
+      }
+
+      const data = await res.json();
+      const qList = (data && (data.preview_questions || data.questions)) ? (data.preview_questions || data.questions) : [];
+
+      if (qList.length > 0) {
+        appendOcrLog(`✅ [Tệp ${i + 1}/${totalFiles}] '${file.name}' bóc tách thành công ${qList.length} câu hỏi (${latency}s)!`, "success");
+        qList.forEach(q => {
+          allExtractedQuestions.push({
+            ...q,
+            source_file_name: file.name
+          });
+          if (q.images && q.images.length > 0) {
+            q.images.forEach(imgUrl => {
+              if (!allImages.includes(imgUrl)) allImages.push(imgUrl);
+            });
+          }
+        });
+      } else {
+        appendOcrLog(`⚠️ [Tệp ${i + 1}/${totalFiles}] '${file.name}' (${latency}s) không tìm thấy khối câu hỏi hợp lệ.`, "warning");
+      }
+    } catch (err) {
+      console.error(`Error processing file ${file.name}:`, err);
+      appendOcrLog(`❌ [Tệp ${i + 1}/${totalFiles}] Lỗi kết nối khi gửi '${file.name}': ${err.message}`, "error");
+      showToast(`Lỗi xử lý file ${file.name}: ${err.message}`, "error");
+    }
   }
 
-  try {
-    const payload = selectedQuestions.map(q => ({
-      ...q,
-      images: q.images || (currentUploadedImageUrl ? [currentUploadedImageUrl] : [])
-    }));
+  if (loadingContainer) loadingContainer.style.display = "none";
 
+  if (allExtractedQuestions.length === 0) {
+    appendOcrLog(`❌ Quá trình kết thúc nhưng không có câu hỏi nào được bóc tách từ ${totalFiles} tệp.`, "error");
+    showToast("⚠️ Không tìm thấy câu hỏi nào trong các tệp đã chọn. Vui lòng kiểm tra độ nét của ảnh hoặc nội dung PDF.", "error");
+    return;
+  }
+
+  appendOcrLog(`🎯 Tổng cộng trích xuất thành công ${allExtractedQuestions.length} câu hỏi từ ${totalFiles} tệp. Khởi tạo quy trình đối soát...`, "batch");
+
+  // Initialize OCR Batch Verification Flow
+  startOcrBatchVerification(allExtractedQuestions, allImages);
+}
+
+// ============================================================================
+// 3. OCR Batch Verification Progression Logic
+// ============================================================================
+function startOcrBatchVerification(questions, images) {
+  if (!window.State && typeof State !== "undefined") {
+    window.State = State;
+  } else if (!window.State) {
+    window.State = {};
+  }
+
+  // Initialize per-question OCR tracking status
+  questions.forEach((q, idx) => {
+    if (!q._ocrStatus) q._ocrStatus = "pending"; // 'pending' | 'saved' | 'skipped'
+    q._ocrIndex = idx;
+  });
+
+  window.State.ocrBatch = {
+    items: questions,
+    currentIndex: 0,
+    processedCount: 0,
+    savedCount: 0,
+    skippedCount: 0,
+    totalCount: questions.length,
+    images: images || []
+  };
+
+  // Switch to view-manual if not already active
+  if (typeof switchView === "function" && window.State.currentView !== "manual") {
+    switchView("manual");
+  }
+
+  const batchCard = document.getElementById("ocr-batch-progress-card");
+  if (batchCard) {
+    batchCard.style.display = "block";
+    batchCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const modeBadge = document.getElementById("editor-mode-badge");
+  if (modeBadge) {
+    modeBadge.textContent = `CHẾ ĐỘ: ĐÍNH CHÍNH & LƯU BÓC TÁCH OCR (${questions.length} CÂU)`;
+    modeBadge.style.background = "#eff6ff";
+    modeBadge.style.color = "#1d4ed8";
+  }
+
+  // Render question pills nav bar
+  renderOcrQuestionsNavBar();
+
+  // Load the first question into the manual editor form
+  loadOcrQuestionToForm(0);
+
+  appendOcrLog(`✨ Đã nạp Câu 1/${questions.length} vào trình Soạn thảo. Bạn có thể tự do chuyển qua lại giữa các câu hỏi hoặc Bỏ qua câu không phù hợp.`, "batch");
+
+  showToast(`🎉 Đã bóc tách thành công ${questions.length} câu hỏi! Tự do duyệt qua lại và lưu từng câu.`, "success");
+}
+
+function renderOcrQuestionsNavBar() {
+  const container = document.getElementById("ocr-questions-nav-bar");
+  if (!container || !window.State.ocrBatch || !window.State.ocrBatch.items) return;
+
+  const items = window.State.ocrBatch.items;
+  const currentIdx = window.State.ocrBatch.currentIndex || 0;
+
+  container.innerHTML = items.map((q, idx) => {
+    const isActive = (idx === currentIdx);
+    const status = q._ocrStatus || "pending";
+    let icon = "⚪";
+    let statusClass = "status-pending";
+    let titleTooltip = `Câu ${idx + 1}: Chưa lưu`;
+
+    if (status === "saved") {
+      icon = "🟢";
+      statusClass = "status-saved";
+      titleTooltip = `Câu ${idx + 1}: Đã lưu vào CSDL`;
+    } else if (status === "skipped") {
+      icon = "❌";
+      statusClass = "status-skipped";
+      titleTooltip = `Câu ${idx + 1}: Đã bỏ qua`;
+    }
+
+    const activeClass = isActive ? "active" : "";
+
+    return `
+      <button type="button" 
+        class="ocr-q-pill ${activeClass} ${statusClass}" 
+        onclick="jumpToOcrQuestion(${idx})" 
+        title="${titleTooltip}"
+        data-index="${idx}">
+        <span>${icon}</span>
+        <span>Câu ${idx + 1}</span>
+      </button>
+    `;
+  }).join("");
+}
+
+function jumpToOcrQuestion(index) {
+  if (!window.State.ocrBatch || !window.State.ocrBatch.items) return;
+  const total = window.State.ocrBatch.totalCount;
+  if (index < 0 || index >= total) return;
+  loadOcrQuestionToForm(index);
+}
+
+function loadOcrQuestionToForm(index) {
+  if (!window.State.ocrBatch || !window.State.ocrBatch.items) return;
+  const items = window.State.ocrBatch.items;
+  if (index < 0 || index >= items.length) return;
+
+  const q = items[index];
+  window.State.ocrBatch.currentIndex = index;
+
+  if (!q._rawOcrText) {
+    q._rawOcrText = q.content_text || q.content_html || "";
+  }
+
+  // Fill manual question editor fields
+  const elPlatform = document.getElementById("m-platform");
+  const elGrade = document.getElementById("m-grade");
+  const elSubject = document.getElementById("m-subject");
+  const elTopic = document.getElementById("m-topic");
+  const elContent = document.getElementById("m-content");
+  const elOptA = document.getElementById("m-opt-a");
+  const elOptB = document.getElementById("m-opt-b");
+  const elOptC = document.getElementById("m-opt-c");
+  const elOptD = document.getElementById("m-opt-d");
+  const elCorrect = document.getElementById("m-correct");
+  const elDiff = document.getElementById("m-diff");
+  const elExplanation = document.getElementById("m-explanation");
+
+  if (elPlatform) elPlatform.value = q.source_platform || "image_ocr";
+  if (elGrade) elGrade.value = String(q.grade || 5);
+  if (elSubject) elSubject.value = q.subject || "math";
+  if (elTopic) elTopic.value = q.topic || q.exam_name || "Đề thi bóc tách (OCR/PDF)";
+  if (elContent) elContent.value = q.content_text || q.content_html || "";
+
+  const opts = q.options || [];
+  const optA = opts.find(o => o.id === "A") || opts[0];
+  const optB = opts.find(o => o.id === "B") || opts[1];
+  const optC = opts.find(o => o.id === "C") || opts[2];
+  const optD = opts.find(o => o.id === "D") || opts[3];
+
+  if (elOptA) elOptA.value = optA ? optA.content : "";
+  if (elOptB) elOptB.value = optB ? optB.content : "";
+  if (elOptC) elOptC.value = optC ? optC.content : "";
+  if (elOptD) elOptD.value = optD ? optD.content : "";
+
+  // Determine correct answer
+  const correctOpt = q.correct_answer || (opts.find(o => o.is_correct)?.id) || "A";
+  if (elCorrect) elCorrect.value = correctOpt;
+
+  if (elDiff) elDiff.value = q.difficulty || "medium";
+  if (elExplanation) elExplanation.value = q.explanation || "";
+
+  // Update Live KaTeX Preview
+  const mPreview = document.getElementById("m-preview-box");
+  if (mPreview) {
+    const rawVal = elContent ? elContent.value : "";
+    if (rawVal.trim()) {
+      mPreview.innerHTML = `<div style="font-size: 14.5px; line-height: 1.6;">${rawVal.replace(/\n/g, '<br/>')}</div>`;
+      if (typeof renderMath === "function") renderMath(mPreview);
+    } else {
+      mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
+    }
+  }
+
+  // Update Batch Progress Indicators
+  const total = window.State.ocrBatch.totalCount;
+  const saved = window.State.ocrBatch.savedCount || 0;
+  const skipped = window.State.ocrBatch.skippedCount || 0;
+  const processed = saved + skipped;
+  window.State.ocrBatch.processedCount = processed;
+
+  const statusBadge = document.getElementById("ocr-batch-status-badge");
+  const stepLabel = document.getElementById("ocr-batch-current-step");
+  const progressText = document.getElementById("ocr-batch-progress-text");
+  const progressBarFill = document.getElementById("ocr-batch-progress-bar-fill");
+  const prevBtn = document.getElementById("btn-ocr-prev-q");
+  const nextBtn = document.getElementById("btn-ocr-next-q");
+  const discardBtn = document.getElementById("btn-ocr-discard-q");
+
+  if (statusBadge) statusBadge.textContent = `✨ ĐÃ BÓC TÁCH: ${total} CÂU HỎI`;
+  if (stepLabel) {
+    const curStatus = q._ocrStatus === "saved" ? " [🟢 Đã lưu]" : q._ocrStatus === "skipped" ? " [❌ Đã bỏ qua]" : "";
+    stepLabel.textContent = `Câu ${index + 1} / ${total}${curStatus}`;
+  }
+  if (progressText) progressText.textContent = `Đã xử lý: ${processed} / ${total} câu (Lưu: ${saved}, Bỏ qua: ${skipped})`;
+  if (progressBarFill) {
+    const pct = total > 0 ? ((processed / total) * 100) : 0;
+    progressBarFill.style.width = `${pct}%`;
+  }
+  if (prevBtn) prevBtn.disabled = (index === 0);
+  if (nextBtn) nextBtn.disabled = (index >= total - 1);
+  if (discardBtn) {
+    discardBtn.disabled = (q._ocrStatus === "skipped");
+  }
+
+  // Update Source Image Preview in Banner
+  const imgBar = document.getElementById("ocr-source-image-bar");
+  const imgThumb = document.getElementById("ocr-source-image-thumb");
+  const imgName = document.getElementById("ocr-source-image-name");
+
+  const currentImgUrl = (q.images && q.images.length > 0) ? q.images[0] : (window.State.ocrBatch.images[0] || null);
+
+  if (currentImgUrl && imgBar && imgThumb) {
+    imgBar.style.display = "flex";
+    imgThumb.src = currentImgUrl;
+    if (imgName) imgName.textContent = q.source_file_name || q.exam_name || "Ảnh đề thi gốc";
+  } else if (imgBar) {
+    imgBar.style.display = "none";
+  }
+
+  // Update Save Button Label
+  const btnSave = document.getElementById("btn-submit-manual-q");
+  if (btnSave) {
+    if (q._ocrStatus === "saved") {
+      btnSave.innerHTML = `💾 Cập nhật / Lưu lại Câu ${index + 1} vào Ngân hàng`;
+    } else {
+      btnSave.innerHTML = `💾 Lưu câu hỏi ${index + 1}/${total} vào Ngân hàng`;
+    }
+  }
+
+  // Update questions nav bar highlight
+  renderOcrQuestionsNavBar();
+
+  // Telemetry log for loaded question
+  const stemSummary = (q.content_text || q.content_html || "").trim().substring(0, 50);
+  appendOcrLog(`📝 [Câu ${index + 1}/${total}] Đã nạp vào Form: "${stemSummary}..." | ${opts.length} phương án | Đáp án gợi ý: [${correctOpt}] | Trạng thái: ${q._ocrStatus || 'chưa lưu'}`, "info");
+}
+
+function navPrevOcrQuestion() {
+  if (!window.State.ocrBatch) return;
+  if (window.State.ocrBatch.currentIndex > 0) {
+    appendOcrLog(`⏮️ Quay lại Câu ${window.State.ocrBatch.currentIndex} / ${window.State.ocrBatch.totalCount}`, "info");
+    loadOcrQuestionToForm(window.State.ocrBatch.currentIndex - 1);
+  }
+}
+
+function navNextOcrQuestion() {
+  if (!window.State.ocrBatch || !window.State.ocrBatch.items) return;
+  const currIdx = window.State.ocrBatch.currentIndex;
+  const total = window.State.ocrBatch.totalCount;
+  if (currIdx < total - 1) {
+    appendOcrLog(`➡ Chuyển tới Câu ${currIdx + 2} / ${total}`, "info");
+    loadOcrQuestionToForm(currIdx + 1);
+  } else {
+    showToast("Bạn đang ở câu cuối cùng của đợt bóc tách", "info");
+  }
+}
+
+function discardCurrentOcrQuestion() {
+  if (!window.State.ocrBatch || !window.State.ocrBatch.items) return;
+  const batch = window.State.ocrBatch;
+  const currIdx = batch.currentIndex;
+  const total = batch.totalCount;
+  const q = batch.items[currIdx];
+
+  if (!q) return;
+
+  if (q._ocrStatus !== "skipped") {
+    if (q._ocrStatus === "saved" && batch.savedCount > 0) {
+      batch.savedCount--;
+    }
+    q._ocrStatus = "skipped";
+    batch.skippedCount = (batch.skippedCount || 0) + 1;
+    batch.processedCount = (batch.savedCount || 0) + batch.skippedCount;
+  }
+
+  appendOcrLog(`🗑️ Đã bỏ qua Câu ${currIdx + 1}/${total} (loại bỏ khỏi danh sách cần lưu CSDL)`, "warning");
+  showToast(`Đã bỏ qua Câu ${currIdx + 1}`, "info");
+
+  // Move to next pending question if any, or next available
+  let nextIdx = -1;
+  for (let i = currIdx + 1; i < total; i++) {
+    if (batch.items[i]._ocrStatus === "pending") {
+      nextIdx = i;
+      break;
+    }
+  }
+  if (nextIdx === -1) {
+    for (let i = 0; i < currIdx; i++) {
+      if (batch.items[i]._ocrStatus === "pending") {
+        nextIdx = i;
+        break;
+      }
+    }
+  }
+
+  if (nextIdx !== -1) {
+    loadOcrQuestionToForm(nextIdx);
+  } else {
+    loadOcrQuestionToForm(currIdx);
+    if (batch.processedCount >= total) {
+      showToast(`🎉 Toàn bộ ${total} câu hỏi đã được xử lý (Lưu: ${batch.savedCount || 0}, Bỏ qua: ${batch.skippedCount})!`, "success");
+    }
+  }
+}
+
+function skipCurrentOcrQuestion() {
+  discardCurrentOcrQuestion();
+}
+
+async function saveAllRemainingOcrQuestions() {
+  if (!window.State.ocrBatch || !window.State.ocrBatch.items) return;
+
+  const remainingQuestions = window.State.ocrBatch.items.filter(q => q._ocrStatus !== "saved" && q._ocrStatus !== "skipped");
+
+  if (remainingQuestions.length === 0) {
+    showToast("Không còn câu hỏi nào chưa lưu hoặc chưa bỏ qua!", "info");
+    completeOcrBatchSession();
+    return;
+  }
+
+  appendOcrLog(`⚡ Bắt đầu Lưu nhanh toàn bộ ${remainingQuestions.length} câu hỏi chưa lưu vào Ngân hàng CSDL...`, "batch");
+  try {
     const res = await fetch(`${API_BASE}/questions/bulk`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ questions: payload })
+      body: JSON.stringify({ questions: remainingQuestions })
     });
     const data = await res.json();
+    const count = data.inserted_count || remainingQuestions.length;
+    remainingQuestions.forEach(q => { q._ocrStatus = "saved"; });
+    window.State.ocrBatch.savedCount = (window.State.ocrBatch.savedCount || 0) + count;
+    window.State.ocrBatch.processedCount = (window.State.ocrBatch.savedCount || 0) + (window.State.ocrBatch.skippedCount || 0);
 
-    showToast(`✓ Đã lưu thành công ${data.inserted_count || selectedQuestions.length} câu hỏi vào Ngân hàng!`, "success");
+    appendOcrLog(`✅ Đã lưu nhanh thành công ${count} câu hỏi vào CSDL!`, "success");
+    showToast(`✓ Đã lưu nhanh thành công ${count} câu hỏi vào Ngân hàng!`, "success");
 
     if (typeof broadcastNewQuestions === "function") {
-      broadcastNewQuestions(data.inserted_count || selectedQuestions.length, "Bóc tách Đề thi & OCR");
+      broadcastNewQuestions(count, "Bóc tách Đề thi OCR");
     }
 
-    cancelOcrReview();
-    loadDashboardStats();
-    if (typeof State !== "undefined" && State.currentView === "bank") loadQuestions();
-
+    renderOcrQuestionsNavBar();
+    completeOcrBatchSession();
   } catch (err) {
+    appendOcrLog(`❌ Lỗi khi lưu nhanh hàng loạt câu hỏi: ${err.message}`, "error");
     showToast(`Lỗi khi lưu câu hỏi: ${err.message}`, "error");
-    if (btnSave) {
-      btnSave.disabled = false;
-      btnSave.innerText = "✓ Lưu câu đã chọn";
-    }
   }
 }
 
-function cancelOcrReview() {
-  currentReviewedQuestions = [];
-  if (currentUploadedImageUrl) {
-    URL.revokeObjectURL(currentUploadedImageUrl);
-    currentUploadedImageUrl = null;
-  }
-  const resultContainer = document.getElementById("pdf-result-container");
-  if (resultContainer) {
-    resultContainer.innerHTML = "";
-    resultContainer.style.display = "none";
-  }
-  showToast("Đã đóng bảng đối soát", "info");
+function cancelOcrBatchSession() {
+  appendOcrLog(`⏹️ Người dùng đã đóng/hủy phiên duyệt đính chính OCR.`, "warning");
+  window.State.ocrBatch = null;
+  const batchCard = document.getElementById("ocr-batch-progress-card");
+  if (batchCard) batchCard.style.display = "none";
+  if (typeof resetManualForm === "function") resetManualForm();
+  showToast("Đã đóng phiên bóc tách OCR", "info");
 }
+
+function completeOcrBatchSession() {
+  const processed = window.State.ocrBatch ? (window.State.ocrBatch.processedCount || window.State.ocrBatch.totalCount) : 0;
+  appendOcrLog(`🏁 Hoàn thành phiên duyệt OCR! Đã kiểm tra & nạp ${processed} câu hỏi vào CSDL.`, "success");
+  window.State.ocrBatch = null;
+
+  const batchCard = document.getElementById("ocr-batch-progress-card");
+  if (batchCard) batchCard.style.display = "none";
+
+  if (typeof resetManualForm === "function") resetManualForm();
+
+  showToast(`🎉 Chúc mừng! Bạn đã hoàn thành kiểm tra và lưu ${processed} câu hỏi vào Ngân hàng CSDL!`, "success");
+
+  loadDashboardStats();
+  if (typeof State !== "undefined" && State.currentView === "bank") {
+    loadQuestions();
+  }
+}
+
+// ============================================================================
+// 4. Lightbox Image Zoom & Pan Modal
+// ============================================================================
+function setupLightboxEvents() {
+  const viewport = document.getElementById("zoom-viewport");
+  if (!viewport) return;
+
+  // Mouse wheel zoom
+  viewport.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    zoomImage(delta);
+  }, { passive: false });
+
+  // Mouse drag to pan
+  viewport.addEventListener("mousedown", (e) => {
+    ocrLightboxState.isDragging = true;
+    ocrLightboxState.startX = e.clientX - ocrLightboxState.panX;
+    ocrLightboxState.startY = e.clientY - ocrLightboxState.panY;
+    viewport.style.cursor = "grabbing";
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!ocrLightboxState.isDragging) return;
+    ocrLightboxState.panX = e.clientX - ocrLightboxState.startX;
+    ocrLightboxState.panY = e.clientY - ocrLightboxState.startY;
+    applyImageTransform();
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (ocrLightboxState.isDragging) {
+      ocrLightboxState.isDragging = false;
+      const vp = document.getElementById("zoom-viewport");
+      if (vp) vp.style.cursor = "grab";
+    }
+  });
+
+  // ESC key to close modal
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const modal = document.getElementById("modal-image-zoom");
+      if (modal && modal.style.display === "flex") {
+        closeImageZoomModal();
+      }
+    }
+  });
+}
+
+function openCurrentQuestionImageZoom() {
+  let imgUrl = null;
+  let title = "Ảnh đề thi";
+
+  if (window.State.ocrBatch && window.State.ocrBatch.items) {
+    const q = window.State.ocrBatch.items[window.State.ocrBatch.currentIndex];
+    if (q && q.images && q.images.length > 0) {
+      imgUrl = q.images[0];
+      title = q.source_file_name || q.exam_name || "Ảnh đề thi gốc";
+    }
+    if (window.State.ocrBatch.images && window.State.ocrBatch.images.length > 0) {
+      ocrLightboxState.imageUrls = window.State.ocrBatch.images;
+      ocrLightboxState.currentIndex = ocrLightboxState.imageUrls.indexOf(imgUrl);
+      if (ocrLightboxState.currentIndex < 0) ocrLightboxState.currentIndex = 0;
+    }
+  }
+
+  if (!imgUrl && ocrLightboxState.imageUrls.length > 0) {
+    imgUrl = ocrLightboxState.imageUrls[0];
+  }
+
+  if (!imgUrl) {
+    const thumb = document.getElementById("ocr-source-image-thumb");
+    if (thumb && thumb.src) imgUrl = thumb.src;
+  }
+
+  // Fallback to selected files if blob/preview available
+  if (!imgUrl && typeof selectedOcrFiles !== "undefined" && selectedOcrFiles && selectedOcrFiles.length > 0) {
+    const f = selectedOcrFiles[0];
+    if (f && f.type && f.type.startsWith("image/")) {
+      try {
+        imgUrl = URL.createObjectURL(f);
+        ocrLightboxState.imageUrls = [imgUrl];
+        ocrLightboxState.currentIndex = 0;
+        title = f.name;
+      } catch (e) {}
+    }
+  }
+
+  if (!imgUrl) {
+    appendOcrLog(`⚠️ Phóng to ảnh: Không tìm thấy ảnh hoặc tệp xem trước để hiển thị`, "warning");
+    showToast("Không tìm thấy ảnh xem trước để phóng to", "warning");
+    return;
+  }
+
+  appendOcrLog(`🔍 Mở cửa sổ xem chi tiết / phóng to ảnh: "${title}" (Zoom 100%)`, "info");
+
+  const modal = document.getElementById("modal-image-zoom");
+  const targetImg = document.getElementById("zoom-target-img");
+  const modalTitle = document.getElementById("zoom-modal-title");
+  const pageLabel = document.getElementById("zoom-modal-page");
+
+  if (targetImg) targetImg.src = imgUrl;
+  if (modalTitle) modalTitle.textContent = `Bản xem trước chi tiết: ${title}`;
+  if (pageLabel) {
+    const totalImgs = Math.max(1, ocrLightboxState.imageUrls.length);
+    pageLabel.textContent = `${ocrLightboxState.currentIndex + 1}/${totalImgs}`;
+  }
+
+  resetImageZoom();
+
+  if (modal) modal.style.display = "flex";
+}
+window.openCurrentQuestionImageZoom = openCurrentQuestionImageZoom;
+window.openImageZoomModal = openCurrentQuestionImageZoom;
+
+function closeImageZoomModal() {
+  const modal = document.getElementById("modal-image-zoom");
+  if (modal) modal.style.display = "none";
+  resetImageZoom();
+}
+
+function zoomImage(delta) {
+  ocrLightboxState.zoom = Math.max(0.5, Math.min(4.0, ocrLightboxState.zoom + delta));
+  applyImageTransform();
+}
+
+function resetImageZoom() {
+  ocrLightboxState.zoom = 1.0;
+  ocrLightboxState.rotation = 0;
+  ocrLightboxState.panX = 0;
+  ocrLightboxState.panY = 0;
+  applyImageTransform();
+}
+
+function rotateImageZoom() {
+  ocrLightboxState.rotation = (ocrLightboxState.rotation + 90) % 360;
+  applyImageTransform();
+}
+
+function navZoomImage(dir) {
+  if (!ocrLightboxState.imageUrls || ocrLightboxState.imageUrls.length <= 1) return;
+  let newIdx = ocrLightboxState.currentIndex + dir;
+  if (newIdx < 0) newIdx = ocrLightboxState.imageUrls.length - 1;
+  if (newIdx >= ocrLightboxState.imageUrls.length) newIdx = 0;
+
+  ocrLightboxState.currentIndex = newIdx;
+  const newUrl = ocrLightboxState.imageUrls[newIdx];
+  const targetImg = document.getElementById("zoom-target-img");
+  const pageLabel = document.getElementById("zoom-modal-page");
+
+  if (targetImg) targetImg.src = newUrl;
+  if (pageLabel) pageLabel.textContent = `${newIdx + 1}/${ocrLightboxState.imageUrls.length}`;
+  resetImageZoom();
+}
+
+function applyImageTransform() {
+  const targetImg = document.getElementById("zoom-target-img");
+  const levelLabel = document.getElementById("zoom-modal-level");
+
+  if (targetImg) {
+    targetImg.style.transform = `translate(${ocrLightboxState.panX}px, ${ocrLightboxState.panY}px) scale(${ocrLightboxState.zoom}) rotate(${ocrLightboxState.rotation}deg)`;
+  }
+  if (levelLabel) {
+    levelLabel.textContent = `${Math.round(ocrLightboxState.zoom * 100)}%`;
+  }
+}
+
 
 // Scraper Log Actions (Copy & Clear)
 function copyScraperLiveLog() {
@@ -526,7 +1075,7 @@ async function loadCollectorLogs() {
           <span style="font-weight: 600; margin-left: 8px;">${l.message || "Thu thập câu hỏi"}</span>
         </div>
         <div style="color: #64748b; font-size: 12px;">
-          ${new Date(l.created_at).toLocaleString("vi-VN")}
+          ${typeof formatDateTimeVN === 'function' ? formatDateTimeVN(l.created_at) : (l.created_at || '')}
         </div>
       </div>
     `).join("");
@@ -543,7 +1092,7 @@ async function copyCollectorLogs() {
       showToast("Chưa có nhật ký nào để sao chép", "error");
       return;
     }
-    const text = logs.map(l => `[${new Date(l.created_at).toLocaleString("vi-VN")}] [${l.platform.toUpperCase()}] [${l.status.toUpperCase()}] ${l.message}`).join("\n");
+    const text = logs.map(l => `[${typeof formatDateTimeVN === 'function' ? formatDateTimeVN(l.created_at) : (l.created_at || '')}] [${l.platform.toUpperCase()}] [${l.status.toUpperCase()}] ${l.message}`).join("\n");
     await navigator.clipboard.writeText(text);
     showToast("Đã sao chép toàn bộ nhật ký debug vào clipboard!");
   } catch (err) {
@@ -1222,7 +1771,7 @@ async function openCaptureLogsModal() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/questions?page=1&page_size=24`);
+    const res = await fetch(`${API_BASE}/questions?sort_by=newest&page=1&page_size=24`);
     if (res.ok) {
       const data = await res.json();
       currentCapturedQuestions = data.items || [];
@@ -1260,16 +1809,59 @@ function renderCapturedQuestionsView(viewMode = "cards") {
     return;
   }
 
+  if (viewMode === "table") {
+    container.innerHTML = `
+      <div style="max-height: 460px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 10;">
+            <tr>
+              <th style="padding: 10px 12px; text-align: center; width: 50px;">STT</th>
+              <th style="padding: 10px 12px; text-align: left; width: 100px;">Nền tảng</th>
+              <th style="padding: 10px 12px; text-align: left; width: 110px;">Môn / Khối</th>
+              <th style="padding: 10px 12px; text-align: left;">Nội dung câu hỏi</th>
+              <th style="padding: 10px 12px; text-align: left; width: 150px;">Thời gian tạo</th>
+              <th style="padding: 10px 12px; text-align: left; width: 90px;">Mã ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${currentCapturedQuestions.map((q, idx) => `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px 12px; text-align: center; font-weight: 700; color: #64748b;">${idx + 1}</td>
+                <td style="padding: 10px 12px;"><span class="tag-badge platform-${q.source_platform}">${q.source_platform}</span></td>
+                <td style="padding: 10px 12px;">
+                  <span class="tag-badge" style="background: #eff6ff; color: #1d4ed8; font-size: 11px;">${q.subject}</span>
+                  <span class="tag-grade" style="font-size: 11px;">Lớp ${q.grade || 5}</span>
+                </td>
+                <td style="padding: 10px 12px; color: #1e293b;">
+                  ${typeof formatMathSymbols === 'function' ? formatMathSymbols(q.content_text || q.content_html || '') : (q.content_text || q.content_html || '')}
+                </td>
+                <td style="padding: 10px 12px; white-space: nowrap;">
+                  <span class="tag-timestamp">🕒 ${typeof formatDateTimeVN === 'function' ? formatDateTimeVN(q.created_at) : (q.created_at || '')}</span>
+                </td>
+                <td style="padding: 10px 12px; font-family: monospace; font-size: 11px; color: #64748b;">
+                  #${q.q_number || q.id.substring(0, 8)}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    if (typeof renderMath === "function") renderMath(container);
+    return;
+  }
+
   container.innerHTML = `
     <div style="display: flex; flex-direction: column; gap: 12px; max-height: 460px; overflow-y: auto;">
       ${currentCapturedQuestions.map((q, idx) => `
         <div style="padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <span class="q-number-pill" style="font-size: 12px;">Câu ${idx + 1}</span>
               <span class="tag-badge platform-${q.source_platform}">${q.source_platform}</span>
               <span class="tag-badge" style="background: #eff6ff; color: #1d4ed8;">${q.subject}</span>
               <span class="tag-grade">Lớp ${q.grade || 5}</span>
+              ${q.created_at ? `<span class="tag-timestamp">🕒 ${typeof formatDateTimeVN === 'function' ? formatDateTimeVN(q.created_at) : q.created_at}</span>` : ''}
             </div>
             <span style="font-size: 11.5px; color: #94a3b8; font-family: monospace;">ID: #${q.q_number || q.id.substring(0, 8)}</span>
           </div>
@@ -1418,7 +2010,233 @@ function restoreCollectorSettings() {
     if (scraperToolbar) scraperToolbar.style.display = "flex";
     scraperLogBox.innerText = savedScraperLog;
   }
+
+  // 7. Restore OCR live log
+  restoreOcrLog();
+
+  // 8. Refresh OCR Active Lexicon badge count
+  refreshOcrLexiconCountBadge();
 }
+
+// ============================================================================
+// OCR Active Lexicon Management (Từ điển Tự học OCR)
+// ============================================================================
+
+let ocrLexiconSearchDebounce = null;
+
+async function refreshOcrLexiconCountBadge() {
+  try {
+    const res = await fetch(`${API_BASE}/ocr/engine-status`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const count = data.total_learned_rules !== undefined ? data.total_learned_rules : 0;
+    const badge = document.getElementById("ocr-lexicon-count-badge");
+    if (badge) {
+      badge.textContent = count;
+    }
+  } catch (err) {
+    console.debug("Could not refresh OCR lexicon badge:", err);
+  }
+}
+window.refreshOcrLexiconCountBadge = refreshOcrLexiconCountBadge;
+
+function openOcrLexiconModal() {
+  const modal = document.getElementById("modal-ocr-lexicon");
+  if (modal) {
+    modal.style.display = "flex";
+    const searchInput = document.getElementById("lexicon-search-input");
+    if (searchInput) searchInput.value = "";
+    loadOcrLexiconRules("");
+  }
+}
+window.openOcrLexiconModal = openOcrLexiconModal;
+
+function closeOcrLexiconModal() {
+  const modal = document.getElementById("modal-ocr-lexicon");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+window.closeOcrLexiconModal = closeOcrLexiconModal;
+
+async function loadOcrLexiconRules(search = "") {
+  const tbody = document.getElementById("ocr-lexicon-table-body");
+  const stats = document.getElementById("lexicon-stats-text");
+  if (!tbody) return;
+
+  if (stats) stats.textContent = "Đang tải dữ liệu từ điển...";
+
+  try {
+    const url = `${API_BASE}/ocr/corrections?page=1&page_size=200&search=${encodeURIComponent(search)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = data.items || [];
+    const total = data.total !== undefined ? data.total : items.length;
+
+    if (stats) {
+      stats.textContent = `Tổng cộng: ${total} quy tắc ${search ? `(khớp với "${search}")` : ""}`;
+    }
+
+    const badge = document.getElementById("ocr-lexicon-count-badge");
+    if (badge && !search) badge.textContent = total;
+
+    if (items.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 36px 20px; color: #94a3b8;">
+            <div style="font-size: 32px; margin-bottom: 8px;">🧠</div>
+            <div style="font-weight: 600; font-size: 13.5px; color: #64748b;">Chưa có quy tắc tự học nào ${search ? 'khớp với từ khóa' : 'trong từ điển'}</div>
+            <div style="font-size: 12px; margin-top: 4px; color: #94a3b8;">
+              Mỗi khi bạn sửa câu hỏi OCR trên Form và nhấn "Lưu", AI sẽ tự động so sánh và học các cụm từ đính chính mới tại đây.
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+      const isManual = item.source === "manual_rule";
+      const sourceBadge = isManual
+        ? `<span style="display: inline-block; padding: 2px 7px; font-size: 11px; border-radius: 4px; background: #e0f2fe; color: #0369a1; font-weight: 600;">Thủ công</span>`
+        : `<span style="display: inline-block; padding: 2px 7px; font-size: 11px; border-radius: 4px; background: #fdf4ff; color: #9333ea; font-weight: 600;">🧠 Tự học (Form)</span>`;
+      
+      return `
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding: 9px 12px; font-family: monospace; font-weight: 600; color: #dc2626; background: #fef2f2; border-radius: 4px;">
+            ${escapeHtmlCollector(item.wrong_text)}
+          </td>
+          <td style="padding: 9px 12px; font-weight: 600; color: #16a34a;">
+            ${escapeHtmlCollector(item.correct_text)}
+          </td>
+          <td style="padding: 9px 12px; text-align: center;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 700;">
+              x${item.frequency || 1}
+            </span>
+          </td>
+          <td style="padding: 9px 12px;">
+            ${sourceBadge}
+          </td>
+          <td style="padding: 9px 12px; text-align: center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="deleteOcrLexiconRule(${item.id})" style="padding: 2px 7px; font-size: 11.5px; color: #ef4444; border-color: #fecaca; background: white;" title="Xóa quy tắc này">
+              🗑️ Xóa
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    if (stats) stats.textContent = "Lỗi nạp từ điển";
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 24px; color: #ef4444;">
+          ❌ Không thể tải danh sách quy tắc: ${err.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+window.loadOcrLexiconRules = loadOcrLexiconRules;
+
+function escapeHtmlCollector(str) {
+  if (!str) return "";
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function filterOcrLexiconList() {
+  clearTimeout(ocrLexiconSearchDebounce);
+  ocrLexiconSearchDebounce = setTimeout(() => {
+    const val = document.getElementById("lexicon-search-input")?.value || "";
+    loadOcrLexiconRules(val);
+  }, 250);
+}
+window.filterOcrLexiconList = filterOcrLexiconList;
+
+async function submitManualLexiconRule() {
+  const wrongEl = document.getElementById("lexicon-add-wrong");
+  const correctEl = document.getElementById("lexicon-add-correct");
+  if (!wrongEl || !correctEl) return;
+
+  const wrong = wrongEl.value.trim();
+  const correct = correctEl.value.trim();
+
+  if (!wrong) {
+    showToast("Vui lòng nhập cụm từ sai do OCR nhận diện", "error");
+    wrongEl.focus();
+    return;
+  }
+  if (!correct) {
+    showToast("Vui lòng nhập cụm từ sửa đổi đúng", "error");
+    correctEl.focus();
+    return;
+  }
+  if (wrong.toLowerCase() === correct.toLowerCase()) {
+    showToast("Từ gốc và từ đính chính không thể giống nhau", "warning");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/ocr/corrections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wrong_text: wrong,
+        correct_text: correct,
+        source: "manual_rule"
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Lỗi lưu quy tắc");
+    }
+    showToast(`✓ Đã thêm quy tắc: "${wrong}" ➔ "${correct}"`, "success");
+    wrongEl.value = "";
+    correctEl.value = "";
+    loadOcrLexiconRules(document.getElementById("lexicon-search-input")?.value || "");
+    refreshOcrLexiconCountBadge();
+  } catch (err) {
+    showToast(`Lỗi thêm quy tắc: ${err.message}`, "error");
+  }
+}
+window.submitManualLexiconRule = submitManualLexiconRule;
+
+async function deleteOcrLexiconRule(id) {
+  if (!confirm("Bạn có chắc chắn muốn xóa quy tắc đính chính này khỏi Từ điển AI?")) {
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/ocr/corrections/${id}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) throw new Error("Lỗi máy chủ khi xóa quy tắc");
+    showToast("Đã xóa quy tắc khỏi từ điển", "info");
+    loadOcrLexiconRules(document.getElementById("lexicon-search-input")?.value || "");
+    refreshOcrLexiconCountBadge();
+  } catch (err) {
+    showToast(`Lỗi xóa quy tắc: ${err.message}`, "error");
+  }
+}
+window.deleteOcrLexiconRule = deleteOcrLexiconRule;
+
+async function clearAllOcrLexiconRules() {
+  if (!confirm("⚠️ CẢNH BÁO: Thao tác này sẽ XÓA SẠCH toàn bộ các cụm từ tự học trong từ điển!\n\nBạn có chắc chắn muốn tiếp tục không?")) {
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/ocr/corrections/clear`, {
+      method: "POST"
+    });
+    if (!res.ok) throw new Error("Lỗi khi xóa từ điển");
+    const data = await res.json();
+    showToast(`Đã dọn dẹp sạch ${data.cleared_count || 0} quy tắc trong từ điển`, "success");
+    loadOcrLexiconRules("");
+    refreshOcrLexiconCountBadge();
+  } catch (err) {
+    showToast(`Lỗi: ${err.message}`, "error");
+  }
+}
+window.clearAllOcrLexiconRules = clearAllOcrLexiconRules;
 
 // Initialize Dropzone and restore settings when DOM loaded
 document.addEventListener("DOMContentLoaded", () => {

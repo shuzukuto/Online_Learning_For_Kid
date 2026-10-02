@@ -33,36 +33,85 @@ const BADGES_DEFINITIONS = [
 
 // Mathematical & Scientific Symbol Normalizer
 function formatMathSymbols(str) {
+  if (typeof window !== "undefined" && typeof window.formatMathSymbols === "function" && window.formatMathSymbols !== formatMathSymbols) {
+    return window.formatMathSymbols(str);
+  }
   if (!str) return "";
   let s = String(str);
-  
-  // 1. Dấu nhân và chia
-  s = s.replace(/\\times\b/g, '×').replace(/\\cdot\b/g, '·').replace(/\\div\b/g, '÷');
-  
-  // 2. Góc và tam giác
-  s = s.replace(/\\angle\b/g, '∠').replace(/\\Delta\b/g, 'Δ');
-  
-  // 3. Ký tự Hy Lạp
-  s = s.replace(/\\pi\b/g, 'π').replace(/\\alpha\b/g, 'α').replace(/\\beta\b/g, 'β')
-       .replace(/\\theta\b/g, 'θ').replace(/\\gamma\b/g, 'γ').replace(/\\lambda\b/g, 'λ')
-       .replace(/\\mu\b/g, 'μ').replace(/\\sigma\b/g, 'σ').replace(/\\omega\b/g, 'ω');
-       
-  // 4. So sánh
-  s = s.replace(/\\le\b|\\leq\b/g, '≤').replace(/\\ge\b|\\geq\b/g, '≥').replace(/\\ne\b|\\neq\b/g, '≠').replace(/\\approx\b/g, '≈');
-  
-  // 5. Số mũ thông dụng
-  s = s.replace(/\^2\b/g, '²').replace(/\^3\b/g, '³').replace(/\^0\b/g, '⁰').replace(/\^1\b/g, '¹');
-  s = s.replace(/([a-zA-Z0-9])\^2/g, '$1²').replace(/([a-zA-Z0-9])\^3/g, '$1³');
-  
-  // 6. Công thức hóa học phổ biến
-  s = s.replace(/\bH2O\b/g, 'H₂O').replace(/\bCO2\b/g, 'CO₂').replace(/\bO2\b/g, 'O₂')
-       .replace(/\bN2\b/g, 'N₂').replace(/\bH2SO4\b/g, 'H₂SO₄').replace(/\bCaCO3\b/g, 'CaCO₃')
-       .replace(/\bNaCl\b/g, 'NaCl').replace(/\bHCl\b/g, 'HCl');
-       
-  // 7. Fractions and roots
-  s = s.replace(/(?<!\$)\\sqrt\{([^}]+)\}(?!\$)/g, '$\\sqrt{$1}$');
-  s = s.replace(/(?<!\$)\\frac\{([^}]+)\}\{([^}]+)\}(?!\$)/g, '$\\frac{$1}{$2}$');
-  
+
+  const mathBlocks = [];
+  const saveMath = (match) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(match);
+    return `___MATH_BLOCK_${idx}___`;
+  };
+
+  const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$(?:\\\$|[^\$\n])+?\$)/g;
+  s = s.replace(mathBlockRegex, saveMath);
+
+  const formulaRegex = /(^|[\s:;,\(])((?:[A-Za-z]\s*=\s*)?(?:\\frac\{[^{}]+\}\{[^{}]+\}|\\sqrt\{[^{}]+\}|[0-9]+|[+\-*/=><\(\)\.]|\s+)*(?:\\frac\{[^{}]+\}\{[^{}]+\}|\\sqrt\{[^{}]+\})(?:\\frac\{[^{}]+\}\{[^{}]+\}|\\sqrt\{[^{}]+\}|[0-9]+|[+\-*/=><\(\)\.]|\s+)*)([\s\.,;:!?\)]|$)/g;
+
+  s = s.replace(formulaRegex, (match, prefix, formulaGroup, suffix) => {
+    let raw = formulaGroup;
+    const leadingSpace = raw.match(/^\s*/)[0];
+    const trailingSpace = raw.match(/\s*$/)[0];
+    raw = raw.trim();
+
+    let trailingPunct = "";
+    const punctMatch = raw.match(/[\.,;:!?]+$/);
+    if (punctMatch) {
+      trailingPunct = punctMatch[0];
+      raw = raw.slice(0, -trailingPunct.length).trim();
+    }
+
+    if (raw.startsWith("(") && raw.endsWith(")")) {
+      let depth = 0;
+      let allEnclosed = true;
+      for (let i = 0; i < raw.length - 1; i++) {
+        if (raw[i] === "(") depth++;
+        else if (raw[i] === ")") {
+          depth--;
+          if (depth === 0) { allEnclosed = false; break; }
+        }
+      }
+      if (allEnclosed && depth === 1) {
+        prefix += "(";
+        suffix = ")" + suffix;
+        raw = raw.slice(1, -1).trim();
+      }
+    }
+    if (!raw) return match;
+
+    const idx = mathBlocks.length;
+    mathBlocks.push(`$${raw}$`);
+    return `${prefix}${leadingSpace}___MATH_BLOCK_${idx}___${trailingPunct}${trailingSpace}${suffix}`;
+  });
+
+  s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (match, num, den) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(`$\\frac{${num}}{${den}}$`);
+    return `___MATH_BLOCK_${idx}___`;
+  });
+
+  s = s.replace(/\\sqrt\{([^{}]+)\}/g, (match, inner) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(`$\\sqrt{${inner}}$`);
+    return `___MATH_BLOCK_${idx}___`;
+  });
+
+  s = s.replace(/(\b(?:m|cm|dm|mm|km))\^2\b/g, '$1²');
+  s = s.replace(/(\b(?:m|cm|dm|mm|km))\^3\b/g, '$1³');
+  s = s.replace(/\bH2O\b/g, 'H₂O');
+  s = s.replace(/\bCO2\b/g, 'CO₂');
+  s = s.replace(/\bO2\b/g, 'O₂');
+  s = s.replace(/\bN2\b/g, 'N₂');
+  s = s.replace(/\bH2SO4\b/g, 'H₂SO₄');
+  s = s.replace(/\bCaCO3\b/g, 'CaCO₃');
+
+  for (let idx = 0; idx < mathBlocks.length; idx++) {
+    s = s.replace(`___MATH_BLOCK_${idx}___`, () => mathBlocks[idx]);
+  }
+
   return s;
 }
 
