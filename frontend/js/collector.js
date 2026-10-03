@@ -528,15 +528,30 @@ function loadOcrQuestionToForm(index) {
   if (elDiff) elDiff.value = q.difficulty || "medium";
   if (elExplanation) elExplanation.value = q.explanation || "";
 
-  // Update Live KaTeX Preview
-  const mPreview = document.getElementById("m-preview-box");
-  if (mPreview) {
-    const rawVal = elContent ? elContent.value : "";
-    if (rawVal.trim()) {
-      mPreview.innerHTML = `<div style="font-size: 14.5px; line-height: 1.6;">${rawVal.replace(/\n/g, '<br/>')}</div>`;
-      if (typeof renderMath === "function") renderMath(mPreview);
-    } else {
-      mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
+  // Sync OCR question images to the manual image gallery
+  if (typeof manualImageUrls !== "undefined") {
+    const qImages = (q.images && q.images.length > 0) ? [...q.images] : [];
+    // If no question-specific images, try batch-level images
+    if (qImages.length === 0 && window.State.ocrBatch.images && window.State.ocrBatch.images.length > 0) {
+      qImages.push(...window.State.ocrBatch.images);
+    }
+    manualImageUrls = qImages;
+    if (typeof renderManualImageGallery === "function") renderManualImageGallery();
+  }
+
+  // Update Live KaTeX Preview (with images)
+  if (typeof updateManualPreviewWithImages === "function") {
+    updateManualPreviewWithImages();
+  } else {
+    const mPreview = document.getElementById("m-preview-box");
+    if (mPreview) {
+      const rawVal = elContent ? elContent.value : "";
+      if (rawVal.trim()) {
+        mPreview.innerHTML = `<div style="font-size: 14.5px; line-height: 1.6;">${rawVal.replace(/\n/g, '<br/>')}</div>`;
+        if (typeof renderMath === "function") renderMath(mPreview);
+      } else {
+        mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
+      }
     }
   }
 

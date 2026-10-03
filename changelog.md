@@ -2,6 +2,35 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.0.33] - 2026-10-03 12:20:00
+
+### User Request
+> Soan thao & Them cau hoi Thu cong: Phan "Noi dung De bai" bo sung tinh nang chen hinh anh
+
+### Added
+- **Tinh nang Chen Hinh anh vao Noi dung De bai (Manual Question Editor Image Insertion)**:
+  - Thanh cong cu anh (Image Toolbar) ngay duoi o soan thao noi dung, gom 2 nut: "Chen anh" (chon file tu may) va "Dan anh (Ctrl+V)" (doc clipboard truc tiep).
+  - Ho tro 3 phuong thuc chen anh: (1) Chon file tu may, (2) Keo tha anh vao o soan thao, (3) Dan anh tu clipboard (Ctrl+V / Clipboard API).
+  - Thu vien anh dinh kem (Image Gallery) hien thi thumbnail cac anh da upload, ho tro xoa tung anh hoac xoa tat ca.
+  - Live Preview tu dong hien thi ca noi dung text + LaTeX + hinh anh dinh kem trong khung xem truoc ben phai.
+  - Anh duoc upload len server qua endpoint moi `POST /api/media/upload`, luu vao `data/media/`, tra ve URL cong khai `/media/{filename}`.
+  - Mang `images` duoc gui kem trong payload `POST /api/questions` khi luu cau hoi, dong thoi nhung tag `<img>` vao `content_html`.
+  - Form reset (nut "Lam moi") tu dong xoa tat ca anh dinh kem.
+  - Khi load cau hoi tu OCR batch vao form, anh cua cau hoi cung duoc dong bo sang thu vien anh.
+
+### Changed
+- **Backend**: Them endpoint `POST /api/media/upload` ho tro upload anh don le (toi da 10MB, dinh dang .png, .jpg, .jpeg, .webp, .bmp, .gif).
+- **Cache Buster**: Nang tu `?v=1.0.35` len `?v=1.0.36`.
+- **App Version**: Nang tu `v1.0.31` len `v1.0.33`.
+
+### Files touched
+- `backend/app.py` (them endpoint /api/media/upload)
+- `frontend/index.html` (them image toolbar + gallery HTML, JS logic, bump version)
+- `frontend/js/app.js` (bump APP_VERSION v1.0.33)
+- `frontend/js/collector.js` (dong bo anh OCR vao manual image gallery)
+- `frontend/css/style.css` (them CSS cho image toolbar, gallery, thumbnail)
+- `changelog.md`
+
 ## [v1.0.32] - 2026-10-03 09:30:00
 
 ### User Request

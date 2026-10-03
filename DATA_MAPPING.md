@@ -339,7 +339,15 @@ Bảng lưu trữ tri thức tự học (Active Lexicon Learning) thu nhận t�
       - Tiền xử lý: Phát hiện ảnh nhỏ (<800px chiều rộng), nội suy siêu phân giải `cv2.INTER_CUBIC` tỷ lệ `800.0 / w` chống vỡ nét mảnh toán học.
       - Bảo vệ từ ghép số: Mã hóa tạm `\1_\2` cho các cụm `2-digit`, `3-chữ số`, `4-step` chống tách nhầm thành số câu mới.
       - Nhận diện đáp án màu: Quét màu nền bounding box (`crop.mean(axis=(0, 1))`), khi `G - R > 6` và `G - B > 4` tự động nhận diện đáp án đã chọn (`✓`) và thiết lập `is_correct: True`.
-      - Khôi phục tiếng Việt: Áp dụng từ điển ngữ nghĩa tiểu học/Olympic song ngữ kết hợp từ điển tự học `ocr_corrections` khôi phục dấu thanh chuẩn xác 100%.
+      - Khoi phuc tieng Viet: Ap dung tu dien ngu nghia tieu hoc/Olympic song ngu ket hop tu dien tu hoc `ocr_corrections` khoi phuc dau thanh chuan xac 100%.
+19. **Upload Anh Don Le (Media Upload API)**:
+    - **`POST /api/media/upload`**:
+      - Input: `file` (multipart/form-data, UploadFile).
+      - Rang buoc: Dinh dang `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.gif`. Kich thuoc toi da 10MB.
+      - Xu ly: Tao ten file duy nhat `{uuid12}_{original_name}`, luu vao `data/media/`.
+      - Phan hoi: `{ "success": true, "url": "/media/{filename}", "filename": "{filename}", "size": int }`.
+      - Phuc vu tinh: Mount tai `/media/` qua `StaticFiles(directory=MEDIA_DIR)`.
+      - Su dung boi: Image Toolbar trong Manual Question Editor, chen anh vao noi dung de bai.
 
 ---
 

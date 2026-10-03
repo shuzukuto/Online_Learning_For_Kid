@@ -18,7 +18,7 @@
   <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.35">
+  <link rel="stylesheet" href="css/style.css?v=1.0.36">
 </head>
 <body>
   <div class="app-container">
@@ -29,7 +29,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.31</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.33</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -71,7 +71,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;">Phiên bản: v1.0.31</span>
+          <span style="color: #38bdf8; font-weight: 600;">Phiên bản: v1.0.33</span>
         </div>
       </div>
     </aside>
@@ -1341,6 +1341,31 @@
               <div class="form-group">
                 <label class="form-label">Nội dung Đề bài (Có thể chèn LaTeX vd: $\frac{a}{b}$)</label>
                 <textarea id="m-content" class="form-control" rows="5" placeholder="Nhập đề bài ở đây..."></textarea>
+                <!-- Image Insertion Toolbar -->
+                <div class="m-img-toolbar">
+                  <div class="m-img-toolbar-left">
+                    <button type="button" class="btn btn-secondary btn-sm m-img-btn" onclick="document.getElementById('m-img-file-input').click()" title="Tải ảnh từ máy">
+                      📷 Chèn ảnh
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm m-img-btn" id="btn-paste-img" title="Dán ảnh từ clipboard (Ctrl+V)">
+                      📋 Dán ảnh (Ctrl+V)
+                    </button>
+                    <span class="m-img-hint">Kéo thả ảnh vào ô soạn thảo hoặc Ctrl+V để dán</span>
+                    <input type="file" id="m-img-file-input" accept="image/*" multiple style="display: none;" />
+                  </div>
+                </div>
+                <!-- Attached Images Gallery -->
+                <div id="m-img-gallery" class="m-img-gallery" style="display: none;">
+                  <div class="m-img-gallery-header">
+                    <span>🖼️ Ảnh đính kèm (<span id="m-img-count">0</span>)</span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllManualImages()" style="font-size: 11px; padding: 2px 8px; color: #ef4444;" title="Xóa tất cả ảnh">
+                      🗑️ Xóa tất cả
+                    </button>
+                  </div>
+                  <div id="m-img-grid" class="m-img-grid">
+                    <!-- Image thumbnails inserted by JS -->
+                  </div>
+                </div>
               </div>
 
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1806,26 +1831,228 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.35"></script>
-  <script src="js/bank.js?v=1.0.35"></script>
-  <script src="js/exam_builder.js?v=1.0.35"></script>
-  <script src="js/collector.js?v=1.0.35"></script>
-  <script src="js/practice.js?v=1.0.35"></script>
+  <script src="js/app.js?v=1.0.36"></script>
+  <script src="js/bank.js?v=1.0.36"></script>
+  <script src="js/exam_builder.js?v=1.0.36"></script>
+  <script src="js/collector.js?v=1.0.36"></script>
+  <script src="js/practice.js?v=1.0.36"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>
+    // ===================== Manual Question Image Management =====================
+    let manualImageUrls = []; // Array of uploaded image URLs for current question
+
+    /** Upload a single image file to the server and return the URL */
+    async function uploadImageToServer(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const res = await fetch(`${API_BASE}/media/upload`, {
+          method: "POST",
+          body: formData
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Lỗi upload: HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (data.success && data.url) {
+          return data.url;
+        }
+        throw new Error("Phản hồi không hợp lệ từ server");
+      } catch (err) {
+        showToast(`Lỗi tải ảnh: ${err.message}`, "error");
+        return null;
+      }
+    }
+
+    /** Process multiple image files (from input, paste, or drag) */
+    async function processManualImageFiles(files) {
+      if (!files || files.length === 0) return;
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) {
+          showToast(`Bỏ qua "${file.name}" — không phải file ảnh`, "warning");
+          continue;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          showToast(`"${file.name}" quá lớn (>${(file.size / 1024 / 1024).toFixed(1)}MB). Giới hạn 10MB.`, "error");
+          continue;
+        }
+        // Show uploading state
+        showToast(`📤 Đang tải lên "${file.name}"...`, "info");
+        const url = await uploadImageToServer(file);
+        if (url) {
+          manualImageUrls.push(url);
+          showToast(`✅ Đã chèn ảnh "${file.name}" thành công`, "success");
+        }
+      }
+      renderManualImageGallery();
+      updateManualPreviewWithImages();
+    }
+
+    /** Render the image gallery below the content textarea */
+    function renderManualImageGallery() {
+      const gallery = document.getElementById("m-img-gallery");
+      const grid = document.getElementById("m-img-grid");
+      const countEl = document.getElementById("m-img-count");
+      if (!gallery || !grid) return;
+
+      if (manualImageUrls.length === 0) {
+        gallery.style.display = "none";
+        return;
+      }
+
+      gallery.style.display = "block";
+      if (countEl) countEl.textContent = manualImageUrls.length;
+
+      grid.innerHTML = manualImageUrls.map((url, i) => `
+        <div class="m-img-thumb-wrapper" title="${url}">
+          <img src="${url}" alt="Ảnh đính kèm ${i + 1}" onclick="window.open('${url}', '_blank')" />
+          <button type="button" class="m-img-remove-btn" onclick="removeManualImage(${i})" title="Xóa ảnh này">✕</button>
+        </div>
+      `).join("");
+    }
+
+    /** Remove a specific image from the gallery */
+    function removeManualImage(index) {
+      manualImageUrls.splice(index, 1);
+      renderManualImageGallery();
+      updateManualPreviewWithImages();
+    }
+
+    /** Clear all attached images */
+    function clearAllManualImages() {
+      if (manualImageUrls.length === 0) return;
+      manualImageUrls = [];
+      renderManualImageGallery();
+      updateManualPreviewWithImages();
+      showToast("Đã xóa tất cả ảnh đính kèm", "info");
+    }
+
+    /** Update the live preview to include attached images */
+    function updateManualPreviewWithImages() {
+      const mPreviewEl = document.getElementById("m-preview-box");
+      const mContentEl = document.getElementById("m-content");
+      if (!mPreviewEl || !mContentEl) return;
+
+      const val = mContentEl.value;
+      let html = "";
+
+      if (val.trim()) {
+        html += `<div style="font-size: 14.5px; line-height: 1.6;">${val.replace(/\n/g, '<br/>')}</div>`;
+      }
+
+      if (manualImageUrls.length > 0) {
+        html += `<div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">`;
+        manualImageUrls.forEach((url, i) => {
+          html += `<img src="${url}" alt="Ảnh ${i + 1}" style="max-height: 160px; max-width: 100%; border-radius: 6px; border: 1px solid #e2e8f0; object-fit: contain; cursor: pointer;" onclick="window.open('${url}', '_blank')" />`;
+        });
+        html += `</div>`;
+      }
+
+      if (!html) {
+        mPreviewEl.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
+      } else {
+        mPreviewEl.innerHTML = html;
+        if (typeof renderMath === "function") renderMath(mPreviewEl);
+      }
+    }
+
+    // ===================== Event Bindings =====================
     const mContent = document.getElementById("m-content");
     const mPreview = document.getElementById("m-preview-box");
 
     if (mContent && mPreview) {
+      // Text input → live preview (also includes images)
       mContent.addEventListener("input", () => {
-        const val = mContent.value;
-        if (!val.trim()) {
-          mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
-          return;
+        updateManualPreviewWithImages();
+      });
+
+      // Drag-and-drop images onto the textarea
+      mContent.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        mContent.classList.add("img-dragover");
+      });
+      mContent.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        mContent.classList.remove("img-dragover");
+      });
+      mContent.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        mContent.classList.remove("img-dragover");
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+          const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
+          if (imageFiles.length > 0) {
+            processManualImageFiles(imageFiles);
+          }
         }
-        mPreview.innerHTML = `<div style="font-size: 14.5px; line-height: 1.6;">${val.replace(/\n/g, '<br/>')}</div>`;
-        if (typeof renderMath === "function") renderMath(mPreview);
+      });
+
+      // Paste images from clipboard (Ctrl+V on textarea)
+      mContent.addEventListener("paste", (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        const imageFiles = [];
+        for (const item of items) {
+          if (item.type.startsWith("image/")) {
+            const file = item.getAsFile();
+            if (file) imageFiles.push(file);
+          }
+        }
+        if (imageFiles.length > 0) {
+          e.preventDefault(); // Prevent pasting image data as text
+          processManualImageFiles(imageFiles);
+        }
+      });
+    }
+
+    // File input change handler
+    const mImgFileInput = document.getElementById("m-img-file-input");
+    if (mImgFileInput) {
+      mImgFileInput.addEventListener("change", (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+          processManualImageFiles(Array.from(files));
+        }
+        mImgFileInput.value = ""; // Reset to allow re-selecting same file
+      });
+    }
+
+    // "Dán ảnh" button — focus textarea so Ctrl+V works
+    const btnPasteImg = document.getElementById("btn-paste-img");
+    if (btnPasteImg) {
+      btnPasteImg.addEventListener("click", async () => {
+        // Try to read clipboard directly (modern browsers)
+        if (navigator.clipboard && navigator.clipboard.read) {
+          try {
+            const clipboardItems = await navigator.clipboard.read();
+            const imageFiles = [];
+            for (const clipItem of clipboardItems) {
+              for (const type of clipItem.types) {
+                if (type.startsWith("image/")) {
+                  const blob = await clipItem.getType(type);
+                  const ext = type.split("/")[1] || "png";
+                  const file = new File([blob], `clipboard_paste.${ext}`, { type });
+                  imageFiles.push(file);
+                }
+              }
+            }
+            if (imageFiles.length > 0) {
+              processManualImageFiles(imageFiles);
+              return;
+            }
+          } catch (err) {
+            // Permission denied or not supported — fall back to focus
+          }
+        }
+        // Fallback: focus textarea and prompt user
+        if (mContent) {
+          mContent.focus();
+          showToast("Hãy nhấn Ctrl+V để dán ảnh từ clipboard", "info");
+        }
       });
     }
 
@@ -1852,6 +2079,9 @@
       document.getElementById("m-correct").value = "A";
       document.getElementById("m-diff").value = "medium";
       document.getElementById("m-explanation").value = "";
+      // Clear attached images
+      manualImageUrls = [];
+      renderManualImageGallery();
       if (mPreview) {
         mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
       }
@@ -1893,15 +2123,24 @@
         }
       }
 
+      // Build content_html with embedded images
+      let contentHtml = `<p>${content}</p>`;
+      if (manualImageUrls.length > 0) {
+        contentHtml += `<div class="question-images">` + manualImageUrls.map(url =>
+          `<img src="${url}" alt="Hình ảnh câu hỏi" style="max-height: 200px; max-width: 100%; border-radius: 6px;" />`
+        ).join("") + `</div>`;
+      }
+
       const payload = {
         source_platform: document.getElementById("m-platform").value,
         grade: parseInt(document.getElementById("m-grade").value) || 5,
         subject: document.getElementById("m-subject").value || "math",
         topic: document.getElementById("m-topic").value.trim() || "Chung",
         question_type: options.length > 0 ? "single_choice" : "fill_blank",
-        content_html: `<p>${content}</p>`,
+        content_html: contentHtml,
         content_text: content,
         raw_ocr_content: rawOcrText,
+        images: [...manualImageUrls],
         options: options,
         correct_answer: document.getElementById("m-correct").value,
         difficulty: document.getElementById("m-diff").value,

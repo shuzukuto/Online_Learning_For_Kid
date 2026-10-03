@@ -1510,6 +1510,34 @@ async def suppress_favicon():
         headers={"Cache-Control": "public, max-age=31536000, immutable"}
     )
 
+# ----------------- Media Upload Endpoint -----------------
+
+@app.post("/api/media/upload")
+async def upload_media_file(file: UploadFile = File(...)):
+    """Upload a single image file to the media directory. Returns the public URL."""
+    import imghdr
+    allowed_ext = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Định dạng file không hỗ trợ: {ext}. Chỉ chấp nhận: {', '.join(allowed_ext)}")
+    
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:  # 10MB limit
+        raise HTTPException(status_code=400, detail="File quá lớn. Giới hạn tối đa 10MB.")
+    
+    unique_name = f"{uuid.uuid4().hex[:12]}_{file.filename or 'image'}"
+    # Sanitize filename
+    unique_name = "".join(c for c in unique_name if c.isalnum() or c in '._-')
+    if not unique_name:
+        unique_name = f"{uuid.uuid4().hex[:12]}.png"
+    
+    filepath = os.path.join(MEDIA_DIR, unique_name)
+    with open(filepath, "wb") as f:
+        f.write(contents)
+    
+    public_url = f"/media/{unique_name}"
+    return {"success": True, "url": public_url, "filename": unique_name, "size": len(contents)}
+
 # ----------------- Static Files Serving -----------------
 
 # Mount media directory

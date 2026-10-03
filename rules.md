@@ -8,9 +8,9 @@ Tài liệu này là **đặc tả thiết kế còn hiệu lực** của hệ t
 
 Hệ thống hoạt động theo mô hình Hybrid phân tán:
 1. **Phiên bản chuẩn hóa toàn diện**:
-   - **Web App**: `v1.0.31` (hiển thị đồng bộ tại `frontend/index.html` và `frontend/js/app.js`).
-   - **Chrome Extension**: `v1.3.15` (đồng bộ 100% trên `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
-   - **Cache Buster**: `?v=1.0.35` trên tất cả liên kết tài nguyên tĩnh (CSS, JS).
+   - **Web App**: `v1.0.33` (hien thi dong bo tai `frontend/index.html` va `frontend/js/app.js`).
+   - **Chrome Extension**: `v1.3.15` (dong bo 100% tren `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
+   - **Cache Buster**: `?v=1.0.36` tren tat ca lien ket tai nguyen tinh (CSS, JS).
    - **Nguyên tắc loại trừ chuỗi cũ**: Tuyệt đối không để tồn tại bất kỳ phiên bản lỗi thời nào (`v1.3.0`, `v1.3.11`, `v1.3.12`, `v1.3.14`) trong toàn bộ mã nguồn.
 2. **Backend Engine**: FastAPI (Python 3.10+) chạy tại `http://127.0.0.1:8000`.
    - Cơ sở dữ liệu: SQLite (`data/questions.db`).
@@ -692,3 +692,25 @@ Phân hệ `🎯 Luyện tập Trực tuyến` là môi trường thi thử và 
   - Khi màu nền có sắc xanh lá (`G - R > 6` và `G - B > 4`), hệ thống tự động gán dấu kiểm `✓` vào phương án tương ứng và đánh dấu `is_correct = True` cho câu hỏi.
 - **Từ Điển Ngữ Nghĩa Toán Học Bổ Sung**:
   - Mở rộng kho ngữ nghĩa tự động sửa lỗi cho các đề thi khối 2 song ngữ: nhận diện chuẩn xác các từ vựng `Gordon nghĩ ra một số`, `Anh ấy lấy số đó`, `cộng thêm 38`, `rồi trừ đi 42`, `thì được số lẻ nhỏ nhất có hai chữ số`, `Tìm số đó`, `Tính 13 - 11 + 9 - 7 + 5 - 3 + 1`.
+
+### 13.13. Chen Hinh anh vao Noi dung De bai (Manual Question Image Insertion)
+- **Thanh cong cu anh (Image Toolbar)**: Dat ngay duoi textarea `#m-content`, gom:
+  - Nut "Chen anh" (📷): Mo dialog chon file anh tu may tinh (`#m-img-file-input`), chap nhan dinh dang `image/*`, cho phep chon nhieu file.
+  - Nut "Dan anh (Ctrl+V)" (📋): Truoc tien thu doc Clipboard API truc tiep. Neu khong duoc phep, fallback sang focus vao textarea va huong dan nguoi dung nhan Ctrl+V.
+  - Goi y nhac: "Keo tha anh vao o soan thao hoac Ctrl+V de dan".
+- **3 phuong thuc chen anh**:
+  1. **Chon file**: Qua input file an (#m-img-file-input), ho tro multi-select.
+  2. **Keo tha (Drag & Drop)**: Keo file anh tu may vao textarea `#m-content`, co hieu ung highlight xanh `.img-dragover`.
+  3. **Dan tu clipboard (Ctrl+V)**: Bat su kien `paste` tren textarea, trich xuat blob anh tu clipboard.
+- **Upload & Luu tru**:
+  - Moi anh duoc upload len `POST /api/media/upload` (toi da 10MB/file, dinh dang .png, .jpg, .jpeg, .webp, .bmp, .gif).
+  - Server luu vao `data/media/`, tra ve URL `/media/{unique_filename}`.
+  - Mang `manualImageUrls[]` (JS global) quan ly danh sach URL anh da upload cho cau hoi hien tai.
+- **Thu vien anh dinh kem (Image Gallery)** `#m-img-gallery`:
+  - An mac dinh, hien thi khi co >=1 anh.
+  - Hien thi thumbnail voi nut xoa tung anh (hover de lo nut X do), so luong anh, va nut "Xoa tat ca".
+  - Click vao thumbnail mo anh trong tab moi.
+- **Live Preview**: Ham `updateManualPreviewWithImages()` render dong thoi text + LaTeX + hinh anh trong khung preview `#m-preview-box`.
+- **Payload Submit**: `submitManualQuestion()` gui mang `images: [...]` trong payload JSON va nhung `<img>` tags vao `content_html`.
+- **Reset Form**: `resetManualForm()` xoa `manualImageUrls = []` va an gallery.
+- **Dong bo OCR**: `loadOcrQuestionToForm()` trong `collector.js` tu dong copy `q.images` sang `manualImageUrls` va render gallery.
