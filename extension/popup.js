@@ -1,4 +1,4 @@
-// EduQuest Pro - Popup Controller v1.3.15
+// EduQuest Pro - Popup Controller v1.3.16
 document.addEventListener("DOMContentLoaded", () => {
   const dot = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
@@ -20,6 +20,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("popup-log-search-input");
   const clearSearchBtn = document.getElementById("btn-clear-search");
 
+  // Server URL controls
+  const serverUrlInput = document.getElementById("server-url-input");
+  const saveServerUrlBtn = document.getElementById("btn-save-server-url");
+
   // State
   let localCaptured = [];
   let localLogs = [];
@@ -37,20 +41,43 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/'/g, "&#039;");
   }
 
-  // 1. Check Server Connection
-  function checkServerConnection() {
-    fetch("http://localhost:8000/api/stats")
-      .then(res => res.json())
-      .then(data => {
-        dot.className = "dot connected";
-        text.innerText = `Đã kết nối (${data.total_questions || 0} câu hỏi trong CSDL)`;
-        text.style.color = "#4ade80";
-      })
-      .catch(() => {
-        dot.className = "dot";
-        text.innerText = "Chưa kết nối EduQuest (Port 8000)";
-        text.style.color = "#f87171";
+  // --- Server URL Config ---
+  // Tải URL hiện tại vào input khi mở popup
+  chrome.runtime.sendMessage({ action: "get_server_url" }, (res) => {
+    if (res && res.serverUrl && serverUrlInput) {
+      serverUrlInput.value = res.serverUrl;
+    }
+  });
+
+  // Lưu URL khi nhấn nút 💾 Lưu
+  if (saveServerUrlBtn) {
+    saveServerUrlBtn.addEventListener("click", () => {
+      const newUrl = (serverUrlInput.value || "").trim();
+      if (!newUrl) return;
+      chrome.runtime.sendMessage({ action: "set_server_url", serverUrl: newUrl }, (res) => {
+        if (res && res.success) {
+          saveServerUrlBtn.textContent = "✅ Đã lưu";
+          setTimeout(() => { saveServerUrlBtn.textContent = "💾 Lưu"; }, 1500);
+          // Kiểm tra kết nối với URL mới
+          checkServerConnection();
+        }
       });
+    });
+  }
+
+  // 1. Check Server Connection (dùng background message — hỗ trợ URL động)
+  function checkServerConnection() {
+    chrome.runtime.sendMessage({ action: "check_server" }, (res) => {
+      if (res && res.connected) {
+        dot.className = "dot connected";
+        text.innerText = `Đã kết nối (${res.data?.total_questions || 0} câu hỏi) — ${res.serverUrl || ""}`;
+        text.style.color = "#4ade80";
+      } else {
+        dot.className = "dot";
+        text.innerText = `Chưa kết nối EduQuest${res?.serverUrl ? " (" + res.serverUrl + ")" : ""}`;
+        text.style.color = "#f87171";
+      }
+    });
   }
 
   // 2. Tab Switcher

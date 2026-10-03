@@ -1,6 +1,29 @@
-# Nhật ký Thay đổi — EduQuest Pro (changelog.md)
+# Nhat ky Thay doi — EduQuest Pro (changelog.md)
 
-Tất cả các thay đổi quan trọng của dự án EduQuest Pro được ghi lại trong tài liệu này.
+Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
+
+## [v1.0.32] - 2026-10-03 09:30:00
+
+### User Request
+> Toi muon chia se cho moi nguoi va tat ca du lieu tu moi nguoi gom chung ve 1 database thi nen lam nhu the nao
+
+### Added
+- **Che do Chia se (Shared Mode)**: Them `start_server_shared.py` — khoi dong server tren `0.0.0.0` thay vi `127.0.0.1`, cho phep ket noi tu nhieu nguoi dung tren mang LAN/Internet.
+- **Cloudflare Tunnel tich hop**: Them `run_shared.bat` — tu dong tai `cloudflared.exe`, mo Firewall port 8000, khoi dong server va tao Cloudflare Tunnel mien phi (URL dang `https://xxx.trycloudflare.com`).
+- **Extension: URL Server Dong (v1.3.16)**: Nguoi dung co the cau hinh URL server EduQuest trong popup (thay vi hardcode `localhost:8000`) de tat ca cau hoi duoc gui ve server chung.
+  - Popup Extension: them o nhap URL server + nut Luu.
+  - `background.js`: doc URL tu `chrome.storage.sync`, ho tro cac action `get_server_url` / `set_server_url`.
+  - `manifest.json`: bo sung `host_permissions` cho `*.trycloudflare.com`.
+- **Huong dan Trien khai**: Them `DEPLOY_GUIDE.md` — huong dan day du Cloudflare Tunnel, ket noi LAN, tu dong khoi chay khi bat may (Task Scheduler).
+
+### Files touched
+- `start_server_shared.py` (moi)
+- `run_shared.bat` (moi)
+- `DEPLOY_GUIDE.md` (moi)
+- `extension/background.js`
+- `extension/popup.html`
+- `extension/popup.js`
+- `extension/manifest.json`
 
 ## [v1.0.31] - 2026-10-02 15:30:00
 

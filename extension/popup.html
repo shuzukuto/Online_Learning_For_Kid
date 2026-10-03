@@ -326,13 +326,28 @@
   <div class="header">
     <div class="title-group">
       <div class="title">⚡ EduQuest Collector</div>
-      <span class="badge-ver">v1.3.15</span>
+      <span class="badge-ver">v1.3.16</span>
     </div>
   </div>
 
   <div class="status-bar" id="status-box">
     <div class="dot" id="status-dot"></div>
-    <span id="status-text">Đang kiểm tra kết nối port 8000...</span>
+    <span id="status-text">Đang kiểm tra kết nối...</span>
+  </div>
+
+  <!-- Cấu hình URL Server (Shared Mode) -->
+  <div style="display:flex;gap:5px;margin-bottom:10px;align-items:center;">
+    <input type="text" id="server-url-input"
+      placeholder="http://localhost:8000 hoặc https://xxx.trycloudflare.com"
+      style="flex:1;background:#0f172a;border:1px solid #334155;border-radius:5px;
+             padding:5px 8px;color:#e2e8f0;font-size:11px;outline:none;"
+      title="URL server EduQuest Pro (thay đổi khi dùng Cloudflare Tunnel)"
+    />
+    <button id="btn-save-server-url"
+      style="background:#0284c7;border:none;border-radius:5px;color:white;
+             font-size:11px;font-weight:700;padding:5px 9px;cursor:pointer;white-space:nowrap;"
+      title="Lưu URL server">💾 Lưu
+    </button>
   </div>
 
   <!-- Navigation Tabs -->
