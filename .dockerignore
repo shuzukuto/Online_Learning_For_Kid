@@ -1,0 +1,48 @@
+# ── Python cache ──────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# ── Data (mount từ ngoài vào container qua volume) ─
+# KHÔNG copy vào image — data được mount qua docker-compose volumes
+data/
+
+# ── Môi trường phát triển ──────────────────────
+.env
+.env.*
+*.env
+venv/
+.venv/
+env/
+
+# ── Công cụ tunnel / launcher (không cần trong container) ─
+cloudflared.exe
+ngrok.exe
+*.bat
+start_server.py
+start_server_shared.py
+
+# ── Tài liệu (không cần trong container) ──────
+*.md
+DEPLOY_GUIDE.md
+changelog.md
+rules.md
+DATA_MAPPING.md
+README.md
+
+# ── Extension Chrome (không cần trong container) ─
+extension/
+
+# ── Git ───────────────────────────────────────
+.git/
+.gitignore
+
+# ── Test files ────────────────────────────────
+test_app.py
+tests/
+
+# ── IDE ───────────────────────────────────────
+.vscode/
+.idea/
+*.swp

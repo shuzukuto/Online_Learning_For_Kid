@@ -1,0 +1,51 @@
+services:
+  eduquest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: eduquest-pro
+    image: eduquest-pro:latest
+
+    # ── Ports ───────────────────────────────────
+    ports:
+      - "8000:8000"          # Web Dashboard + API
+
+    # ── Volumes (dữ liệu bền vững) ──────────────
+    # Tất cả dữ liệu lưu trong ./data/ trên máy host
+    # → Xóa/rebuild container KHÔNG MẤT dữ liệu
+    volumes:
+      - ./data:/app/data     # questions.db + media/ + models/
+
+    # ── Tự động khởi động lại ───────────────────
+    # unless-stopped: tự restart khi crash hoặc khi Windows reboot
+    # (trừ khi bạn chủ động chạy "docker stop")
+    restart: unless-stopped
+
+    # ── Environment ─────────────────────────────
+    environment:
+      - PYTHONUNBUFFERED=1   # Log hiện ngay, không buffer
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # ── Resource limits (tùy chỉnh nếu cần) ────
+    # Giới hạn RAM để không ảnh hưởng các ứng dụng khác trên máy chủ
+    deploy:
+      resources:
+        limits:
+          memory: 1g         # Tối đa 1GB RAM
+        reservations:
+          memory: 256m       # Đảm bảo tối thiểu 256MB
+
+    # ── Health check ────────────────────────────
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/stats/count"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+    # ── Logging ─────────────────────────────────
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"      # Mỗi file log tối đa 10MB
+        max-file: "3"        # Giữ tối đa 3 file log xoay vòng

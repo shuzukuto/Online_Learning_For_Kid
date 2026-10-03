@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 > nul
 cd /d "%~dp0"
 title EduQuest Pro
@@ -25,14 +26,22 @@ echo  ║                                                              ║
 echo  ║   [4]  Chia sẻ trong mạng LAN / WiFi nội bộ                 ║
 echo  ║        Dùng chung trong nhà hoặc trường — không cần Internet ║
 echo  ║                                                              ║
+echo  ╠══════════════════════════════════════════════════════════════╣
+echo  ║                                                              ║
+echo  ║   [5]  🐳 Docker — Chạy nền, tự khởi động khi bật máy       ║
+echo  ║        Không cần Python — server chạy 24/7 ổn định nhất     ║
+echo  ║        Yêu cầu: Docker Desktop đã cài                       ║
+echo  ║                                                              ║
 echo  ╚══════════════════════════════════════════════════════════════╝
 echo.
-set /p CHOICE="  Nhập số lựa chọn (1/2/3/4): "
+set /p CHOICE="  Nhập số lựa chọn (1/2/3/4/5): "
 
 if "%CHOICE%"=="1" goto MODE_LOCAL
 if "%CHOICE%"=="2" goto MODE_CLOUDFLARE
 if "%CHOICE%"=="3" goto MODE_NGROK
 if "%CHOICE%"=="4" goto MODE_LAN
+if "%CHOICE%"=="5" goto MODE_DOCKER
+
 
 echo  [!] Lựa chọn không hợp lệ. Vui lòng nhập 1, 2, 3 hoặc 4.
 timeout /t 2 /nobreak > nul
@@ -194,3 +203,163 @@ echo.
 python start_server_shared.py
 pause
 goto MENU
+
+:: ================================================================
+:MODE_DOCKER
+cls
+echo.
+echo  ╔══════════════════════════════════════════════════════════════╗
+echo  ║   🐳  EDUQUEST PRO — DOCKER MODE                            ║
+echo  ║   Server chạy nền 24/7, tự restart khi crash/reboot        ║
+echo  ╠══════════════════════════════════════════════════════════════╣
+echo  ║                                                              ║
+echo  ║   [A]  Lần đầu: Build image ^& Khởi động (mất 5-10 phút)    ║
+echo  ║   [B]  Khởi động (image đã build sẵn)                       ║
+echo  ║   [C]  Dừng container                                       ║
+echo  ║   [D]  Xem trạng thái ^& IP LAN                             ║
+echo  ║   [E]  Xem log realtime                                     ║
+echo  ║   [0]  Quay lại menu chính                                  ║
+echo  ║                                                              ║
+echo  ╚══════════════════════════════════════════════════════════════╝
+echo.
+
+:: Kiểm tra Docker Desktop đã cài chưa
+docker --version > nul 2>&1
+if %errorlevel% neq 0 (
+    echo  [LỖI] Không tìm thấy Docker trên máy!
+    echo.
+    echo  Cài Docker Desktop tại: https://www.docker.com/products/docker-desktop
+    echo  Sau khi cài xong, khởi động lại máy rồi chạy lại file này.
+    echo.
+    pause
+    goto MENU
+)
+
+set /p DCHOICE="  Nhập lựa chọn (A/B/C/D/E/0): "
+
+if /i "%DCHOICE%"=="A" goto DOCKER_BUILD_START
+if /i "%DCHOICE%"=="B" goto DOCKER_START
+if /i "%DCHOICE%"=="C" goto DOCKER_STOP
+if /i "%DCHOICE%"=="D" goto DOCKER_STATUS
+if /i "%DCHOICE%"=="E" goto DOCKER_LOGS
+if "%DCHOICE%"=="0"   goto MENU
+echo  [!] Lựa chọn không hợp lệ.
+timeout /t 2 /nobreak > nul
+goto MODE_DOCKER
+
+:DOCKER_BUILD_START
+cls
+echo.
+echo  ══════════════════════════════════════════════════════
+echo   🐳 [A] BUILD IMAGE ^& KHỞI ĐỘNG LẦN ĐẦU
+echo  ══════════════════════════════════════════════════════
+echo.
+echo  [→] Đang build Docker image EduQuest Pro...
+echo      (Lần đầu mất 5-15 phút tùy tốc độ mạng — tải ~1.5GB)
+echo.
+call :OPEN_FIREWALL
+docker compose build
+if %errorlevel% neq 0 (
+    echo.
+    echo  [LỖI] Build thất bại! Kiểm tra:
+    echo    - Docker Desktop đang chạy?
+    echo    - File Dockerfile có trong thư mục này không?
+    pause
+    goto MODE_DOCKER
+)
+echo.
+echo  [→] Build xong! Đang khởi động container...
+docker compose up -d
+if %errorlevel% neq 0 (
+    echo  [LỖI] Khởi động thất bại!
+    pause
+    goto MODE_DOCKER
+)
+echo.
+echo  ══════════════════════════════════════════════════════
+echo   ✅ EduQuest Pro đang chạy trong Docker!
+echo.
+call :SHOW_DOCKER_URL
+echo.
+echo   Container tự động khởi động lại khi máy reboot.
+echo   Dùng tùy chọn [2] hoặc [3] ở menu chính để tạo URL chia sẻ.
+echo  ══════════════════════════════════════════════════════
+pause
+goto MODE_DOCKER
+
+:DOCKER_START
+cls
+echo.
+echo  ══════════════════════════════════════════
+echo   🐳 [B] KHỞI ĐỘNG CONTAINER
+echo  ══════════════════════════════════════════
+echo.
+call :OPEN_FIREWALL
+docker compose up -d
+if %errorlevel% neq 0 (
+    echo.
+    echo  [LỖI] Khởi động thất bại!
+    echo  Nếu chưa build image, hãy chọn [A] trước.
+    pause
+    goto MODE_DOCKER
+)
+echo.
+echo  ✅ Container đang chạy!
+call :SHOW_DOCKER_URL
+pause
+goto MODE_DOCKER
+
+:DOCKER_STOP
+cls
+echo.
+echo  ══════════════════════════════════════════
+echo   🐳 [C] DỪNG CONTAINER
+echo  ══════════════════════════════════════════
+echo.
+docker compose down
+echo.
+echo  ✅ Container đã dừng. Dữ liệu trong data/ vẫn được giữ nguyên.
+pause
+goto MODE_DOCKER
+
+:DOCKER_STATUS
+cls
+echo.
+echo  ══════════════════════════════════════════
+echo   🐳 [D] TRẠNG THÁI CONTAINER
+echo  ══════════════════════════════════════════
+echo.
+docker compose ps
+echo.
+call :SHOW_DOCKER_URL
+echo.
+echo  Dung lượng image:
+docker images eduquest-pro --format "  Image: {{.Repository}}:{{.Tag}} — Size: {{.Size}}"
+pause
+goto MODE_DOCKER
+
+:DOCKER_LOGS
+cls
+echo.
+echo  ══════════════════════════════════════════
+echo   🐳 [E] LOG REALTIME (Ctrl+C để thoát)
+echo  ══════════════════════════════════════════
+echo.
+docker compose logs -f --tail=50
+pause
+goto MODE_DOCKER
+
+:: ── Helper: Hiện địa chỉ truy cập ─────────────
+:SHOW_DOCKER_URL
+echo.
+echo   Truy cập EduQuest Pro tại:
+echo     Local:  http://localhost:8000
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
+    set IP=%%a
+    set IP=!IP: =!
+    echo     LAN:    http://!IP!:8000
+    goto :show_done
+)
+:show_done
+echo.
+goto :eof
