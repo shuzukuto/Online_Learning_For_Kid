@@ -1,7 +1,8 @@
 // EduQuest Collector - Background Service Worker v1.3.16
 // Hỗ trợ URL server động — dùng chrome.storage.sync
 
-const DEFAULT_SERVER = "http://localhost:8000";
+// URL server chung — tất cả dữ liệu cào được gửi về đây
+const DEFAULT_SERVER = "https://otter-scrawny-squall.ngrok-free.dev";
 
 /** Lấy URL server hiện tại từ storage (mặc định localhost:8000) */
 function getServerUrl() {

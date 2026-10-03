@@ -150,23 +150,17 @@ if %errorlevel% equ 0 (
     echo  [LỖI] Không tìm thấy ngrok.exe!
     echo.
     echo  Hướng dẫn cài ngrok:
-    echo   1. Tải tại: https://ngrok.com/download
-    echo   2. Giải nén ngrok.exe vào thư mục này: %~dp0
-    echo   3. Chạy lần đầu: ngrok config add-authtoken ^<token-cua-ban^>
-    echo   4. Lấy static domain tại: https://dashboard.ngrok.com/domains
-    echo   5. Xem chi tiết: DEPLOY_GUIDE.md
+    echo   1. Tai tai: https://ngrok.com/download
+    echo   2. Giai nen ngrok.exe vao thu muc nay: %~dp0
+    echo   3. Chay lenh: ngrok config add-authtoken ^<token^>
+    echo   4. Xem chi tiet: DEPLOY_GUIDE.md
     echo.
     pause
     goto MENU
 )
 
-echo.
-set /p NGROK_DOMAIN="  Nhập static domain ngrok của bạn (vd: abc-xyz.ngrok-free.app): "
-if "%NGROK_DOMAIN%"=="" (
-    echo  [LỖI] Chưa nhập domain. Quay lại menu.
-    timeout /t 2 /nobreak > nul
-    goto MENU
-)
+:: Domain cố định — không cần nhập tay
+set NGROK_DOMAIN=otter-scrawny-squall.ngrok-free.dev
 
 echo.
 echo  [→] Khởi động EduQuest Server...
@@ -177,8 +171,8 @@ timeout /t 4 /nobreak > nul
 echo.
 echo  ══════════════════════════════════════════════════
 echo   URL CỐ ĐỊNH: https://%NGROK_DOMAIN%
-echo   Chia sẻ URL này cho mọi người — không bao giờ thay đổi!
-echo   Nhấn Ctrl+C để dừng tunnel.
+echo   Chia se URL nay cho moi nguoi — khong bao gio thay doi!
+echo   Nhan Ctrl+C de dung tunnel.
 echo  ══════════════════════════════════════════════════
 echo.
 %NGROK_CMD% http --domain=%NGROK_DOMAIN% 8000
