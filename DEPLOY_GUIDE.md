@@ -170,12 +170,148 @@ Chờ vài giây, URL sẽ xuất hiện. Copy và chia sẻ!
 
 ## 🔗 URL Cố định (Nâng cao)
 
-Nếu muốn URL không thay đổi (ví dụ: `https://eduquest.yourdomain.com`):
+> **Kết quả:** Mọi người dùng URL cố định không đổi như `https://eduquest.ten-ban.com` mà không cần thông báo lại mỗi lần khởi động máy.
+>
+> **Yêu cầu bắt buộc:** Có 1 tên miền (domain) riêng. Bạn có thể mua domain `.com` giá rẻ tại [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/) (~$10/năm) hoặc dùng domain đã có.
 
-1. Đăng ký tài khoản Cloudflare miễn phí tại **https://cloudflare.com**
-2. Đăng nhập cloudflared: `.\cloudflared.exe tunnel login`
-3. Tạo tunnel vĩnh viễn: `.\cloudflared.exe tunnel create eduquest`
-4. Tạo subdomain cố định (cần có domain riêng)
+---
+
+### Bước 1 — Đăng ký tài khoản Cloudflare (miễn phí)
+
+1. Truy cập **https://cloudflare.com** → nhấn **Sign Up**
+2. Điền email + mật khẩu → xác nhận email
+3. Nếu đã có domain: nhấn **Add a Site** → nhập tên domain → chọn gói **Free**
+4. Cloudflare sẽ cấp cho bạn **2 nameserver** (dạng `xxx.ns.cloudflare.com`)  
+   → Đăng nhập vào nơi mua domain (GoDaddy, Namecheap, VNPT...) → tìm mục **Nameservers** → thay bằng 2 nameserver của Cloudflare
+
+> ⏱️ Chờ 5–30 phút để DNS propagate. Cloudflare sẽ gửi email thông báo khi xong.
+
+---
+
+### Bước 2 — Đăng nhập `cloudflared` vào tài khoản Cloudflare
+
+Mở PowerShell tại thư mục dự án:
+
+```powershell
+.\cloudflared.exe tunnel login
+```
+
+- Lệnh này tự động mở trình duyệt → đăng nhập Cloudflare → **chọn domain** muốn dùng
+- Sau khi chọn xong, file chứng chỉ được lưu tự động tại:
+  ```
+  C:\Users\<ten-may>\.cloudflared\cert.pem
+  ```
+- Màn hình hiện `You have successfully logged in.` → thành công ✅
+
+---
+
+### Bước 3 — Tạo Tunnel vĩnh viễn
+
+```powershell
+.\cloudflared.exe tunnel create eduquest
+```
+
+Kết quả trả về dạng:
+```
+Tunnel credentials written to C:\Users\<ten-may>\.cloudflared\<tunnel-id>.json
+Created tunnel eduquest with id a1b2c3d4-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+> 📋 **Ghi lại Tunnel ID** (`a1b2c3d4-xxxx-...`) — cần dùng ở bước tiếp theo.
+
+---
+
+### Bước 4 — Tạo file cấu hình `cloudflared-config.yml`
+
+Tạo file `cloudflared-config.yml` ngay trong thư mục dự án:
+
+```yaml
+# cloudflared-config.yml
+# ⚠️  Thay <TUNNEL-ID> bằng ID ở Bước 3
+# ⚠️  Thay <ten-may> bằng tên Windows user của bạn (vd: ptlua)
+# ⚠️  Thay <ten-ban.com> bằng domain thật của bạn (vd: myschool.com)
+
+tunnel: <TUNNEL-ID>
+credentials-file: C:\Users\<ten-may>\.cloudflared\<TUNNEL-ID>.json
+
+ingress:
+  - hostname: eduquest.<ten-ban.com>
+    service: http://localhost:8000
+  - service: http_status:404
+```
+
+**Ví dụ thực tế** (domain `myschool.com`, Windows user `ptlua`, Tunnel ID `a1b2c3d4-...`):
+
+```yaml
+tunnel: a1b2c3d4-5e6f-7890-abcd-ef1234567890
+credentials-file: C:\Users\ptlua\.cloudflared\a1b2c3d4-5e6f-7890-abcd-ef1234567890.json
+
+ingress:
+  - hostname: eduquest.myschool.com
+    service: http://localhost:8000
+  - service: http_status:404
+```
+
+---
+
+### Bước 5 — Trỏ DNS subdomain vào Tunnel
+
+```powershell
+.\cloudflared.exe tunnel route dns eduquest eduquest.<ten-ban.com>
+```
+
+Lệnh này tự động tạo **CNAME record** trên Cloudflare DNS:
+
+```
+eduquest.ten-ban.com  →  CNAME  →  <tunnel-id>.cfargotunnel.com
+```
+
+Kiểm tra tại: **Cloudflare Dashboard → Chọn domain → DNS → Records**  
+→ Phải thấy record `eduquest` vừa được tạo.
+
+---
+
+### Bước 6 — Tạo `run_fixed.bat` để chạy 1-click
+
+Tạo file `run_fixed.bat` trong thư mục dự án:
+
+```batch
+@echo off
+chcp 65001 > nul
+title EduQuest Pro - Fixed URL Mode
+
+echo [1] Khoi dong EduQuest Server...
+start "EduQuest Server" python start_server_shared.py
+
+echo [2] Doi server san sang (4 giay)...
+timeout /t 4 /nobreak > nul
+
+echo [3] Ket noi Cloudflare Tunnel co dinh...
+echo URL co dinh: https://eduquest.<ten-ban.com>
+.\cloudflared.exe tunnel --config cloudflared-config.yml run
+pause
+```
+
+> ✅ Từ giờ chỉ cần **double-click `run_fixed.bat`** (Run as administrator) mỗi lần bật máy.  
+> URL `https://eduquest.ten-ban.com` sẽ **không bao giờ thay đổi**.
+
+---
+
+### Kiểm tra hoạt động
+
+Sau khi chạy, mở trình duyệt và vào địa chỉ:
+```
+https://eduquest.<ten-ban.com>
+```
+
+| Kết quả | Nguyên nhân & Xử lý |
+|---------|---------------------|
+| ✅ Giao diện EduQuest hiện ra | Thành công — chia sẻ URL cho mọi người! |
+| ❌ `522 Connection timed out` | Server chưa chạy — kiểm tra cửa sổ EduQuest Server |
+| ❌ `SSL` / `ERR_CERT` | Chờ thêm 1–2 phút để Cloudflare cấp SSL tự động |
+| ❌ `1033 Tunnel not found` | Sai Tunnel ID trong `cloudflared-config.yml` |
+| ❌ `DNS_PROBE_FINISHED_NXDOMAIN` | DNS chưa propagate — chờ thêm hoặc kiểm tra CNAME record |
+
 
 ---
 
