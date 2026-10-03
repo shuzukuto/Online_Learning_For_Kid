@@ -29,19 +29,33 @@ if ROOT_DIR not in sys.path:
 PORT = 8000
 
 def ensure_dependencies():
-    """Checks and installs missing dependencies if needed."""
+    """Cài thư viện core bắt buộc; thử cài optional (OCR/Playwright) nếu có thể."""
+    # ── Core (bắt buộc) ────────────────────────────────────────────
     try:
-        import fastapi
-        import uvicorn
-        import docx
-        import pypdf
-        import bs4
-        import httpx
+        import fastapi, uvicorn, docx, pypdf, bs4, httpx, aiofiles
     except ImportError:
-        print("-> Đang tự động cài đặt các thư viện cần thiết (requirements.txt)...")
-        req_path = os.path.join(ROOT_DIR, "requirements.txt")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "-r", req_path])
-        print("-> Cài đặt thư viện hoàn tất!")
+        print("-> Đang cài thư viện core (requirements.txt)...")
+        req_core = os.path.join(ROOT_DIR, "requirements.txt")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "-r", req_core])
+        print("-> Cài core hoàn tất!")
+
+    # ── Optional: OCR + Playwright (chỉ Python < 3.13) ────────────
+    req_opt = os.path.join(ROOT_DIR, "requirements-optional.txt")
+    if os.path.exists(req_opt):
+        try:
+            import rapidocr_onnxruntime, playwright
+        except ImportError:
+            print("-> Đang thử cài thư viện OCR/Playwright tùy chọn...")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-q", "-r", req_opt],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                print("-> Cài OCR/Playwright hoàn tất! Tính năng OCR và Auto-Hunter đầy đủ.")
+            else:
+                py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+                print(f"-> [!] Bỏ qua OCR/Playwright (Python {py_ver} chưa được hỗ trợ).")
+                print(f"->     Tính năng OCR và Auto-Hunter sẽ bị tắt — các tính năng khác OK.")
 
 def get_lan_ip():
     """Lấy địa chỉ IP LAN của máy chủ."""

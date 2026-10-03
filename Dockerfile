@@ -28,10 +28,12 @@ WORKDIR /app
 
 # ── Install Python dependencies ───────────────
 # Copy requirements trước để tận dụng Docker layer cache
-# (Nếu requirements.txt không đổi, bước này bị cache → build nhanh hơn)
-COPY requirements.txt .
+# Docker dùng Python 3.12 — hỗ trợ đủ cả core lẫn optional (OCR/Playwright)
+COPY requirements.txt requirements-optional.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r requirements-optional.txt
+
 
 # ── Install Playwright browser (Chromium) ─────
 # Cần cho tính năng Auto-Hunter scraping headless
