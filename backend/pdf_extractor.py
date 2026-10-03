@@ -4,7 +4,7 @@ import io
 import uuid
 import unicodedata
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from pypdf import PdfReader
 from PIL import Image
 
