@@ -168,6 +168,135 @@ Chờ vài giây, URL sẽ xuất hiện. Copy và chia sẻ!
 
 ---
 
+## 🆓 URL Cố định MIỄN PHÍ — Không Cần Domain (ngrok)
+
+> **Dành cho:** Người không có domain riêng nhưng muốn URL không đổi.  
+> **Kết quả:** URL cố định dạng `https://xxxxx.ngrok-free.app` — **miễn phí vĩnh viễn, không bao giờ thay đổi**.
+
+---
+
+### So sánh nhanh: Cloudflare Tunnel vs ngrok Free
+
+| | Cloudflare Tunnel (URL ngẫu nhiên) | **ngrok Free Static** | Cloudflare Tunnel (URL cố định) |
+|--|--|--|--|
+| **Chi phí** | Miễn phí | **Miễn phí** | Miễn phí |
+| **Cần domain?** | Không | **Không** | ✅ Cần domain |
+| **URL cố định?** | ❌ Thay đổi mỗi lần | **✅ Cố định mãi mãi** | ✅ Cố định |
+| **Tốc độ setup** | 1 phút | **5 phút** | 30+ phút |
+| **Giới hạn** | Không | 1 tunnel, 1 static URL | Không |
+
+→ **Nếu không có domain: dùng ngrok Free là lựa chọn tốt nhất.**
+
+---
+
+### Bước 1 — Đăng ký tài khoản ngrok (miễn phí)
+
+1. Truy cập **https://ngrok.com** → nhấn **Sign up for free**
+2. Đăng ký bằng Google / GitHub / email
+3. Sau khi đăng nhập, vào **Dashboard → Getting Started → Your Authtoken**
+4. Copy **Authtoken** — dạng: `2abc123XYZ_xxxxxxxxxxxxxxxxxxxxxxxx`
+
+---
+
+### Bước 2 — Tải và cài ngrok
+
+1. Tại **Dashboard → Getting Started → Download**, tải file `ngrok-v3-stable-windows-amd64.zip`  
+   Hoặc tải trực tiếp: **https://ngrok.com/download**
+
+2. Giải nén → lấy file `ngrok.exe` → đặt vào thư mục dự án:
+   ```
+   G:\Mina\Online_Learning\ngrok.exe
+   ```
+
+3. Mở PowerShell tại thư mục dự án, chạy lệnh cài Authtoken:
+   ```powershell
+   .\ngrok.exe config add-authtoken <AUTHTOKEN-CUA-BAN>
+   ```
+   Ví dụ:
+   ```powershell
+   .\ngrok.exe config add-authtoken 2abc123XYZ_xxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+   Màn hình hiện `Authtoken saved to configuration file` → thành công ✅
+
+---
+
+### Bước 3 — Lấy URL cố định miễn phí
+
+1. Đăng nhập ngrok Dashboard tại **https://dashboard.ngrok.com**
+2. Vào menu **Cloud Edge → Domains** (hoặc **Static Domains**)
+3. Nhấn **New Domain** → ngrok tự tạo cho bạn 1 domain cố định miễn phí, ví dụ:
+   ```
+   flying-octopus-clearly.ngrok-free.app
+   ```
+4. **Copy domain đó** — đây là URL cố định của bạn mãi mãi
+
+---
+
+### Bước 4 — Tạo `run_ngrok_fixed.bat` để chạy 1-click
+
+Tạo file `run_ngrok_fixed.bat` trong thư mục dự án:
+
+```batch
+@echo off
+chcp 65001 > nul
+title EduQuest Pro - ngrok Fixed URL
+
+echo [1] Khoi dong EduQuest Server...
+start "EduQuest Server" python start_server_shared.py
+
+echo [2] Doi server san sang (4 giay)...
+timeout /t 4 /nobreak > nul
+
+echo [3] Ket noi ngrok Static Domain...
+echo Thay "flying-octopus-clearly.ngrok-free.app" bang domain cua ban!
+.\ngrok.exe http --domain=flying-octopus-clearly.ngrok-free.app 8000
+pause
+```
+
+> ⚠️ **Thay `flying-octopus-clearly.ngrok-free.app`** bằng domain thật bạn lấy ở Bước 3.
+
+---
+
+### Bước 5 — Chạy và lấy URL
+
+1. **Chuột phải** vào `run_ngrok_fixed.bat` → **Run as administrator**
+2. Chờ vài giây, cửa sổ ngrok hiện:
+   ```
+   Session Status     online
+   Account            your@email.com (Plan: Free)
+   Forwarding         https://flying-octopus-clearly.ngrok-free.app -> http://localhost:8000
+   ```
+3. URL `https://flying-octopus-clearly.ngrok-free.app` đã sẵn sàng — **chia sẻ cho mọi người!**
+
+---
+
+### Cập nhật Extension để dùng URL ngrok
+
+Mở popup Extension → nhập URL ngrok vào ô **Server URL**:
+```
+https://flying-octopus-clearly.ngrok-free.app
+```
+→ Nhấn **💾 Lưu** → Extension sẽ gửi câu hỏi về server chung.
+
+---
+
+### Kiểm tra hoạt động
+
+Mở trình duyệt, truy cập URL ngrok của bạn:
+
+| Kết quả | Nguyên nhân & Xử lý |
+|---------|---------------------|
+| ✅ Giao diện EduQuest hiện ra | Thành công — chia sẻ URL cho mọi người! |
+| ❌ `ERR_NGROK_3200` | Authtoken chưa đăng nhập — chạy lại Bước 2 |
+| ❌ `Tunnel not found` | Sai tên domain — kiểm tra lại Bước 4 |
+| ❌ `ERR_CONNECTION_REFUSED` | Server chưa chạy — kiểm tra cửa sổ EduQuest Server |
+| ⚠️ Trang cảnh báo ngrok | Nhấn **Visit Site** — ngrok hiện cảnh báo lần đầu với người dùng mới |
+
+> 💡 **Lưu ý trang cảnh báo ngrok:** Người dùng truy cập lần đầu sẽ thấy trang "You are about to visit..." của ngrok. Nhấn **Visit Site** để tiếp tục. Cảnh báo này chỉ xuất hiện 1 lần trên mỗi trình duyệt.  
+> Nếu muốn bỏ cảnh báo: cần ngrok trả phí ($10/tháng) hoặc dùng Cloudflare Tunnel có domain.
+
+---
+
 ## 🔗 URL Cố định (Nâng cao)
 
 > **Kết quả:** Mọi người dùng URL cố định không đổi như `https://eduquest.ten-ban.com` mà không cần thông báo lại mỗi lần khởi động máy.
