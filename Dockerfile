@@ -54,8 +54,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/api/stats/count || exit 1
 
 # ── Startup command ───────────────────────────
+# workers=1: SQLite không hỗ trợ multi-process writes an toàn
+# Dùng 1 worker + async là đủ cho 10-50 người dùng đồng thời
 CMD ["uvicorn", "backend.app:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
-     "--workers", "2", \
+     "--workers", "1", \
      "--log-level", "info"]
