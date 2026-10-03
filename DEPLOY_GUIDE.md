@@ -6,17 +6,102 @@
 
 ## 📋 Tổng quan Kiến trúc
 
+### Sơ đồ luồng dữ liệu đầy đủ
+
 ```
-Người dùng A (điện thoại/máy tính bất kỳ)
-        ↓ HTTPS
-Người dùng B ──→ https://xxxxx.trycloudflare.com ──→ [Máy chủ Windows]
-        ↑                                                    ↓
-Người dùng C                                        EduQuest Pro :8000
-                                                          ↓
-                                                  data/questions.db (chung)
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        INTERNET (HTTPS / TLS)                           │
+└─────────────────────────────────────────────────────────────────────────┘
+         │                        │                        │
+         ▼                        ▼                        ▼
+  👩 Người dùng A          👨 Người dùng B          👦 Người dùng C
+  (Trình duyệt Web)        (Extension Chrome)       (Điện thoại)
+  xem / tìm câu hỏi        bắt + gửi câu hỏi        xem đề thi
+         │                        │                        │
+         └──────────────┬─────────┘────────────────────────┘
+                        │
+                        ▼
+         ┌──────────────────────────────┐
+         │   Cloudflare Network (CDN)   │  ← HTTPS miễn phí, che giấu IP thật
+         │  https://abc.trycloudflare.  │     của máy chủ, chống DDoS cơ bản
+         │           com               │
+         └──────────────────────────────┘
+                        │ Tunnel (mã hóa TLS)
+                        ▼
+         ┌──────────────────────────────┐
+         │     cloudflared.exe          │  ← Chạy trên máy chủ Windows,
+         │   (Cloudflare Tunnel agent)  │     tạo kết nối ra ngoài (outbound),
+         └──────────────────────────────┘     KHÔNG cần mở port router
+                        │ HTTP nội bộ (localhost)
+                        ▼
+         ┌──────────────────────────────┐
+         │   EduQuest Pro (FastAPI)     │  ← start_server_shared.py
+         │   host: 0.0.0.0  port: 8000 │     Python + Uvicorn
+         │                              │
+         │  /api/questions  (REST API)  │
+         │  /               (Web UI)    │
+         └──────────────────────────────┘
+                        │
+                        ▼
+         ┌──────────────────────────────┐
+         │   data/questions.db          │  ← SQLite — 1 file duy nhất,
+         │   (SQLite Database)          │     tất cả người dùng đọc/ghi chung
+         │                              │
+         │   data/media/                │  ← Ảnh đề thi lưu cục bộ
+         └──────────────────────────────┘
 ```
 
-**Cloudflare Tunnel** tạo đường hầm bảo mật từ máy bạn ra Internet — **miễn phí, không cần IP tĩnh, không cần mở router**.
+---
+
+### Vai trò từng thành phần
+
+| Thành phần | File | Vai trò |
+|------------|------|---------|
+| **Web Dashboard** | `frontend/` | Giao diện quản lý câu hỏi — chạy trên trình duyệt người dùng |
+| **FastAPI Server** | `backend/app.py` | Xử lý API, phục vụ giao diện web, đọc/ghi database |
+| **SQLite Database** | `data/questions.db` | Lưu trữ **toàn bộ** câu hỏi — 1 file chung cho mọi người |
+| **Shared Mode Script** | `start_server_shared.py` | Khởi động server lắng nghe `0.0.0.0` (thay vì `127.0.0.1`) |
+| **Cloudflare Tunnel** | `cloudflared.exe` | Tạo đường hầm HTTPS từ máy cục bộ ra Internet |
+| **Chrome Extension** | `extension/` | Bắt câu hỏi từ web và gửi về server qua URL đã cấu hình |
+
+---
+
+### So sánh các phương án kết nối
+
+| Phương án | Phạm vi | Yêu cầu | Độ phức tạp | Chi phí |
+|-----------|---------|---------|-------------|---------|
+| **Localhost** (mặc định) | Chỉ 1 máy | Không có | ⭐ Đơn giản nhất | Miễn phí |
+| **LAN / WiFi nội bộ** | Cùng mạng nhà/trường | Chạy `start_server_shared.py` | ⭐⭐ | Miễn phí |
+| **Cloudflare Tunnel** | Toàn Internet | `cloudflared.exe` + Internet | ⭐⭐⭐ | **Miễn phí** |
+| **VPS / Cloud Server** | Toàn Internet, 24/7 | Thuê server riêng | ⭐⭐⭐⭐ | ~\$5–10/tháng |
+
+> 💡 **Hướng dẫn này tập trung vào Cloudflare Tunnel** — phương án tốt nhất cho nhóm nhỏ đến vừa (10–100 người) vì miễn phí, dễ dùng và bảo mật tốt.
+
+---
+
+### Luồng dữ liệu khi Extension gửi câu hỏi
+
+```
+Người dùng làm bài trên VioEdu / Trạng Nguyên...
+         │
+         ▼
+  [Extension Content Script]
+  Bắt câu hỏi từ DOM / Network Request
+         │
+         ▼
+  [Extension Background Script]
+  Đọc server URL từ chrome.storage.sync
+  (mặc định: http://localhost:8000)
+  (shared:    https://abc.trycloudflare.com)
+         │ POST /api/questions/bulk
+         ▼
+  [EduQuest Pro API]  ←── tất cả người dùng cùng ghi vào đây
+         │
+         ▼
+  [data/questions.db]  ←── câu hỏi được lưu, dedup, FTS5 index
+```
+
+**Cloudflare Tunnel** tạo đường hầm bảo mật từ máy bạn ra Internet — **miễn phí, không cần IP tĩnh, không cần cấu hình router**.
 
 ---
 
