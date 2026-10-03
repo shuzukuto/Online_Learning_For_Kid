@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 EduQuest Pro — VietOCR ONNX Inference Engine
 Based on research from pbcquoc/vietocr and hoaivannguyen/deepdoc_vietocr.
