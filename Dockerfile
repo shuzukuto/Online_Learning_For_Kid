@@ -10,10 +10,14 @@ LABEL maintainer="EduQuest Pro"
 LABEL description="Thu thập & Quản lý Ngân hàng Câu hỏi Thi Trực tuyến"
 
 # ── System dependencies ───────────────────────
-# Cần cho: Pillow (libpng, libjpeg), Playwright (Chromium), onnxruntime
+# Cần cho: Pillow, onnxruntime, opencv-python-headless, Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Pillow / image processing
     libpng-dev libjpeg-dev libwebp-dev \
+    # onnxruntime — cần libgomp1 (OpenMP) để inference
+    libgomp1 \
+    # opencv-python-headless — cần các thư viện này trên Linux
+    libglib2.0-0 libsm6 libxrender1 libxext6 libgl1 \
     # Playwright / Chromium headless browser
     libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 \
     libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \

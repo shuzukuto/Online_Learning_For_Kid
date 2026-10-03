@@ -1,12 +1,8 @@
-# ── Optional features — OCR + Auto-Hunter ──────────────────────────
-# Yêu cầu Python < 3.13
-# Cài bằng: pip install -r requirements-optional.txt
+# ── Optional features — chỉ Python < 3.13 ─────────────────────────
+# onnxruntime và opencv đã ở requirements.txt (hỗ trợ Python 3.14+)
 #
-# Nếu không cài được:
-#   - Tính năng OCR (bóc chữ từ ảnh) sẽ bị tắt
-#   - Tính năng Auto-Hunter (cào headless) sẽ bị tắt
-#   - Các tính năng còn lại vẫn hoạt động bình thường
+# Cài: pip install -r requirements-optional.txt
+# Nếu thất bại: tính năng Auto-Hunter và RapidOCR bị tắt (app vẫn chạy)
 
 playwright>=1.40.0
 rapidocr-onnxruntime>=1.3.0
-onnxruntime>=1.17.0

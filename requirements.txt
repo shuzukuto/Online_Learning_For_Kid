@@ -10,8 +10,11 @@ beautifulsoup4>=4.12.0
 pillow>=10.2.0
 aiofiles>=23.2.1
 
-# ── Optional — cần cho OCR / Auto-Hunter ───────────────────────────
+# ── OCR core — hỗ trợ Python 3.8+ bao gồm 3.14 ───────────────────
+onnxruntime>=1.17.0
+opencv-python-headless>=4.8.0
+
+# ── Optional: chỉ Python <3.13 ────────────────────────────────────
 # Cài riêng qua requirements-optional.txt
-# playwright>=1.40.0       # Auto-Hunter (scrape headless)
-# rapidocr-onnxruntime>=1.3.0  # OCR tiếng Việt (chỉ Python <3.13)
-# onnxruntime>=1.17.0      # OCR engine
+# playwright>=1.40.0           # Auto-Hunter (scrape headless)
+# rapidocr-onnxruntime>=1.3.0  # OCR engine nhanh (cần Python <3.13)
