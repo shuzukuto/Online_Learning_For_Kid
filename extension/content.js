@@ -409,7 +409,25 @@
       /khóa học combo/i, /ưu đãi/i, /khuyến mại/i, /thể lệ giải đấu/i, /cơ cấu giải thưởng/i,
       /danh sách nhận thưởng/i, /chúc mừng các thí sinh/i, /lễ trao giải/i,
       /tin tức & sự kiện/i, /tin nổi bật/i, /bài viết mới nhất/i, /hướng dẫn phụ huynh/i,
-      /điều khoản sử dụng/i, /chính sách bảo mật/i, /quy định thi/i, /thể lệ cuộc thi/i, /vnmf/i
+      /điều khoản sử dụng/i, /chính sách bảo mật/i, /quy định thi/i, /thể lệ cuộc thi/i, /vnmf/i,
+      // Login / Auth forms and password prompts
+      /tên đăng nhập/i, /mật khẩu/i, /nhập tên đăng nhập/i, /nhập mật khẩu/i,
+      /quên mật khẩu/i, /đăng ký tài khoản/i, /xác nhận mật khẩu/i,
+      /vui lòng nhập mật khẩu/i, /vui lòng nhập tên đăng nhập/i,
+      // Welcome / Onboarding / Greeting popups
+      /chào mừng.*đến vioedu/i, /chào mừng.*đến với/i,
+      /mỗi bạn nhỏ đều có/i, /vùng đất.*giỏi nhất/i,
+      /vioedu giúp bạn tìm ra/i, /chỉ mất \d+.*phút để vioedu/i,
+      // Arena gate / lobby UI, battle schedule, ranking display
+      /diễn ra hàng ngày/i, /\bthách đấu\b(?!.*(?:\?|hỏi|câu|bài|tính|tìm|điền))/i,
+      /hãy bắt đầu thách đấu ngay/i, /vươn lên vị trí cao/i,
+      /bạn còn \d+\/\d+ lượt thi đấu/i, /chưa có trận đấu/i,
+      /hãy tham gia thách đấu ngay/i, /phần quà hấp dẫn/i,
+      // Battle scoreboard with player names, timers, correct/wrong counts
+      /ôi tiếc quá.*sai mất rồi/i, /bạn hãy đọc kĩ câu hỏi.*để có thể trả lời đúng/i,
+      /sai mất rồi/i,
+      // Answer hint UI instruction (not actual question)
+      /click vào đáp án phía dưới/i, /tự động điền vào chỗ chấm/i
     ];
 
     for (const p of junkPatterns) {
@@ -417,6 +435,37 @@
     }
 
     if (clean.length > 3000) return false;
+
+    // Structural HTML check: Reject scoreboard / battle result wrappers, login forms, and onboarding popups
+    // These can contain question images inside but are NOT actual standalone questions
+    if (card) {
+      const cardHtml = (card.innerHTML || "").toLowerCase();
+      const cardOuterHtml = (card.outerHTML || "").substring(0, 2000).toLowerCase();
+
+      // Login form detection: contains login input fields
+      if (card.querySelector && card.querySelector("input#login-username, input#login-password, input[autocomplete='new-password'], form[class*='login'], input[placeholder*='đăng nhập'], input[placeholder*='mật khẩu']")) {
+        return false;
+      }
+
+      // Battle scoreboard / result panel: contains player usernames + correct/wrong icons + countdown timer
+      const hasCorrectWrongIcons = cardHtml.includes("correct_icon") || cardHtml.includes("wrong_icon");
+      const hasCountdownTimer = cardHtml.includes("countdown_icon") || /\b\d{2}:\d{2}\b/.test(clean);
+      const hasPlayerNames = card.querySelector && card.querySelector("b._1ZPNr, [class*='_1ZPNr'], [class*='player-name'], [class*='user-name']");
+      const hasRobotFeedback = cardHtml.includes("robot_false") || cardHtml.includes("robot_true") || cardHtml.includes("robot_think");
+      if ((hasCorrectWrongIcons && hasCountdownTimer) || (hasPlayerNames && hasCorrectWrongIcons) || (hasRobotFeedback && hasPlayerNames)) {
+        return false;
+      }
+
+      // Onboarding / welcome popup: contains mascot robot image + greeting text
+      if ((cardHtml.includes("popup-onboard") || cardHtml.includes("robot-popup-onboard") || cardHtml.includes("mascot robot")) && /chào mừng|mỗi bạn nhỏ/i.test(clean)) {
+        return false;
+      }
+
+      // Arena gate / lobby UI: contains challenge gate images
+      if (cardHtml.includes("challenge_gate") || cardHtml.includes("arena-mass") || cardHtml.includes("mass_thachdau")) {
+        return false;
+      }
+    }
 
     // If card has rich educational media (diagrams, math formulas, canvas), allow it only if it has educational length
     if (hasCardRichContent && clean.length >= 8) return true;
@@ -700,7 +749,7 @@
 
   // Helper: Find the genuine Question Card enclosing a clicked or scanned element (Never stops at answer grids or extension UI)
   function findEnclosingQuestionCard(el) {
-    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer"))) {
+    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, ._1Pfz6, ._3DwhN, .j3gJK, ._2aLvX, .Mnxze"))) {
       return null;
     }
 
@@ -813,7 +862,9 @@
         ".Select-menu-outer", "[role='listbox']",
         "button", "nav", "footer", ".header", ".timer", ".clock", ".countdown",
         ".btn--practice", ".btn-submit", ".btn-next", ".btn-tiep",
-        ".explain-box", ".loi-giai", ".practice-explain", ".ZpmD_", "._3yoLK"
+        ".explain-box", ".loi-giai", ".practice-explain", ".ZpmD_", "._3yoLK",
+        // VioEdu battle scoreboard (players, correct/wrong counts, countdown) & robot feedback bubbles
+        "._1Pfz6", ".SyJJv", "._17cI5", "._3k6XW", "._3PJZs", ".msg-fail"
       ];
       clone.querySelectorAll(junkAndAnswerSelectors.join(", ")).forEach(n => n.remove());
 
@@ -870,6 +921,16 @@
 
   // 3. Precise DOM Scanner: Target specific Question Cards (No whole-page bleeding)
   function scanPageQuestions(force = false, isBackground = false) {
+    // URL-based pre-filter: Skip pages that can NEVER contain educational questions
+    const currentPath = window.location.pathname.toLowerCase();
+    const nonEduPaths = ["/login", "/forgot-password", "/register", "/signup", "/sign-up", "/sign-in",
+      "/profile", "/settings", "/account", "/payment", "/pricing", "/contact", "/about",
+      "/terms", "/privacy", "/faq", "/help", "/support"];
+    if (nonEduPaths.some(p => currentPath === p || currentPath.startsWith(p + "/"))) {
+      if (!isBackground) addLog(`[DOM BỎ QUA] Trang không phải giáo dục: ${currentPath}`, "skip");
+      return [];
+    }
+
     if (force) {
       rebuildSignatures();
       if (!capturedQuestions || capturedQuestions.length === 0) {
@@ -905,7 +966,7 @@
     ];
 
     let containers = Array.from(document.querySelectorAll(questionCardSelectors.join(", ")))
-      .filter(el => !el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar"));
+      .filter(el => !el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar, ._1Pfz6, ._3DwhN, .j3gJK, ._2aLvX, .Mnxze"));
 
     // CRITICAL: Filter out nested child containers if ancestor card is already selected
     containers = containers.filter(el => !containers.some(p => p !== el && p.contains(el)));
@@ -945,7 +1006,7 @@
   }
 
   function extractQuestionFromElement(el, idx, isBackground = false) {
-    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar"))) {
+    if (!el || (el.closest && el.closest("#eduquest-floating-widget, #eduquest-scanned-modal, .eduquest-widget, .eduquest-modal-overlay, .eduquest-toast, .eduquest-panel, [class*='eduquest'], [id*='eduquest'], ._1Tl2B, ._1pVpr, ._1MIz2, ._1ZsoA, .score-hint-popup, ._52PcN, ._1Z8DV, [class*='score-hint'], .home-video-item, .video-item, nav, header, footer, .menu, .sidebar, ._1Pfz6, ._3DwhN, .j3gJK, ._2aLvX, .Mnxze"))) {
       return null;
     }
 

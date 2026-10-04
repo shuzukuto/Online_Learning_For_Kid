@@ -257,6 +257,50 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
     if re.search(r'\b\d+\s*/\s*100\b', combined) and ("tính điểm" in combined or "điểm" in combined):
         return False, "Chứa tiến độ điểm số trên thang 100 của VioEdu"
 
+    # 1.4. Reject login / auth forms and password prompts
+    login_keywords = ["tên đăng nhập", "mật khẩu", "nhập tên đăng nhập", "nhập mật khẩu",
+                      "quên mật khẩu", "vui lòng nhập mật khẩu", "login-username", "login-password"]
+    if any(k in combined for k in login_keywords):
+        return False, "Chứa biểu mẫu đăng nhập / mật khẩu, không phải câu hỏi giáo dục"
+
+    # 1.5. Reject welcome / onboarding popups
+    if re.search(r'chào mừng.*đến vioedu|chào mừng.*đến với', combined, re.I):
+        return False, "Chứa popup chào mừng / onboarding VioEdu"
+    if any(k in combined for k in ["mỗi bạn nhỏ đều có", "vioedu giúp bạn tìm ra", "popup-onboard", "robot-popup-onboard"]):
+        return False, "Chứa nội dung popup chào mừng / onboarding VioEdu"
+
+    # 1.6. Reject arena gate / lobby UI and battle schedule displays
+    arena_lobby_keywords = ["diễn ra hàng ngày", "hãy bắt đầu thách đấu ngay",
+                            "vươn lên vị trí cao", "chưa có trận đấu",
+                            "hãy tham gia thách đấu ngay", "challenge_gate", "arena-mass", "mass_thachdau"]
+    if any(k in combined for k in arena_lobby_keywords):
+        return False, "Chứa giao diện cổng đấu trường / lobby VioEdu, không phải câu hỏi"
+    if re.search(r'bạn còn \d+/\d+ lượt thi đấu', combined, re.I):
+        return False, "Chứa thông tin lượt thi đấu còn lại"
+
+    # 1.7. Reject battle scoreboard with player names, timers, correct/wrong counts
+    if any(k in combined for k in ["correct_icon", "wrong_icon", "countdown_icon"]):
+        if re.search(r'\b\d{2}:\d{2}\b', content_text):
+            return False, "Chứa bảng điểm trận đấu với bộ đếm thời gian và biểu tượng đúng/sai"
+    if re.search(r'ôi tiếc quá.*sai mất rồi', combined, re.I):
+        return False, "Chứa thông báo phản hồi trận đấu 'sai mất rồi'"
+    if re.search(r'bạn hãy đọc kĩ câu hỏi.*để có thể trả lời đúng', combined, re.I):
+        return False, "Chứa thông báo gợi ý trận đấu, không phải câu hỏi thực"
+    if "robot_false" in combined or "robot_think" in combined:
+        # If the text is mostly player usernames, timer and score data, reject
+        if re.search(r'[a-z0-9]+-\d{4}', content_text) and re.search(r'\b\d{2}:\d{2}\b', content_text):
+            return False, "Chứa bảng điểm trận đấu với tên người chơi và phản hồi robot"
+
+    # 1.8. Reject answer-hint UI instructions (not actual questions)
+    if re.search(r'click vào đáp án phía dưới', combined, re.I):
+        return False, "Chứa hướng dẫn UI điền đáp án, không phải câu hỏi giáo dục"
+
+    # 1.9. Reject from non-educational source URLs (login, profile, settings pages)
+    source_url = (q.get("source_url") or "").lower()
+    non_edu_paths = ["/login", "/forgot-password", "/register", "/signup", "/profile", "/settings", "/account"]
+    if any(source_url.endswith(p) or (p + "/") in source_url or (p + "?") in source_url for p in non_edu_paths):
+        return False, f"Nguồn URL là trang không giáo dục: {source_url}"
+
     # 2. Reject HTML source dumps, doctype, scripts, CSS stylesheets
     if "<!doctype" in combined or "<html" in combined or "xmlns=" in combined:
         return False, "Chứa mã nguồn HTML/Doctype của trang web"
