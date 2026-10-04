@@ -1,6 +1,6 @@
-// EduQuest Collector v1.3.15 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
+﻿// EduQuest Collector v1.3.17 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
 (function () {
-  console.log("%c[EduQuest Collector v1.3.15] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
+  console.log("%c[EduQuest Collector v1.3.17] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
 
   let capturedQuestions = [];
   let autoSaveEnabled = localStorage.getItem("eduquest_autosave") !== "false"; // Default ON (True)
@@ -272,7 +272,7 @@
       this.remove();
     };
     (document.head || document.documentElement).appendChild(script);
-    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.15 vào trang", "info");
+    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.17 vào trang", "info");
   } catch (e) {
     addLog("Lỗi tiêm Interceptor: " + e.message, "error");
   }
@@ -1401,7 +1401,7 @@
     widget.id = "eduquest-floating-widget";
     widget.className = "eduquest-widget";
     widget.innerHTML = `
-      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.15">
+      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.17">
         <div class="eduquest-icon">⚡</div>
         <span class="eduquest-title">EduQuest</span>
         <span class="eduquest-counter" id="eduquest-count">${capturedQuestions.length}</span>
@@ -1411,7 +1411,7 @@
         <div class="eduquest-panel-header" style="display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <strong>EduQuest Pro</strong>
-            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.15</span>
+            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.17</span>
           </div>
           <span class="eduquest-status" id="eduquest-server-status" style="font-size: 11px;">Đang kiểm tra...</span>
         </div>
@@ -1901,7 +1901,7 @@
   // 6. Automatic Execution & Live Listeners for Real-Time Learning Transitions
   function init() {
     injectWidget();
-    addLog("EduQuest Pro v1.3.15 đã khởi động trên " + window.location.hostname, "info");
+    addLog("EduQuest Pro v1.3.17 đã khởi động trên " + window.location.hostname, "info");
     setTimeout(() => {
       scanPageQuestions(false, false);
       autoSyncPendingQuestions();
