@@ -58,6 +58,45 @@ async def on_startup():
     stats = get_stats()
     if stats.get("total_questions", 0) == 0:
         await init_sample_questions()
+    # Launch daily OCR temp-file cleanup in the background
+    asyncio.create_task(_schedule_ocr_cleanup())
+
+# ---------------------------------------------------------------------------
+# OCR temp-file cleanup: delete ocr_* files older than 15 days, once per day
+# ---------------------------------------------------------------------------
+OCR_CLEANUP_MAX_AGE_DAYS = 15
+OCR_CLEANUP_INTERVAL_SEC = 24 * 60 * 60  # 24 hours
+
+async def _schedule_ocr_cleanup():
+    """Run OCR cleanup at startup then every 24 hours."""
+    while True:
+        await _cleanup_ocr_temp_files()
+        await asyncio.sleep(OCR_CLEANUP_INTERVAL_SEC)
+
+async def _cleanup_ocr_temp_files():
+    """Delete ocr_* files in MEDIA_DIR that are older than OCR_CLEANUP_MAX_AGE_DAYS days."""
+    import time
+    cutoff = time.time() - OCR_CLEANUP_MAX_AGE_DAYS * 86400
+    deleted = 0
+    errors = 0
+    try:
+        for fname in os.listdir(MEDIA_DIR):
+            if not fname.startswith("ocr_"):
+                continue
+            fpath = os.path.join(MEDIA_DIR, fname)
+            try:
+                if os.path.isfile(fpath) and os.path.getmtime(fpath) < cutoff:
+                    os.remove(fpath)
+                    deleted += 1
+            except Exception as e:
+                errors += 1
+                print(f"[OCR Cleanup] Không thể xóa {fname}: {e}")
+    except Exception as e:
+        print(f"[OCR Cleanup] Lỗi quét thư mục media: {e}")
+        return
+    if deleted or errors:
+        print(f"[OCR Cleanup] Đã xóa {deleted} file ocr_* cũ hơn {OCR_CLEANUP_MAX_AGE_DAYS} ngày"
+              + (f" ({errors} lỗi)" if errors else ""))
 
 # Enable CORS for browser extension and external tools
 app.add_middleware(
