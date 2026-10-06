@@ -2,6 +2,41 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.0.34] - 2026-10-06 15:40:00
+
+### User Request
+> Đọc tài liệu https://github.com/pbcquoc/vietocr/blob/master/vietocr_gettingstart.ipynb và đối chiếu với tính năng OCR tiếng Việt hiện tại. Cải thiện khả năng nhận diện tiếng Việt
+
+### Added
+- **Module Xu ly Ngon ngu Tieng Viet chuyen sau (`backend/vietnamese_nlp.py`)**:
+  - Tu dien `VIETNAMESE_COMMON_WORDS` hon 120+ thuat ngu toan hoc, giao duc, thoi gian, tu ngu tieng Viet hay gap de tu dong phuc hoi dau thanh khi OCR nhan dien thieu dau.
+  - Ham `restore_vietnamese_diacritics()` giu nguyen dinh dang hoa/thuong.
+  - Ham `fix_common_ocr_confusions()` sua cac loi ghep ky tu quang hoc (rn -> nh, cl -> d, 0 -> o, 1 -> l).
+  - Ham `calculate_vietnamese_confidence()` danh gia do tin cay tieng Viet theo ty le dau thanh.
+  - Ham `normalize_vietnamese_unicode()` chuan hoa Unicode NFC dong nhat.
+- **Tien xu ly Anh Toan dien cho OCR Tieng Viet (`backend/pdf_extractor.py`)**:
+  - Phong dai thich ung bang `cv2.INTER_LANCZOS4` toi thieu 1200px (thay vi CUBIC 800px) giup net dau khong bi nhoe.
+  - Can chinh nghieng (Deskewing) dua tren `cv2.minAreaRect` giu nguyen vi tri dau thanh.
+  - Can bang do tuong phan cuc bo CLAHE trong khong gian mau LAB (kenh L) giup nhan dien chu mo, nhat mau.
+  - Loc nhieu Bilateral Filter giu sac net bien chu va Unsharp Mask lam noi bat cac dau ă, â, ê, ô, ơ, ư.
+- **Nang cap Engine VietOCR ONNX (`backend/vietocr_onnx.py`)**:
+  - Giai ma Beam Search (`recognize_line_beam`) voi `beam_width=3` nang cao do chinh xac.
+  - Tinh toan diem tin cay (Confidence Score) dua tren softmax probabilities.
+  - Suy luan theo lo (`recognize_lines_batch`) toi uu toc do chay tren CPU.
+  - Bo sung huong dan chuyen doi mo hinh PyTorch VietOCR sang ONNX trong docstring.
+
+### Changed
+- **Cache Buster**: Nang tu `?v=1.0.36` len `?v=1.0.37`.
+- **App Version**: Nang tu `v1.0.33` len `v1.0.34`.
+
+### Files touched
+- `backend/vietnamese_nlp.py` (moi)
+- `backend/pdf_extractor.py` (nang cap tien xu ly va tich hop NLP module)
+- `backend/vietocr_onnx.py` (bo sung beam search, confidence, batching)
+- `frontend/index.html` (bump version badge v1.0.34, cache buster ?v=1.0.37)
+- `frontend/js/app.js` (bump APP_VERSION v1.0.34)
+- `changelog.md`
+
 ## [v1.0.33] - 2026-10-03 12:20:00
 
 ### User Request
