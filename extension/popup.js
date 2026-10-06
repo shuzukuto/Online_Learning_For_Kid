@@ -1,4 +1,4 @@
-// EduQuest Pro - Popup Controller v1.3.16
+// EduQuest Pro - Popup Controller v1.3.18
 document.addEventListener("DOMContentLoaded", () => {
   const dot = document.getElementById("status-dot");
   const text = document.getElementById("status-text");

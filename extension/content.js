@@ -1,6 +1,6 @@
-﻿// EduQuest Collector v1.3.17 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
+// EduQuest Collector v1.3.18 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
 (function () {
-  console.log("%c[EduQuest Collector v1.3.17] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
+  console.log("%c[EduQuest Collector v1.3.18] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
 
   let capturedQuestions = [];
   let autoSaveEnabled = localStorage.getItem("eduquest_autosave") !== "false"; // Default ON (True)
@@ -272,7 +272,7 @@
       this.remove();
     };
     (document.head || document.documentElement).appendChild(script);
-    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.17 vào trang", "info");
+    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.18 vào trang", "info");
   } catch (e) {
     addLog("Lỗi tiêm Interceptor: " + e.message, "error");
   }
@@ -1294,9 +1294,12 @@
   }
 
   let isSavingInProgress = false;
+  let _saveFailCount = 0;
+  let _saveBackoffUntil = 0;
 
   function autoSyncPendingQuestions() {
     if (!autoSaveEnabled || isSavingInProgress) return;
+    if (Date.now() < _saveBackoffUntil) return;
     const unsaved = capturedQuestions.filter(q => !q.saved_to_db);
     if (unsaved.length > 0) {
       autoSaveToEduQuest(unsaved);
@@ -1331,13 +1334,15 @@
     if (isSavingInProgress) return;
     isSavingInProgress = true;
 
-    addLog(`[LƯU CSDL] Đang gửi ${questions.length} câu hỏi về EduQuest (Port 8000)...`, "info");
+    addLog(`[LƯU CSDL] Đang gửi ${questions.length} câu hỏi về server EduQuest...`, "info");
 
     chrome.runtime.sendMessage(
       { action: "save_questions", questions: questions },
       (res) => {
         isSavingInProgress = false;
         if (res && res.success) {
+          _saveFailCount = 0;
+          _saveBackoffUntil = 0;
           const inserted = typeof res.data?.inserted_count === "number" ? res.data.inserted_count : questions.length;
           
           if (inserted > 0) {
@@ -1356,9 +1361,14 @@
           updateWidgetUI();
           renderScannedModalQuestions();
         } else {
+          _saveFailCount++;
+          const waitTime = Math.min(30000, 2000 * Math.pow(2, _saveFailCount));
+          _saveBackoffUntil = Date.now() + waitTime;
           const errDetail = res?.error || "Không kết nối được port 8000";
-          addLog(`✕ [LƯU CSDL LỖI] ${errDetail}`, "error");
-          showFloatingToast(`✕ Lỗi lưu CSDL: ${errDetail}`, true);
+          addLog(`✕ [LƯU CSDL LỖI] ${errDetail}. Thử lại sau ${waitTime / 1000}s`, "error");
+          if (_saveFailCount === 1) {
+            showFloatingToast(`✕ Lỗi lưu CSDL: ${errDetail}`, true);
+          }
         }
       }
     );
@@ -1401,7 +1411,7 @@
     widget.id = "eduquest-floating-widget";
     widget.className = "eduquest-widget";
     widget.innerHTML = `
-      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.17">
+      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.18">
         <div class="eduquest-icon">⚡</div>
         <span class="eduquest-title">EduQuest</span>
         <span class="eduquest-counter" id="eduquest-count">${capturedQuestions.length}</span>
@@ -1411,7 +1421,7 @@
         <div class="eduquest-panel-header" style="display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <strong>EduQuest Pro</strong>
-            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.17</span>
+            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.18</span>
           </div>
           <span class="eduquest-status" id="eduquest-server-status" style="font-size: 11px;">Đang kiểm tra...</span>
         </div>
@@ -1758,7 +1768,17 @@
       return;
     }
 
-    listEl.innerHTML = capturedQuestions.map((q, idx) => {
+    const bulkToolbar = `
+      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; font-size: 13px;">
+        <span style="font-weight: 600; color: #1e3a8a;">Đổi lớp hàng loạt:</span>
+        <select id="eduquest-bulk-grade-select" style="background: white; border: 1px solid #bfdbfe; border-radius: 4px; padding: 4px 8px; font-size: 13px; color: #1e3a8a; outline: none; cursor: pointer;">
+          ${[1,2,3,4,5,6,7,8,9,10,11,12].map(g => `<option value="${g}">Lớp ${g}</option>`).join("")}
+        </select>
+        <button onclick="window.eduquestBulkChangeGrade(document.getElementById('eduquest-bulk-grade-select').value)" style="background: #3b82f6; color: white; border: none; padding: 5px 12px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer;">Áp dụng tất cả</button>
+      </div>
+    `;
+
+    listEl.innerHTML = bulkToolbar + capturedQuestions.map((q, idx) => {
       const isSaved = q.saved_to_db;
       const statusBadge = isSaved
         ? `<span class="eduquest-badge-tag" style="background: #dcfce7; color: #15803d; border: 1px solid #86efac;">✓ Đã lưu CSDL</span>`
@@ -1794,13 +1814,19 @@
         `;
       }
 
+      const gradeSelect = `
+        <select onchange="window.eduquestChangeGrade('${q.id}', this.value)" class="eduquest-badge-tag" style="background: #f1f5f9; color: #475569; border: none; outline: none; cursor: pointer; padding-right: 4px; appearance: menulist;">
+          ${[1,2,3,4,5,6,7,8,9,10,11,12].map(g => `<option value="${g}" ${parseInt(q.grade || 2) === g ? 'selected' : ''}>Lớp ${g}</option>`).join("")}
+        </select>
+      `;
+
       return `
         <div class="eduquest-card-item">
           <div class="eduquest-card-header">
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span style="font-weight: 700; color: #1e40af; font-size: 13px;">Câu #${idx + 1}</span>
               <span class="eduquest-badge-tag" style="background: #e0f2fe; color: #0369a1;">${(q.source_platform || 'ONLINE').toUpperCase()}</span>
-              <span class="eduquest-badge-tag" style="background: #f1f5f9; color: #475569;">Lớp ${q.grade || 2}</span>
+              ${gradeSelect}
               <span class="eduquest-badge-tag" style="background: #fdf4ff; color: #a21caf;">${q.subject === 'math' ? 'Toán' : q.subject}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -1823,6 +1849,46 @@
     const q = capturedQuestions.find(item => item.id === qid);
     if (!q) return;
     autoSaveToEduQuest([q]);
+  };
+
+  // Đồng bộ khối lớp mới lên CSDL cho các câu đã lưu (câu chưa lưu sẽ mang grade mới khi auto-save)
+  function syncGradeToServer(questionIds, grade) {
+    if (!questionIds || questionIds.length === 0) return;
+    chrome.runtime.sendMessage(
+      { action: "update_grade", question_ids: questionIds, grade: grade },
+      (res) => {
+        if (res && res.success) {
+          const n = res.data?.updated_count ?? 0;
+          addLog(`✓ [CSDL] Đã cập nhật Lớp ${grade} cho ${n}/${questionIds.length} câu đã lưu`, "success");
+        } else {
+          addLog(`✕ [CSDL] Không cập nhật được khối lớp trên server: ${res?.error || "lỗi không xác định"}`, "error");
+          showFloatingToast("✕ Đã đổi lớp trong danh sách tạm, nhưng chưa cập nhật được CSDL", true);
+        }
+      }
+    );
+  }
+
+  window.eduquestChangeGrade = function (qid, newGrade) {
+    const idx = capturedQuestions.findIndex(item => item.id === qid);
+    if (idx >= 0) {
+      const gradeInt = parseInt(newGrade, 10);
+      capturedQuestions[idx].grade = gradeInt;
+      persistCapturedQuestions();
+      showFloatingToast(`Đã đổi thành Lớp ${gradeInt}`);
+      if (capturedQuestions[idx].saved_to_db) syncGradeToServer([qid], gradeInt);
+    }
+  };
+
+  window.eduquestBulkChangeGrade = function (newGrade) {
+    if (capturedQuestions.length === 0) return;
+    const gradeInt = parseInt(newGrade, 10);
+    if (!confirm(`Đổi TẤT CẢ ${capturedQuestions.length} câu hỏi đã quét sang Lớp ${gradeInt}?`)) return;
+    capturedQuestions.forEach(q => { q.grade = gradeInt; });
+    persistCapturedQuestions();
+    renderScannedModalQuestions();
+    showFloatingToast(`Đã đổi ${capturedQuestions.length} câu hỏi thành Lớp ${gradeInt}`);
+    const savedIds = capturedQuestions.filter(q => q.saved_to_db).map(q => q.id);
+    syncGradeToServer(savedIds, gradeInt);
   };
 
   window.eduquestDeleteSingleQuestion = function (qid) {
@@ -1901,7 +1967,7 @@
   // 6. Automatic Execution & Live Listeners for Real-Time Learning Transitions
   function init() {
     injectWidget();
-    addLog("EduQuest Pro v1.3.17 đã khởi động trên " + window.location.hostname, "info");
+    addLog("EduQuest Pro v1.3.18 đã khởi động trên " + window.location.hostname, "info");
     setTimeout(() => {
       scanPageQuestions(false, false);
       autoSyncPendingQuestions();

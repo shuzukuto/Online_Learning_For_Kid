@@ -3,13 +3,24 @@ from __future__ import annotations
 EduQuest Pro — VietOCR ONNX Inference Engine
 Based on research from pbcquoc/vietocr and hoaivannguyen/deepdoc_vietocr.
 Provides pure ONNX Runtime inference for Vietnamese text recognition without legacy PyTorch/PyPI dependencies.
+
+# To export VietOCR model to ONNX:
+# pip install vietocr
+# from vietocr.tool.config import Cfg
+# from vietocr.tool.predictor import Predictor
+# config = Cfg.load_config_from_name('vgg_transformer')
+# config['cnn']['pretrained'] = False
+# config['device'] = 'cpu'
+# detector = Predictor(config)
+# ... (torch.onnx.export code)
 """
 
 import os
 import io
 import unicodedata
-from typing import Optional, List, Dict, Any, Union
-from PIL import Image
+import urllib.request
+from typing import Optional, List, Dict, Any, Union, Tuple
+from PIL import Image, ImageOps
 
 try:
     import numpy as np
@@ -104,7 +115,24 @@ class VietOcrOnnxEngine:
             )
         }
 
-    def preprocess_line_image(self, img_input: Union[Image.Image, Any]) -> Optional[Any]:
+    def download_default_model(self) -> bool:
+        """
+        Downloads the default pre-trained VietOCR ONNX model from a public URL.
+        Use this if the user hasn't supplied a custom ONNX file.
+        """
+        url = "https://example.com/placeholder_vietocr.onnx" # Placeholder URL
+        dest_path = os.path.join(MODELS_DIR, "vietocr.onnx")
+        try:
+            print(f"[VietOcrOnnxEngine] Downloading ONNX model from {url} to {dest_path}...")
+            # urllib.request.urlretrieve(url, dest_path)
+            # return True
+            print("Download function is a placeholder.")
+            return False
+        except Exception as e:
+            print(f"[VietOcrOnnxEngine] Download failed: {e}")
+            return False
+
+    def preprocess_line_image(self, img_input: Union[Image.Image, Any], grayscale: bool = False) -> Optional[Any]:
         """Resizes line image to fixed height 32, preserving aspect ratio and normalizing pixel values."""
         if np is None:
             return None
@@ -119,11 +147,22 @@ class VietOcrOnnxEngine:
             else:
                 return None
 
+            if grayscale:
+                img = ImageOps.grayscale(img).convert("RGB")
+
             w, h = img.size
-            new_w = max(int(w * (32.0 / h)), 32)
+            new_w = max(int(w * (32.0 / h)), 1)
             # Clip width to max 1024
             new_w = min(new_w, 1024)
-            img_resized = img.resize((new_w, 32), Image.Resampling.BILINEAR)
+            img_resized = img.resize((new_w, 32), Image.Resampling.LANCZOS)
+            
+            # Pad to at least 32px width if too small
+            if new_w < 32:
+                pad_width = 32 - new_w
+                padded_img = Image.new("RGB", (32, 32), (255, 255, 255))
+                padded_img.paste(img_resized, (0, 0))
+                img_resized = padded_img
+                new_w = 32
 
             arr = np.array(img_resized, dtype=np.float32) / 255.0
             # Normalize with ImageNet standard mean & std
@@ -139,22 +178,33 @@ class VietOcrOnnxEngine:
             print(f"[VietOcrOnnxEngine.preprocess_line_image] Error: {e}")
             return None
 
-    def recognize_line(self, line_img: Union[Image.Image, Any]) -> str:
+    def recognize_line(self, line_img: Union[Image.Image, Any], return_confidence: bool = False, grayscale: bool = False) -> Union[str, Tuple[str, float]]:
         """Infers Vietnamese text from a single cropped line image using ONNX session."""
         if not self.is_ready():
-            return ""
+            return ("", 0.0) if return_confidence else ""
 
-        tensor = self.preprocess_line_image(line_img)
+        tensor = self.preprocess_line_image(line_img, grayscale=grayscale)
         if tensor is None:
-            return ""
+            return ("", 0.0) if return_confidence else ""
 
         try:
             input_name = self.session.get_inputs()[0].name
             outputs = self.session.run(None, {input_name: tensor})
-            # Outputs usually have logits or token indices
             preds = outputs[0]
+            
+            confidence = 1.0
             if len(preds.shape) == 3: # (1, seq_len, vocab_size)
+                # Softmax across vocab
+                probs = np.exp(preds) / np.sum(np.exp(preds), axis=-1, keepdims=True)
                 token_ids = np.argmax(preds, axis=-1)[0]
+                
+                # Calculate confidence
+                for i, tid in enumerate(token_ids):
+                    if int(tid) == 2: # <eos>
+                        break
+                    if int(tid) >= 3:
+                        confidence *= float(probs[0, i, tid])
+                        
             elif len(preds.shape) == 2: # (1, seq_len)
                 token_ids = preds[0]
             else:
@@ -169,10 +219,135 @@ class VietOcrOnnxEngine:
                     chars.append(self.idx2char[tid])
 
             text = "".join(chars).strip()
-            return unicodedata.normalize('NFC', text)
+            norm_text = unicodedata.normalize('NFC', text)
+            
+            if return_confidence:
+                return norm_text, confidence
+            return norm_text
         except Exception as e:
             print(f"[VietOcrOnnxEngine.recognize_line] Inference error: {e}")
-            return ""
+            return ("", 0.0) if return_confidence else ""
+
+    def recognize_line_beam(self, line_img: Union[Image.Image, Any], beam_width: int = 3, return_confidence: bool = False, grayscale: bool = False) -> Union[str, Tuple[str, float]]:
+        """Infers Vietnamese text using beam search decoding."""
+        if not self.is_ready():
+            return ("", 0.0) if return_confidence else ""
+
+        tensor = self.preprocess_line_image(line_img, grayscale=grayscale)
+        if tensor is None:
+            return ("", 0.0) if return_confidence else ""
+
+        try:
+            input_name = self.session.get_inputs()[0].name
+            outputs = self.session.run(None, {input_name: tensor})
+            preds = outputs[0]
+            
+            if len(preds.shape) != 3:
+                return self.recognize_line(line_img, return_confidence=return_confidence, grayscale=grayscale)
+                
+            probs = np.exp(preds) / np.sum(np.exp(preds), axis=-1, keepdims=True)
+            seq_len = probs.shape[1]
+            vocab_size = probs.shape[2]
+            
+            sequences = [(1.0, [])]
+            
+            for step in range(seq_len):
+                all_candidates = list()
+                for seq_score, seq_tokens in sequences:
+                    if len(seq_tokens) > 0 and seq_tokens[-1] == 2:
+                        all_candidates.append((seq_score, seq_tokens))
+                        continue
+                        
+                    for v in range(vocab_size):
+                        prob = probs[0, step, v]
+                        candidate_score = seq_score * float(prob)
+                        candidate_tokens = seq_tokens + [v]
+                        all_candidates.append((candidate_score, candidate_tokens))
+                        
+                ordered = sorted(all_candidates, key=lambda tup: tup[0], reverse=True)
+                sequences = ordered[:beam_width]
+                
+            best_score, best_tokens = sequences[0]
+            
+            chars = []
+            for tid in best_tokens:
+                if tid == 2:
+                    break
+                if tid in self.idx2char and tid >= 3:
+                    chars.append(self.idx2char[tid])
+                    
+            text = "".join(chars).strip()
+            norm_text = unicodedata.normalize('NFC', text)
+            
+            if return_confidence:
+                return norm_text, best_score
+            return norm_text
+            
+        except Exception as e:
+            print(f"[VietOcrOnnxEngine.recognize_line_beam] Inference error: {e}")
+            return ("", 0.0) if return_confidence else ""
+
+    def recognize_lines_batch(self, line_imgs: List[Union[Image.Image, Any]], grayscale: bool = False) -> List[str]:
+        """Processes multiple line images in a batch for efficiency."""
+        if not self.is_ready() or not line_imgs:
+            return []
+            
+        tensors = []
+        valid_indices = []
+        for i, img in enumerate(line_imgs):
+            tensor = self.preprocess_line_image(img, grayscale=grayscale)
+            if tensor is not None:
+                tensors.append(tensor)
+                valid_indices.append(i)
+                
+        if not tensors:
+            return ["" for _ in line_imgs]
+            
+        max_w = max(t.shape[3] for t in tensors)
+        batch_tensors = []
+        for t in tensors:
+            _, _, h, w = t.shape
+            if w < max_w:
+                pad_width = max_w - w
+                t_padded = np.pad(t, ((0,0), (0,0), (0,0), (0, pad_width)), mode='constant', constant_values=0)
+                batch_tensors.append(t_padded)
+            else:
+                batch_tensors.append(t)
+                
+        batch_array = np.concatenate(batch_tensors, axis=0)
+        
+        try:
+            input_name = self.session.get_inputs()[0].name
+            outputs = self.session.run(None, {input_name: batch_array})
+            preds = outputs[0]
+            
+            batch_texts = []
+            if len(preds.shape) == 3: # (batch, seq_len, vocab_size)
+                token_ids_batch = np.argmax(preds, axis=-1)
+            elif len(preds.shape) == 2: # (batch, seq_len)
+                token_ids_batch = preds
+            else:
+                token_ids_batch = [[] for _ in range(len(batch_tensors))]
+                
+            for token_ids in token_ids_batch:
+                chars = []
+                for tid in token_ids:
+                    tid = int(tid)
+                    if tid == 2:
+                        break
+                    if tid in self.idx2char and tid >= 3:
+                        chars.append(self.idx2char[tid])
+                text = "".join(chars).strip()
+                batch_texts.append(unicodedata.normalize('NFC', text))
+                
+            results = ["" for _ in line_imgs]
+            for i, valid_idx in enumerate(valid_indices):
+                results[valid_idx] = batch_texts[i]
+                
+            return results
+        except Exception as e:
+            print(f"[VietOcrOnnxEngine.recognize_lines_batch] Inference error: {e}")
+            return ["" for _ in line_imgs]
 
 def get_vietocr_engine() -> VietOcrOnnxEngine:
     return VietOcrOnnxEngine.get_instance()

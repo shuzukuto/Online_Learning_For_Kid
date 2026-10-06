@@ -168,8 +168,24 @@ def clean_ocr_vietnamese_text(text: str) -> str:
                 text = re.sub(pattern, correct, text)
     except Exception as e:
         pass
+
+    # 11. Vietnamese NLP post-processing: restore diacritics, fix character confusions, normalize Unicode
+    try:
+        from backend.vietnamese_nlp import (
+            restore_vietnamese_diacritics,
+            fix_common_ocr_confusions,
+            normalize_vietnamese_unicode
+        )
+        # Fix character-level OCR confusions first (rn->nh, cl->d, 0->o, etc.)
+        text = fix_common_ocr_confusions(text)
+        # Restore missing diacritics on common Vietnamese words (e.g. "phan so" -> "phân số")
+        text = restore_vietnamese_diacritics(text)
+        # Final Unicode NFC normalization pass
+        text = normalize_vietnamese_unicode(text)
+    except Exception as e:
+        pass
         
-    # 11. Standardize option prefixes (e.g., "(A)", "A - ", "A: ", "A .", or glued digits "C12" -> "C. 12", "AWednesdlay" -> "A. Wednesdlay")
+    # 12. Standardize option prefixes (e.g., "(A)", "A - ", "A: ", "A .", or glued digits "C12" -> "C. 12", "AWednesdlay" -> "A. Wednesdlay")
     text = re.sub(r'(?m)^(\s*)([A-Ea-e])(?=[A-Z][a-z])', r'\n\2. ', text)
     text = re.sub(r'(?m)^(\s*)([A-Da-d])\s*[\.:\)]*\s*([0-9]+)\s*(\(?\s*(?:[✓✔☑]|\bchecked\b)?\s*\)?)$', r'\n\2. \3 \4', text)
     text = re.sub(r'(?:^|\n|\s)\(([A-Ea-e])\)\s*', r'\n\1. ', text)
@@ -392,7 +408,10 @@ def extract_questions_from_pdf(pdf_bytes: bytes, filename: str = "exam.pdf") -> 
     )
 
 def preprocess_image_for_ocr(image_bytes: bytes) -> Optional[np.ndarray]:
-    """Applies smart resolution scaling and contrast enhancement for sharp OCR text recognition."""
+    """
+    Applies advanced image preprocessing optimized for Vietnamese OCR.
+    Includes: adaptive upscaling (LANCZOS4), deskewing, CLAHE, bilateral filter, and unsharp mask.
+    """
     if cv2 is None or np is None:
         return None
     try:
@@ -400,12 +419,69 @@ def preprocess_image_for_ocr(image_bytes: bytes) -> Optional[np.ndarray]:
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             return None
-        h, w = img.shape[:2]
-        # If low resolution, upscale to at least 800px width using INTER_CUBIC to preserve small characters and accents
-        if w < 800:
-            scale = max(1.0, 800.0 / w)
-            new_w, new_h = int(w * scale), int(h * scale)
-            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        
+        # 1. Adaptive upscaling to 1200px minimum width for better diacritics recognition
+        try:
+            h, w = img.shape[:2]
+            target_w = 1200.0
+            if w < target_w:
+                scale = max(1.0, target_w / w)
+                new_w, new_h = int(w * scale), int(h * scale)
+                # INTER_LANCZOS4 yields better quality for upscaling text than INTER_CUBIC
+                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+        except Exception as e:
+            print(f"[preprocess_image_for_ocr] Upscaling error: {e}")
+
+        # 2. Deskewing to correct rotation (critical for Vietnamese diacritics)
+        try:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # Threshold to get text as white pixels
+            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+            coords = np.column_stack(np.where(thresh > 0))
+            if len(coords) > 0:
+                angle = cv2.minAreaRect(coords)[-1]
+                # Adjust angle for OpenCV versions returning [-90, 0)
+                if angle < -45:
+                    angle = -(90 + angle)
+                else:
+                    angle = -angle
+                
+                # Only deskew if the angle is significant but not excessive
+                if abs(angle) > 0.5 and abs(angle) < 15:
+                    (h, w) = img.shape[:2]
+                    center = (w // 2, h // 2)
+                    M = cv2.getRotationMatrix2D(center, angle, 1.0)
+                    img = cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+        except Exception as e:
+            print(f"[preprocess_image_for_ocr] Deskew error: {e}")
+
+        # 3. CLAHE contrast enhancement in LAB color space
+        # Dramatically improves recognition of faded/low-contrast text
+        try:
+            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            cl = clahe.apply(l)
+            limg = cv2.merge((cl,a,b))
+            img = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+        except Exception as e:
+            print(f"[preprocess_image_for_ocr] CLAHE error: {e}")
+
+        # 4. Gentle noise reduction using bilateral filter
+        # Preserves edges which is important for diacritics like ă, â, ê, ô, ơ, ư
+        try:
+            img = cv2.bilateralFilter(img, 5, 50, 50)
+        except Exception as e:
+            print(f"[preprocess_image_for_ocr] Bilateral filter error: {e}")
+
+        # 5. Sharpening using unsharp mask
+        # Makes diacritics more distinguishable
+        try:
+            gaussian = cv2.GaussianBlur(img, (0, 0), 2.0)
+            img = cv2.addWeighted(img, 1.5, gaussian, -0.5, 0)
+        except Exception as e:
+            print(f"[preprocess_image_for_ocr] Sharpening error: {e}")
+
         return img
     except Exception as e:
         print(f"[preprocess_image_for_ocr] Error: {e}")
