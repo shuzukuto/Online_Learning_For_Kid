@@ -2,6 +2,47 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.0.37] - 2026-10-06 20:50:00
+
+### User Request
+> Soạn thảo & Thêm câu hỏi Thủ công: 
+> 1. Bổ sung tính năng crop "Ảnh đính kèm" để chèn vào câu hỏi
+> 2. Có vẻ kết nối model AI không hoạt động (đính kèm là các model đã quét từ API key)
+> 3. Fall back cũng không kết nối với 9router. Thêm:
+> - nút kiểm tra kết nối với 9router 
+> - ô nhập API key kết nối với 9router, nút "Test connection" để kiểm tra API
+
+### Added
+- **Trình Cắt Ảnh Trực Quan Cho Soạn Thảo Câu Hỏi Thủ Công (Image Cropper Studio)**:
+  - Bổ sung nút **"✂️ Cắt ảnh"** trên thanh công cụ ảnh và icon cây kéo trên từng thumbnail ảnh đã tải lên trong mục Soạn thảo thủ công (`#view-manual`).
+  - Hộp thoại Cắt Ảnh toàn diện (`#modal-image-cropper`) hỗ trợ chọn ảnh từ máy hoặc cắt trực tiếp ảnh có sẵn trong danh sách đính kèm.
+  - Các tỷ lệ cắt linh hoạt: Tự do (Free), 1:1 (Vuông), 4:3, 16:9, xoay góc 90° và reset toàn khung.
+  - Tương tác kéo thả chuột/chạm mượt mà với 8 tay cầm điều chỉnh (handles), đường căn tỷ lệ 1/3 (rule of thirds grid), và hiển thị kích thước px thời gian thực.
+  - Tự động xuất ảnh chất lượng cao dạng PNG qua Canvas, tải lên máy chủ qua `/api/media/upload` và đồng bộ vào danh sách ảnh đính kèm (hỗ trợ "Cắt & Thêm mới" hoặc "Cắt & Thay thế").
+- **Hỗ Trợ Toàn Diện Cho 9Router & Endpoint Kiểm Tra Kết Nối AI Vision**:
+  - Endpoint mới: `POST /api/ai-vision/test-connection` hỗ trợ kiểm tra kết nối trực tiếp cho cả 3 nhà cung cấp: OpenRouter (`/auth/key`), OpenCode (`/models`), và 9Router Local (`http://127.0.0.1:20129/v1/models` hoặc `/chat/completions`).
+  - Thêm ô nhập API Key riêng cho 9Router (`#ai-vision-custom-key`), nút **"🔌 Test connection"** và nút **"🔄 Quét model"** riêng cho 9Router.
+  - Thêm nút **"🔌 Test kết nối"** cho OpenRouter để người dùng tức thời kiểm tra tính khả dụng của API Key trước khi bóc tách.
+  - Giao diện phản hồi thông báo chi tiết: HTTP status, số lượng model kết nối được hoặc chi tiết lỗi.
+
+### Changed & Fixed
+- **Tối Ưu Hóa & Khắc Phục Lỗi AI Vision**:
+  - Giảm timeout từ 45s xuống 25s, phát hiện sớm lỗi `error` từ OpenRouter (như lỗi worker pool limit 502 của một số model miễn phí) để kích hoạt fallback tức thì, không bị nghẽn 66 giây.
+  - Đưa model `dots-studio/dots-3-note-preview:free` lên vị trí ưu tiên đầu danh sách OpenRouter (đã kiểm tra phản hồi thành công và trích xuất tiếng Việt chuẩn).
+  - Tự động nhận diện cấu hình 9Router với cổng 20129 cục bộ.
+- **Cache Buster**: Nâng từ `?v=1.0.40` lên `?v=1.0.41`.
+- **App Version**: Nâng từ `v1.0.36` lên `v1.0.37`.
+
+### Files touched
+- `backend/models.py` (AiVisionTestConnectionRequest)
+- `backend/ai_vision.py` (test_ai_vision_connection, tối ưu timeout và free models)
+- `backend/app.py` (endpoint POST /api/ai-vision/test-connection)
+- `frontend/css/style.css` (giao diện Image Cropper Modal & Thumbnail Crop Button)
+- `frontend/index.html` (modal Cắt ảnh, nút công cụ, giao diện test kết nối 9Router & OpenRouter, version v1.0.37, cache buster ?v=1.0.41)
+- `frontend/js/collector.js` (logic test kết nối, quét model 9Router, lưu custom API key)
+- `frontend/js/app.js` (bump APP_VERSION v1.0.37)
+- `changelog.md`
+
 ## [v1.0.36] - 2026-10-06 19:05:00
 
 ### User Request

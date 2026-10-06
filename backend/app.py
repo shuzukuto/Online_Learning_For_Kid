@@ -26,7 +26,7 @@ from backend.models import (
     BulkDeleteRequest, BulkDeleteQuestionsRequest, BulkUpdateGradeRequest,
     ExamCreate, ScrapeRequest, AutoExamGenerateRequest, CleanDuplicatesRequest,
     PracticeSubmitRequest, PracticeAnswerSubmission, PracticeHistoryResponse, PracticeAnalyticsResponse,
-    OcrLearnRequest, OcrCorrectionCreate, AiVisionSettingsRequest
+    OcrLearnRequest, OcrCorrectionCreate, AiVisionSettingsRequest, AiVisionTestConnectionRequest
 )
 from backend.normalizer import normalize_question_payload
 from backend.docx_exporter import generate_exam_docx
@@ -945,10 +945,10 @@ async def get_ai_vision_settings_api():
     return {"success": True, "settings": get_ai_vision_settings()}
 
 @app.get("/api/ai-vision/models")
-async def fetch_ai_vision_models_api(provider: str = Query("openrouter"), api_key: str = Query("")):
+async def fetch_ai_vision_models_api(provider: str = Query("openrouter"), api_key: str = Query(""), base_url: str = Query("")):
     """Scans and retrieves currently active live vision models from the provider."""
     from backend.ai_vision import fetch_live_vision_models
-    res = await fetch_live_vision_models(provider=provider, api_key=api_key)
+    res = await fetch_live_vision_models(provider=provider, api_key=api_key, base_url=base_url)
     return res
 
 @app.post("/api/ai-vision/settings")
@@ -958,6 +958,18 @@ async def save_ai_vision_settings_api(req: AiVisionSettingsRequest):
     save_ai_vision_settings(req.model_dump(exclude_unset=True))
     updated = get_ai_vision_settings()
     return {"success": True, "settings": updated, "message": "Đã lưu cài đặt AI Vision thành công!"}
+
+@app.post("/api/ai-vision/test-connection")
+async def test_ai_vision_connection_api(req: AiVisionTestConnectionRequest):
+    """Tests connectivity to OpenRouter, OpenCode, or custom 9Router gateway."""
+    from backend.ai_vision import test_ai_vision_connection
+    res = await test_ai_vision_connection(
+        provider=req.provider,
+        base_url=req.base_url,
+        api_key=req.api_key,
+        model=req.model
+    )
+    return res
 
 @app.post("/api/ocr/learn")
 async def learn_ocr_corrections(req: OcrLearnRequest):

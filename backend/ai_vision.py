@@ -20,12 +20,11 @@ from backend.database import get_system_config, set_system_config
 
 # Default Vision models with high accuracy on Vietnamese exams
 OPENROUTER_FREE_MODELS = [
+    "dots-studio/dots-3-note-preview:free",
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-    "dots-studio/dots-3-note-preview:free",
     "thinkingmachines/inkling-small:free",
-    "thinkingmachines/inkling:free",
 ]
 
 OPENCODE_MODELS = [
@@ -68,13 +67,17 @@ def get_ai_vision_settings() -> Dict[str, Any]:
     }
 
 
-async def fetch_live_vision_models(provider: str = "openrouter", api_key: str = "") -> Dict[str, Any]:
+async def fetch_live_vision_models(provider: str = "openrouter", api_key: str = "", base_url: str = "") -> Dict[str, Any]:
     """
-    Scans and discovers currently live multimodal vision models from the provider (OpenRouter / OpenCode).
+    Scans and discovers currently live multimodal vision models from the provider (OpenRouter / OpenCode / 9Router / Custom).
     Returns list of model objects with id, name, pricing info (free/paid), and context length.
     """
     cfg = get_ai_vision_settings()
-    key = api_key.strip() or (cfg["openrouter_api_key"] if provider == "openrouter" else cfg["opencode_api_key"])
+    key = api_key.strip() or (
+        cfg["openrouter_api_key"] if provider == "openrouter" else
+        cfg["opencode_api_key"] if provider == "opencode" else
+        cfg.get("custom_vision_key", "")
+    )
     
     if provider == "openrouter":
         headers = {}
@@ -136,6 +139,53 @@ async def fetch_live_vision_models(provider: str = "openrouter", api_key: str = 
             {"id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5 Vision (Zen)", "is_free": False, "recommended": False},
         ]
         return {"success": True, "total_found": len(models), "free_count": 0, "models": models}
+
+    elif provider in ("custom", "9router"):
+        base = (base_url.strip() or cfg.get("custom_vision_url") or "http://127.0.0.1:20129/v1").rstrip("/")
+        models_url = f"{base}/models"
+        headers = {}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(models_url, headers=headers)
+                if res.status_code != 200:
+                    return {"success": False, "models": [], "error": f"HTTP {res.status_code}: {res.text[:120]}"}
+                
+                raw = res.json()
+                raw_models = raw.get("data", []) if isinstance(raw, dict) else []
+                vision_models = []
+                for m in raw_models:
+                    if isinstance(m, dict):
+                        mid = m.get("id", "")
+                    elif isinstance(m, str):
+                        mid = m
+                    else:
+                        continue
+                    if not mid:
+                        continue
+                    
+                    is_free = ":free" in mid.lower() or "free" in mid.lower()
+                    rec = is_free or any(term in mid.lower() for term in ["vision", "vl", "omni", "dots", "qwen", "gemini", "flash", "9router"])
+                    vision_models.append({
+                        "id": mid,
+                        "name": mid,
+                        "is_free": is_free,
+                        "context_length": 0,
+                        "description": "9Router local / forwarded model",
+                        "recommended": rec
+                    })
+                
+                # Sort: free first, recommended first
+                vision_models.sort(key=lambda x: (not x["is_free"], not x["recommended"], x["id"]))
+                return {
+                    "success": True,
+                    "total_found": len(vision_models),
+                    "free_count": sum(1 for m in vision_models if m["is_free"]),
+                    "models": vision_models
+                }
+        except Exception as e:
+            return {"success": False, "models": [], "error": f"Không thể kết nối đến {base}: {str(e)}"}
         
     return {"success": False, "models": [], "error": f"Nền tảng {provider} không được hỗ trợ."}
 
@@ -249,7 +299,7 @@ async def call_openai_compatible_vision(
     model: str,
     image_data_uri: str,
     extra_headers: Optional[Dict[str, str]] = None,
-    timeout: float = 45.0
+    timeout: float = 25.0
 ) -> Optional[List[Dict[str, Any]]]:
     """Generic OpenAI-compatible vision completion caller via httpx."""
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
@@ -288,6 +338,13 @@ async def call_openai_compatible_vision(
             resp = await client.post(endpoint, headers=headers, json=payload)
             if resp.status_code == 200:
                 result_json = resp.json()
+                # Check if provider returned 200 with an error object inside
+                if "error" in result_json:
+                    err_info = result_json.get("error", {})
+                    err_msg = err_info.get("message", str(err_info)) if isinstance(err_info, dict) else str(err_info)
+                    print(f"[call_openai_compatible_vision] Upstream error from {endpoint} ({model}): {err_msg}")
+                    return None
+
                 choices = result_json.get("choices", [])
                 if choices and "message" in choices[0]:
                     content = choices[0]["message"].get("content", "")
@@ -300,6 +357,174 @@ async def call_openai_compatible_vision(
             print(f"[call_openai_compatible_vision] Request failed to {endpoint} ({model}): {e}")
             
     return None
+
+
+async def test_ai_vision_connection(
+    provider: str = "custom",
+    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Tests connection to OpenRouter, OpenCode, or custom 9Router gateway.
+    Returns status, latency (ms), and friendly diagnostic message.
+    """
+    import time
+    start_t = time.perf_counter()
+    provider = (provider or "custom").lower()
+
+    if provider == "openrouter":
+        url = "https://openrouter.ai/api/v1/auth/key"
+        key = (api_key or "").strip() or get_system_config("openrouter_api_key", "")
+        if not key:
+            return {"success": False, "message": "Chưa nhập API Key cho OpenRouter."}
+        headers = {"Authorization": f"Bearer {key}"}
+        try:
+            async with httpx.AsyncClient(timeout=7.0) as client:
+                res = await client.get(url, headers=headers)
+                latency = round((time.perf_counter() - start_t) * 1000)
+                if res.status_code == 200:
+                    data = res.json().get("data", {})
+                    free_quota = data.get("free_model_daily_requests", {})
+                    rem = free_quota.get("remaining", "N/A")
+                    limit = free_quota.get("limit", "N/A")
+                    label = data.get("label", "Key hợp lệ")
+                    return {
+                        "success": True,
+                        "latency_ms": latency,
+                        "status_code": 200,
+                        "message": f"Kết nối OpenRouter thành công ({latency}ms)! Hạn mức miễn phí: {rem}/{limit} requests/ngày.",
+                        "details": data
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "latency_ms": latency,
+                        "status_code": res.status_code,
+                        "message": f"OpenRouter trả về lỗi HTTP {res.status_code}: {res.text[:120]}"
+                    }
+        except Exception as e:
+            latency = round((time.perf_counter() - start_t) * 1000)
+            return {"success": False, "latency_ms": latency, "message": f"Lỗi kết nối tới OpenRouter: {str(e)}"}
+
+    elif provider == "opencode":
+        url = "https://opencode.ai/zen/v1/models"
+        key = (api_key or "").strip() or get_system_config("opencode_api_key", "")
+        if not key:
+            return {"success": False, "message": "Chưa nhập API Key cho OpenCode."}
+        headers = {"Authorization": f"Bearer {key}"}
+        try:
+            async with httpx.AsyncClient(timeout=7.0) as client:
+                res = await client.get(url, headers=headers)
+                latency = round((time.perf_counter() - start_t) * 1000)
+                if res.status_code in (200, 204):
+                    return {
+                        "success": True,
+                        "latency_ms": latency,
+                        "status_code": res.status_code,
+                        "message": f"Kết nối OpenCode Zen thành công ({latency}ms)!"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "latency_ms": latency,
+                        "status_code": res.status_code,
+                        "message": f"OpenCode trả về HTTP {res.status_code}: {res.text[:120]}"
+                    }
+        except Exception as e:
+            latency = round((time.perf_counter() - start_t) * 1000)
+            return {"success": False, "latency_ms": latency, "message": f"Lỗi kết nối tới OpenCode: {str(e)}"}
+
+    else:
+        # Custom 9Router / Local Gateway
+        target_url = (base_url or "").strip() or get_system_config("custom_vision_url", "http://127.0.0.1:20129/v1")
+        target_key = (api_key or "").strip() or get_system_config("custom_vision_key", "")
+        target_model = (model or "").strip() or get_system_config("custom_vision_model", "9router")
+
+        headers = {}
+        if target_key:
+            headers["Authorization"] = f"Bearer {target_key}"
+
+        models_endpoint = f"{target_url.rstrip('/')}/models"
+        chat_endpoint = f"{target_url.rstrip('/')}/chat/completions"
+
+        try:
+            async with httpx.AsyncClient(timeout=7.0) as client:
+                # 1. Try GET /models
+                try:
+                    res = await client.get(models_endpoint, headers=headers)
+                    latency = round((time.perf_counter() - start_t) * 1000)
+                    if res.status_code == 200:
+                        m_list = res.json().get("data", [])
+                        count = len(m_list) if isinstance(m_list, list) else 0
+                        return {
+                            "success": True,
+                            "latency_ms": latency,
+                            "status_code": 200,
+                            "message": f"Kết nối 9Router ({target_url}) thành công ({latency}ms)! Tìm thấy {count} model.",
+                            "models_count": count
+                        }
+                    elif res.status_code in (401, 403):
+                        return {
+                            "success": False,
+                            "latency_ms": latency,
+                            "status_code": res.status_code,
+                            "message": f"9Router yêu cầu API Key chính xác (HTTP {res.status_code}). Vui lòng nhập API Key cho 9Router."
+                        }
+                except Exception:
+                    pass
+
+                # 2. Try POST /chat/completions ping
+                ping_payload = {
+                    "model": target_model,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 5
+                }
+                res = await client.post(chat_endpoint, headers=headers, json=ping_payload)
+                latency = round((time.perf_counter() - start_t) * 1000)
+                if res.status_code == 200:
+                    return {
+                        "success": True,
+                        "latency_ms": latency,
+                        "status_code": 200,
+                        "message": f"Kết nối và gọi model '{target_model}' trên 9Router ({target_url}) thành công ({latency}ms)!"
+                    }
+                elif res.status_code in (401, 403):
+                    return {
+                        "success": False,
+                        "latency_ms": latency,
+                        "status_code": res.status_code,
+                        "message": f"9Router yêu cầu API Key chính xác (HTTP {res.status_code}). Vui lòng điền API Key."
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "latency_ms": latency,
+                        "status_code": res.status_code,
+                        "message": f"9Router ({target_url}) trả về HTTP {res.status_code}: {res.text[:120]}"
+                    }
+
+        except httpx.ConnectError:
+            latency = round((time.perf_counter() - start_t) * 1000)
+            return {
+                "success": False,
+                "latency_ms": latency,
+                "message": f"Không thể kết nối tới {target_url}. Vui lòng kiểm tra 9Router đã được khởi động chưa và cổng port ({target_url}) có đúng không."
+            }
+        except httpx.ConnectTimeout:
+            latency = round((time.perf_counter() - start_t) * 1000)
+            return {
+                "success": False,
+                "latency_ms": latency,
+                "message": f"Hết thời gian chờ (Timeout sau 7s) khi kết nối tới {target_url}."
+            }
+        except Exception as e:
+            latency = round((time.perf_counter() - start_t) * 1000)
+            return {
+                "success": False,
+                "latency_ms": latency,
+                "message": f"Lỗi kết nối tới 9Router: {str(e)}"
+            }
 
 
 async def extract_questions_with_ai_vision(

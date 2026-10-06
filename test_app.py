@@ -300,19 +300,19 @@ def test_full_pipeline():
         assert os.path.exists(ef), f"Tệp extension {ef} không tồn tại!"
         with open(ef, "r", encoding="utf-8") as f:
             content = f.read()
-        assert any(v in content for v in ["1.3.17", "1.3.16", "1.3.15"]), f"Tệp {ef} thiếu phiên bản v1.3.17 hoặc v1.3.16!"
+        assert any(v in content for v in ["1.3.18", "1.3.17", "1.3.16", "1.3.15"]), f"Tệp {ef} thiếu phiên bản v1.3.18 hoặc v1.3.17!"
         for obsolete in ["1.3.0", "1.3.11", "1.3.12", "1.3.14"]:
             assert obsolete not in content, f"Tệp {ef} còn sót phiên bản cũ {obsolete}!"
-    print("   => Tiện ích Extension đồng bộ v1.3.16/v1.3.17 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
+    print("   => Tiện ích Extension đồng bộ v1.3.17/v1.3.18 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
 
     with open("frontend/index.html", "r", encoding="utf-8") as f:
         index_html = f.read()
     with open("frontend/js/app.js", "r", encoding="utf-8") as f:
         app_js = f.read()
-    assert ("1.0.35" in index_html or "1.0.34" in index_html), "frontend/index.html thiếu phiên bản Web App v1.0.35!"
-    assert ("1.0.35" in app_js or "1.0.34" in app_js), "frontend/js/app.js thiếu phiên bản Web App v1.0.35!"
-    assert ("?v=1.0.38" in index_html or "?v=1.0.37" in index_html), "frontend/index.html thiếu Cache Buster ?v=1.0.38!"
-    print("   => Web App đồng bộ v1.0.35 và Cache Buster chính xác!")
+    assert any(v in index_html for v in ["1.0.37", "1.0.36", "1.0.35", "1.0.34"]), "frontend/index.html thiếu phiên bản Web App!"
+    assert any(v in app_js for v in ["1.0.37", "1.0.36", "1.0.35", "1.0.34"]), "frontend/js/app.js thiếu phiên bản Web App!"
+    assert any(v in index_html for v in ["?v=1.0.41", "?v=1.0.40", "?v=1.0.39", "?v=1.0.38"]), "frontend/index.html thiếu Cache Buster!"
+    print("   => Web App đồng bộ v1.0.37 và Cache Buster chính xác!")
 
     print("\n17. Kiểm tra Bộ Thẩm định Normalizer & Phân biệt Dấu thanh 'Khoa học' vs 'Khóa học'...")
     # 17.1 Science questions with "khoa học" / "truyện khoa học" must be accepted
@@ -833,9 +833,31 @@ def test_full_pipeline():
     if "question" in q_learn_data and "id" in q_learn_data["question"]:
         client.delete(f"/api/questions/{q_learn_data['question']['id']}")
 
+    # 25. Kiểm tra AI Vision Connection Test API
+    print("\n25. Kiểm tra AI Vision Connection Test API (POST /api/ai-vision/test-connection)...")
+    # Test invalid OpenRouter key
+    resp_test_bad = client.post("/api/ai-vision/test-connection", json={
+        "provider": "openrouter",
+        "api_key": "invalid-test-key-12345"
+    })
+    assert resp_test_bad.status_code == 200
+    res_bad = resp_test_bad.json()
+    assert res_bad["success"] is False
+    print("   => OpenRouter key không hợp lệ được phát hiện chính xác:", res_bad["message"])
+
+    # Test custom 9Router local endpoint
+    resp_test_custom = client.post("/api/ai-vision/test-connection", json={
+        "provider": "custom",
+        "base_url": "http://127.0.0.1:20129/v1"
+    })
+    assert resp_test_custom.status_code == 200
+    res_custom = resp_test_custom.json()
+    print("   => 9Router kết quả:", res_custom["success"], "-", res_custom["message"])
+
     print("\n" + "="*60)
-    print(">>> TẤT CẢ 24 BƯỚC KIỂM THỬ ĐÃ VƯỢT QUA XUẤT SẮC 100%! <<<")
+    print(">>> TẤT CẢ 25 BƯỚC KIỂM THỬ ĐÃ VƯỢT QUA XUẤT SẮC 100%! <<<")
     print("="*60)
 
 if __name__ == "__main__":
     test_full_pipeline()
+

@@ -2306,10 +2306,13 @@ async function loadAiVisionSettings() {
     if (ocModel && s.opencode_model) ocModel.value = s.opencode_model;
 
     const customUrl = document.getElementById("ai-vision-custom-url");
-    if (customUrl) customUrl.value = s.custom_vision_url || "http://localhost:20128/v1";
+    if (customUrl) customUrl.value = s.custom_vision_url || "http://127.0.0.1:20129/v1";
+
+    const customKey = document.getElementById("ai-vision-custom-key");
+    if (customKey) customKey.value = s.custom_vision_key || "";
 
     const customModel = document.getElementById("ai-vision-custom-model");
-    if (customModel) customModel.value = s.custom_vision_model || "opencode/free";
+    if (customModel) customModel.value = s.custom_vision_model || "openrouter/dots-studio/dots-3-note-preview:free";
   } catch (err) {
     console.debug("Could not load AI Vision settings:", err);
   }
@@ -2320,11 +2323,12 @@ async function saveAiVisionSettings() {
   const payload = {
     ai_vision_provider: document.getElementById("ai-vision-provider-select")?.value || "auto",
     openrouter_api_key: document.getElementById("ai-vision-openrouter-key")?.value || "",
-    openrouter_model: document.getElementById("ai-vision-openrouter-model")?.value || "google/gemini-2.0-flash-exp:free",
+    openrouter_model: document.getElementById("ai-vision-openrouter-model")?.value || "dots-studio/dots-3-note-preview:free",
     opencode_api_key: document.getElementById("ai-vision-opencode-key")?.value || "",
     opencode_model: document.getElementById("ai-vision-opencode-model")?.value || "gemini-3.6-flash",
-    custom_vision_url: document.getElementById("ai-vision-custom-url")?.value || "http://localhost:20128/v1",
-    custom_vision_model: document.getElementById("ai-vision-custom-model")?.value || "opencode/free"
+    custom_vision_url: document.getElementById("ai-vision-custom-url")?.value || "http://127.0.0.1:20129/v1",
+    custom_vision_key: document.getElementById("ai-vision-custom-key")?.value || "",
+    custom_vision_model: document.getElementById("ai-vision-custom-model")?.value || "openrouter/dots-studio/dots-3-note-preview:free"
   };
 
   try {
@@ -2341,6 +2345,151 @@ async function saveAiVisionSettings() {
   }
 }
 window.saveAiVisionSettings = saveAiVisionSettings;
+
+async function testAiVisionConnection(provider = "custom") {
+  let btn, statusEl, reqBody;
+
+  if (provider === "openrouter") {
+    btn = document.getElementById("btn-test-openrouter-connection");
+    statusEl = document.getElementById("ai-vision-model-scan-status");
+    reqBody = {
+      provider: "openrouter",
+      api_key: document.getElementById("ai-vision-openrouter-key")?.value || ""
+    };
+  } else if (provider === "opencode") {
+    btn = document.getElementById("btn-test-opencode-connection");
+    reqBody = {
+      provider: "opencode",
+      api_key: document.getElementById("ai-vision-opencode-key")?.value || ""
+    };
+  } else {
+    // 9Router / Custom
+    btn = document.getElementById("btn-test-custom-connection");
+    statusEl = document.getElementById("ai-vision-custom-test-status");
+    reqBody = {
+      provider: "custom",
+      base_url: document.getElementById("ai-vision-custom-url")?.value || "http://127.0.0.1:20129/v1",
+      api_key: document.getElementById("ai-vision-custom-key")?.value || "",
+      model: document.getElementById("ai-vision-custom-model")?.value || "openrouter/dots-studio/dots-3-note-preview:free"
+    };
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> Đang test...`;
+  }
+  if (statusEl) {
+    statusEl.textContent = "Đang kiểm tra kết nối...";
+    statusEl.style.color = "#0284c7";
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/ai-vision/test-connection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(reqBody)
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      if (statusEl) {
+        statusEl.textContent = `✅ ${data.message}`;
+        statusEl.style.color = "#059669";
+      }
+      showToast(data.message, "success");
+    } else {
+      if (statusEl) {
+        statusEl.textContent = `❌ ${data.message}`;
+        statusEl.style.color = "#dc2626";
+      }
+      showToast(data.message, "error");
+    }
+  } catch (err) {
+    const msg = `Lỗi kiểm tra kết nối: ${err.message}`;
+    if (statusEl) {
+      statusEl.textContent = `❌ ${msg}`;
+      statusEl.style.color = "#dc2626";
+    }
+    showToast(msg, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>🔌</span> Test connection`;
+    }
+  }
+}
+window.testAiVisionConnection = testAiVisionConnection;
+
+async function scan9RouterModels() {
+  const btn = document.getElementById("btn-scan-custom-models");
+  const statusEl = document.getElementById("ai-vision-custom-test-status");
+  const modelInput = document.getElementById("ai-vision-custom-model");
+  const modelSelect = document.getElementById("ai-vision-custom-model-select");
+  const baseUrl = document.getElementById("ai-vision-custom-url")?.value || "http://127.0.0.1:20129/v1";
+  const apiKey = document.getElementById("ai-vision-custom-key")?.value || "";
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> Đang quét...`;
+  }
+  if (statusEl) {
+    statusEl.textContent = "Đang lấy danh sách model từ 9Router...";
+    statusEl.style.color = "#0284c7";
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/ai-vision/test-connection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: "custom",
+        base_url: baseUrl,
+        api_key: apiKey
+      })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    // Now query /models directly or through proxy to populate select
+    const targetUrl = `${baseUrl.replace(/\/+$/, "")}/models`;
+    const mRes = await fetch(targetUrl, {
+      headers: apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}
+    });
+    if (mRes.ok) {
+      const mData = await mRes.json();
+      const list = mData.data || [];
+      if (list.length > 0 && modelSelect) {
+        modelSelect.innerHTML = `<option value="">-- Chọn model (${list.length}) --</option>` + 
+          list.map(m => `<option value="${m.id}">${m.id}</option>`).join("");
+        modelSelect.style.display = "inline-block";
+        if (statusEl) {
+          statusEl.textContent = `✅ Đã tìm thấy ${list.length} model trên 9Router! Bạn có thể chọn từ dropdown bên cạnh.`;
+          statusEl.style.color = "#059669";
+        }
+        showToast(`Tìm thấy ${list.length} model trên 9Router!`, "success");
+        return;
+      }
+    }
+
+    if (statusEl) {
+      statusEl.textContent = `✅ ${data.message}`;
+      statusEl.style.color = "#059669";
+    }
+    showToast(data.message, "success");
+  } catch (err) {
+    if (statusEl) {
+      statusEl.textContent = `❌ Lỗi: ${err.message}`;
+      statusEl.style.color = "#dc2626";
+    }
+    showToast(`Lỗi quét model 9Router: ${err.message}`, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>🔄</span> Quét model`;
+    }
+  }
+}
+window.scan9RouterModels = scan9RouterModels;
 
 async function scanLiveVisionModels(provider = "openrouter") {
   const btn = document.getElementById("btn-scan-openrouter-models");

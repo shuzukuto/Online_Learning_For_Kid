@@ -18,7 +18,7 @@
   <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.40">
+  <link rel="stylesheet" href="css/style.css?v=1.0.41">
 </head>
 <body>
   <div class="app-container">
@@ -29,7 +29,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.36</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.37</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -1351,11 +1351,15 @@
                     <button type="button" class="btn btn-secondary btn-sm m-img-btn" onclick="document.getElementById('m-img-file-input').click()" title="Tải ảnh từ máy">
                       📷 Chèn ảnh
                     </button>
+                    <button type="button" class="btn btn-secondary btn-sm m-img-btn" onclick="document.getElementById('m-cropper-file-input').click()" title="Chọn ảnh từ máy để cắt (Crop) trước khi chèn vào câu hỏi" style="color: #0284c7; font-weight: 700; border-color: #bae6fd; background: #f0f9ff;">
+                      ✂️ Cắt ảnh
+                    </button>
                     <button type="button" class="btn btn-secondary btn-sm m-img-btn" id="btn-paste-img" title="Dán ảnh từ clipboard (Ctrl+V)">
                       📋 Dán ảnh (Ctrl+V)
                     </button>
                     <span class="m-img-hint">Kéo thả ảnh vào ô soạn thảo hoặc Ctrl+V để dán</span>
                     <input type="file" id="m-img-file-input" accept="image/*" multiple style="display: none;" />
+                    <input type="file" id="m-cropper-file-input" accept="image/*" style="display: none;" />
                   </div>
                 </div>
                 <!-- Attached Images Gallery -->
@@ -1707,6 +1711,79 @@
     </div>
   </div>
 
+  <!-- Modal: Image Cropper Studio (Cắt ảnh thông minh cho câu hỏi) -->
+  <div class="cropper-modal-overlay" id="modal-image-cropper" style="display: none;">
+    <div class="cropper-modal-card">
+      <!-- Header -->
+      <div class="cropper-modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">✂️</span>
+          <div>
+            <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: #f8fafc;">Cắt vùng ảnh đính kèm (Image Cropper Studio)</h4>
+            <span style="font-size: 11.5px; color: #94a3b8;">Kéo chuột hoặc ngón tay trên ảnh để chọn vùng hình vẽ, biểu đồ hoặc công thức cần chèn</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeCropperModal()" style="background: none; border: none; font-size: 22px; color: #94a3b8; cursor: pointer; padding: 2px 8px;" title="Đóng (Esc)">✕</button>
+      </div>
+
+      <!-- Controls Toolbar -->
+      <div class="cropper-toolbar">
+        <!-- Aspect Ratio Selection -->
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; color: #cbd5e1; font-weight: 600;">Tỷ lệ:</span>
+          <button type="button" class="btn btn-secondary btn-sm cropper-ratio-btn active" data-ratio="free" onclick="setCropperRatio('free', this)" style="font-size: 11.5px; padding: 3px 8px; background: #0284c7; color: white; border-color: #0284c7;">
+            Tự do
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm cropper-ratio-btn" data-ratio="1:1" onclick="setCropperRatio('1:1', this)" style="font-size: 11.5px; padding: 3px 8px; background: #334155; color: #cbd5e1; border-color: #475569;">
+            1:1 (Vuông)
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm cropper-ratio-btn" data-ratio="4:3" onclick="setCropperRatio('4:3', this)" style="font-size: 11.5px; padding: 3px 8px; background: #334155; color: #cbd5e1; border-color: #475569;">
+            4:3
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm cropper-ratio-btn" data-ratio="16:9" onclick="setCropperRatio('16:9', this)" style="font-size: 11.5px; padding: 3px 8px; background: #334155; color: #cbd5e1; border-color: #475569;">
+            16:9
+          </button>
+        </div>
+
+        <!-- Rotate & Reset Actions -->
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="rotateCropperImage()" title="Xoay ảnh 90 độ" style="font-size: 11.5px; padding: 3px 9px; background: #334155; color: #f8fafc; border-color: #475569;">
+            ↩️ Xoay 90°
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="resetCropToFull()" title="Chọn toàn bộ khung ảnh" style="font-size: 11.5px; padding: 3px 9px; background: #334155; color: #f8fafc; border-color: #475569;">
+            🔄 Chọn hết ảnh
+          </button>
+          <span id="cropper-dim-badge" style="font-size: 11.5px; color: #38bdf8; font-weight: 700; background: #0f172a; padding: 3px 8px; border-radius: 4px; border: 1px solid #334155; min-width: 90px; text-align: center;">
+            0 x 0 px
+          </span>
+        </div>
+      </div>
+
+      <!-- Viewport / Canvas Area -->
+      <div id="cropper-viewport" class="cropper-viewport-container">
+        <canvas id="cropper-canvas"></canvas>
+      </div>
+
+      <!-- Footer Action Buttons -->
+      <div class="cropper-modal-footer">
+        <div>
+          <span>💡 <strong>Mẹo:</strong> Kéo chuột trên ảnh để vẽ khung, kéo núm ở các góc/cạnh để đổi cỡ, hoặc kéo giữa khung để di chuyển.</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="closeCropperModal()" style="font-size: 12.5px; padding: 6px 14px; background: #334155; color: white; border-color: #475569;">
+            Hủy bỏ
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" id="btn-cropper-replace" onclick="applyCropAndSave(true)" style="font-size: 12.5px; padding: 6px 16px; font-weight: 700; background: #d97706; border-color: #b45309; display: none;">
+            ✂️ Cắt & Thay thế ảnh này
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" id="btn-cropper-save-new" onclick="applyCropAndSave(false)" style="font-size: 12.5px; padding: 6px 18px; font-weight: 700; background: #0284c7; border-color: #0284c7;">
+            ✂️ Cắt & Thêm vào câu hỏi
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Image Zoom & Pan Lightbox (Phóng to chi tiết ảnh đề thi) -->
   <div class="lightbox-modal" id="modal-image-zoom" style="display: none;">
     <div class="lightbox-content">
@@ -1803,6 +1880,9 @@
             <label style="font-size: 11.5px; font-weight: 600; color: #334155; margin-bottom: 3px; display: block;">OpenRouter API Key:</label>
             <div style="display: flex; gap: 8px;">
               <input type="password" id="ai-vision-openrouter-key" class="form-control" placeholder="sk-or-v1-..." style="font-size: 12px; flex: 1;" />
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-test-openrouter-connection" onclick="testAiVisionConnection('openrouter')" style="font-size: 11.5px; padding: 4px 10px; font-weight: 700; white-space: nowrap; background: #f0fdf4; color: #166534; border-color: #86efac;" title="Kiểm tra xem API Key OpenRouter có hoạt động và còn hạn mức không">
+                <span>🔌</span> Test kết nối
+              </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-scan-openrouter-models" onclick="scanLiveVisionModels('openrouter')" style="font-size: 11.5px; padding: 4px 10px; font-weight: 700; white-space: nowrap; background: #e0f2fe; color: #0369a1; border-color: #7dd3fc;" title="Gửi yêu cầu tới OpenRouter để lấy danh sách các model Vision mới nhất đang hoạt động">
                 <span>🔄</span> Quét Model Mới
               </button>
@@ -1814,10 +1894,10 @@
               <span id="ai-vision-model-scan-status" style="font-size: 11px; color: #0284c7; font-weight: 600;"></span>
             </div>
             <select id="ai-vision-openrouter-model" class="form-control" style="font-size: 12px;">
+              <option value="dots-studio/dots-3-note-preview:free">dots-studio/dots-3-note-preview:free (Note OCR Free ⭐ - Khuyên dùng)</option>
               <option value="google/gemma-4-26b-a4b-it:free">google/gemma-4-26b-a4b-it:free (Mới - Khuyên dùng)</option>
               <option value="google/gemma-4-31b-it:free">google/gemma-4-31b-it:free (Mới)</option>
               <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free (Omni Vision Free)</option>
-              <option value="dots-studio/dots-3-note-preview:free">dots-studio/dots-3-note-preview:free (Note OCR Free)</option>
               <option value="thinkingmachines/inkling-small:free">thinkingmachines/inkling-small:free</option>
             </select>
             <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0;">
@@ -1830,7 +1910,12 @@
         <div style="border: 1px solid #fed7aa; background: #fffbeb; border-radius: 8px; padding: 12px 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <strong style="color: #b45309; font-size: 13px;">2. OpenCode Direct (Zen API)</strong>
-            <span style="font-size: 11px; color: #78350f;">Kết nối trực tiếp opencode.ai/zen/v1</span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span style="font-size: 11px; color: #78350f;">opencode.ai/zen/v1</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-test-opencode-connection" onclick="testAiVisionConnection('opencode')" style="font-size: 11px; padding: 2px 8px; font-weight: 700; background: #fef3c7; color: #92400e; border-color: #fde68a;">
+                <span>🔌</span> Test
+              </button>
+            </div>
           </div>
           <div style="margin-bottom: 8px;">
             <label style="font-size: 11.5px; font-weight: 600; color: #334155; margin-bottom: 3px; display: block;">OpenCode API Key / Token:</label>
@@ -1847,18 +1932,38 @@
         </div>
 
         <!-- Custom / 9Router Box -->
-        <div style="border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; padding: 12px 14px;">
-          <strong style="color: #475569; font-size: 13px; display: block; margin-bottom: 8px;">3. Gateway Tùy chọn (9Router cục bộ nếu có)</strong>
-          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
-            <div>
-              <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block;">Base URL:</label>
-              <input type="text" id="ai-vision-custom-url" class="form-control" value="http://localhost:20128/v1" style="font-size: 11.5px;" />
-            </div>
-            <div>
-              <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block;">Tên Model:</label>
-              <input type="text" id="ai-vision-custom-model" class="form-control" value="opencode/free" style="font-size: 11.5px;" />
+        <div style="border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: 12px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="color: #334155; font-size: 13px;">3. Gateway Tùy chọn (9Router cục bộ / Ollama)</strong>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-test-custom-connection" onclick="testAiVisionConnection('custom')" style="font-size: 11.5px; padding: 3px 9px; font-weight: 700; background: #ecfdf5; color: #065f46; border-color: #a7f3d0;" title="Kiểm tra kết nối trực tiếp tới 9Router">
+                <span>🔌</span> Test connection
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-scan-custom-models" onclick="scan9RouterModels()" style="font-size: 11.5px; padding: 3px 9px; font-weight: 700; background: #e0f2fe; color: #0369a1; border-color: #bae6fd;" title="Lấy danh sách các model đang chạy trên 9Router">
+                <span>🔄</span> Quét model
+              </button>
             </div>
           </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+            <div>
+              <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">Base URL:</label>
+              <input type="text" id="ai-vision-custom-url" class="form-control" value="http://127.0.0.1:20129/v1" placeholder="http://127.0.0.1:20129/v1" style="font-size: 11.5px;" />
+            </div>
+            <div>
+              <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">API Key / Bearer Token (Tùy chọn):</label>
+              <input type="password" id="ai-vision-custom-key" class="form-control" placeholder="Nhập API key 9Router nếu có..." style="font-size: 11.5px;" />
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">Tên Model:</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="ai-vision-custom-model" class="form-control" value="openrouter/dots-studio/dots-3-note-preview:free" placeholder="vd: openrouter/dots-studio/dots-3-note-preview:free hoặc 9router" style="font-size: 11.5px; flex: 1;" />
+              <select id="ai-vision-custom-model-select" class="form-control" style="font-size: 11.5px; width: auto; max-width: 220px; display: none;" onchange="if(this.value){document.getElementById('ai-vision-custom-model').value=this.value;}">
+                <option value="">-- Chọn model 9Router --</option>
+              </select>
+            </div>
+          </div>
+          <div id="ai-vision-custom-test-status" style="margin-top: 6px; font-size: 11.5px; font-weight: 600; min-height: 16px;"></div>
         </div>
       </div>
 
@@ -1940,11 +2045,11 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.40"></script>
-  <script src="js/bank.js?v=1.0.40"></script>
-  <script src="js/exam_builder.js?v=1.0.40"></script>
-  <script src="js/collector.js?v=1.0.40"></script>
-  <script src="js/practice.js?v=1.0.40"></script>
+  <script src="js/app.js?v=1.0.41"></script>
+  <script src="js/bank.js?v=1.0.41"></script>
+  <script src="js/exam_builder.js?v=1.0.41"></script>
+  <script src="js/collector.js?v=1.0.41"></script>
+  <script src="js/practice.js?v=1.0.41"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>
@@ -2017,6 +2122,7 @@
       grid.innerHTML = manualImageUrls.map((url, i) => `
         <div class="m-img-thumb-wrapper" title="${url}">
           <img src="${url}" alt="Ảnh đính kèm ${i + 1}" onclick="window.open('${url}', '_blank')" />
+          <button type="button" class="m-img-crop-btn" onclick="openCropperForExistingImage(${i})" title="Cắt / Crop lại ảnh này">✂️</button>
           <button type="button" class="m-img-remove-btn" onclick="removeManualImage(${i})" title="Xóa ảnh này">✕</button>
         </div>
       `).join("");
@@ -2129,6 +2235,489 @@
         mImgFileInput.value = ""; // Reset to allow re-selecting same file
       });
     }
+
+    // Cropper file input change handler
+    const mCropperFileInput = document.getElementById("m-cropper-file-input");
+    if (mCropperFileInput) {
+      mCropperFileInput.addEventListener("change", (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          openCropperForNewFile(file);
+        }
+        mCropperFileInput.value = "";
+      });
+    }
+
+    // =========================================================================
+    // Image Cropper Studio Controller (Canvas Based)
+    // =========================================================================
+    const Cropper = {
+      modal: null,
+      canvas: null,
+      ctx: null,
+      img: null,
+      rotation: 0,
+      ratio: "free",
+      crop: { x: 0, y: 0, w: 0, h: 0 }, // in canvas pixel space
+      dispW: 0,
+      dispH: 0,
+      naturalW: 0,
+      naturalH: 0,
+      isDragging: false,
+      dragMode: null, // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e', 'new'
+      startX: 0,
+      startY: 0,
+      startCrop: null,
+      existingIndex: null, // index in manualImageUrls if editing
+      handleSize: 9
+    };
+
+    function initCropperElements() {
+      if (!Cropper.modal) {
+        Cropper.modal = document.getElementById("modal-image-cropper");
+        Cropper.canvas = document.getElementById("cropper-canvas");
+        if (Cropper.canvas) {
+          Cropper.ctx = Cropper.canvas.getContext("2d");
+          attachCropperCanvasEvents();
+        }
+      }
+    }
+
+    function openCropperModal() {
+      initCropperElements();
+      if (Cropper.modal) {
+        Cropper.modal.style.display = "flex";
+      }
+    }
+
+    function closeCropperModal() {
+      if (Cropper.modal) {
+        Cropper.modal.style.display = "none";
+      }
+      Cropper.isDragging = false;
+      Cropper.dragMode = null;
+    }
+    window.closeCropperModal = closeCropperModal;
+
+    function openCropperForNewFile(file) {
+      if (!file || !file.type.startsWith("image/")) {
+        showToast("Vui lòng chọn một tệp ảnh hợp lệ để cắt", "error");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setupCropperWithImageSource(e.target.result, null);
+      };
+      reader.readAsDataURL(file);
+    }
+    window.openCropperForNewFile = openCropperForNewFile;
+
+    function openCropperForExistingImage(index) {
+      if (index < 0 || index >= manualImageUrls.length) return;
+      const url = manualImageUrls[index];
+      setupCropperWithImageSource(url, index);
+    }
+    window.openCropperForExistingImage = openCropperForExistingImage;
+
+    function setupCropperWithImageSource(src, existingIndex) {
+      initCropperElements();
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        Cropper.img = img;
+        Cropper.rotation = 0;
+        Cropper.ratio = "free";
+        Cropper.existingIndex = (typeof existingIndex === "number") ? existingIndex : null;
+
+        // Reset ratio buttons
+        document.querySelectorAll(".cropper-ratio-btn").forEach(btn => {
+          if (btn.dataset.ratio === "free") {
+            btn.classList.add("active");
+            btn.style.background = "#0284c7";
+            btn.style.borderColor = "#0284c7";
+            btn.style.color = "white";
+          } else {
+            btn.classList.remove("active");
+            btn.style.background = "#334155";
+            btn.style.borderColor = "#475569";
+            btn.style.color = "#cbd5e1";
+          }
+        });
+
+        // Toggle "Replace" button visibility
+        const btnReplace = document.getElementById("btn-cropper-replace");
+        if (btnReplace) {
+          btnReplace.style.display = (Cropper.existingIndex !== null) ? "inline-block" : "none";
+        }
+
+        recalcCropperDimensions();
+        resetCropToFull();
+        openCropperModal();
+      };
+      img.onerror = () => {
+        showToast("Không thể tải ảnh vào công cụ cắt", "error");
+      };
+      img.src = src;
+    }
+
+    function recalcCropperDimensions() {
+      if (!Cropper.img || !Cropper.canvas) return;
+      const isRotated90 = (Cropper.rotation === 90 || Cropper.rotation === 270);
+      Cropper.naturalW = isRotated90 ? Cropper.img.naturalHeight : Cropper.img.naturalWidth;
+      Cropper.naturalH = isRotated90 ? Cropper.img.naturalWidth : Cropper.img.naturalHeight;
+
+      const maxViewW = Math.min(window.innerWidth * 0.85, 780);
+      const maxViewH = Math.min(window.innerHeight * 0.55, 460);
+
+      let scale = Math.min(maxViewW / Cropper.naturalW, maxViewH / Cropper.naturalH, 1.0);
+      Cropper.dispW = Math.round(Cropper.naturalW * scale);
+      Cropper.dispH = Math.round(Cropper.naturalH * scale);
+
+      Cropper.canvas.width = Cropper.dispW;
+      Cropper.canvas.height = Cropper.dispH;
+    }
+
+    function resetCropToFull() {
+      if (!Cropper.canvas) return;
+      const margin = 12;
+      Cropper.crop = {
+        x: margin,
+        y: margin,
+        w: Math.max(Cropper.dispW - margin * 2, 20),
+        h: Math.max(Cropper.dispH - margin * 2, 20)
+      };
+      applyRatioConstraint();
+      drawCropper();
+    }
+    window.resetCropToFull = resetCropToFull;
+
+    function rotateCropperImage() {
+      Cropper.rotation = (Cropper.rotation + 90) % 360;
+      recalcCropperDimensions();
+      resetCropToFull();
+    }
+    window.rotateCropperImage = rotateCropperImage;
+
+    function setCropperRatio(ratio, btnEl) {
+      Cropper.ratio = ratio;
+      document.querySelectorAll(".cropper-ratio-btn").forEach(btn => {
+        btn.classList.remove("active");
+        btn.style.background = "#334155";
+        btn.style.borderColor = "#475569";
+        btn.style.color = "#cbd5e1";
+      });
+      if (btnEl) {
+        btnEl.classList.add("active");
+        btnEl.style.background = "#0284c7";
+        btnEl.style.borderColor = "#0284c7";
+        btnEl.style.color = "white";
+      }
+      applyRatioConstraint();
+      drawCropper();
+    }
+    window.setCropperRatio = setCropperRatio;
+
+    function applyRatioConstraint() {
+      if (Cropper.ratio === "free" || !Cropper.crop) return;
+      let targetRatio = 1.0;
+      if (Cropper.ratio === "1:1") targetRatio = 1.0;
+      else if (Cropper.ratio === "4:3") targetRatio = 4.0 / 3.0;
+      else if (Cropper.ratio === "16:9") targetRatio = 16.0 / 9.0;
+
+      let newW = Cropper.crop.w;
+      let newH = newW / targetRatio;
+
+      if (newH > Cropper.dispH - Cropper.crop.y) {
+        newH = Cropper.dispH - Cropper.crop.y;
+        newW = newH * targetRatio;
+      }
+      if (newW > Cropper.dispW - Cropper.crop.x) {
+        newW = Cropper.dispW - Cropper.crop.x;
+        newH = newW / targetRatio;
+      }
+
+      Cropper.crop.w = Math.max(Math.round(newW), 20);
+      Cropper.crop.h = Math.max(Math.round(newH), 20);
+    }
+
+    function drawCropper() {
+      if (!Cropper.ctx || !Cropper.img) return;
+      const ctx = Cropper.ctx;
+      const w = Cropper.dispW;
+      const h = Cropper.dispH;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 1. Draw base image (with rotation)
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate((Cropper.rotation * Math.PI) / 180);
+      const isRot = (Cropper.rotation === 90 || Cropper.rotation === 270);
+      const drawW = isRot ? h : w;
+      const drawH = isRot ? w : h;
+      ctx.drawImage(Cropper.img, -drawW / 2, -drawH / 2, drawW, drawH);
+      ctx.restore();
+
+      const c = Cropper.crop;
+      if (!c || c.w <= 0 || c.h <= 0) return;
+
+      // 2. Dark overlay outside crop box
+      ctx.fillStyle = "rgba(15, 23, 42, 0.65)";
+      ctx.fillRect(0, 0, w, c.y);
+      ctx.fillRect(0, c.y + c.h, w, h - (c.y + c.h));
+      ctx.fillRect(0, c.y, c.x, c.h);
+      ctx.fillRect(c.x + c.w, c.y, w - (c.x + c.w), c.h);
+
+      // 3. Selection border
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(c.x, c.y, c.w, c.h);
+
+      // 4. Rule-of-thirds grid
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      // Verticals
+      ctx.moveTo(c.x + c.w / 3, c.y);
+      ctx.lineTo(c.x + c.w / 3, c.y + c.h);
+      ctx.moveTo(c.x + (2 * c.w) / 3, c.y);
+      ctx.lineTo(c.x + (2 * c.w) / 3, c.y + c.h);
+      // Horizontals
+      ctx.moveTo(c.x, c.y + c.h / 3);
+      ctx.lineTo(c.x + c.w, c.y + c.h / 3);
+      ctx.moveTo(c.x, c.y + (2 * c.h) / 3);
+      ctx.lineTo(c.x + c.w, c.y + (2 * c.h) / 3);
+      ctx.stroke();
+
+      // 5. Handles
+      const hs = Cropper.handleSize;
+      const handlePoints = [
+        { x: c.x, y: c.y },                          // nw
+        { x: c.x + c.w / 2, y: c.y },              // n
+        { x: c.x + c.w, y: c.y },                  // ne
+        { x: c.x + c.w, y: c.y + c.h / 2 },        // e
+        { x: c.x + c.w, y: c.y + c.h },            // se
+        { x: c.x + c.w / 2, y: c.y + c.h },        // s
+        { x: c.x, y: c.y + c.h },                  // sw
+        { x: c.x, y: c.y + c.h / 2 }               // w
+      ];
+
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#0284c7";
+      ctx.lineWidth = 2;
+      handlePoints.forEach(p => {
+        ctx.fillRect(p.x - hs / 2, p.y - hs / 2, hs, hs);
+        ctx.strokeRect(p.x - hs / 2, p.y - hs / 2, hs, hs);
+      });
+
+      // 6. Update dimension badge
+      const scaleX = Cropper.naturalW / Cropper.dispW;
+      const scaleH = Cropper.naturalH / Cropper.dispH;
+      const realW = Math.round(c.w * scaleX);
+      const realH = Math.round(c.h * scaleH);
+      const dimBadge = document.getElementById("cropper-dim-badge");
+      if (dimBadge) dimBadge.textContent = `${realW} × ${realH} px`;
+    }
+
+    function getCropperHandleAt(px, py) {
+      const c = Cropper.crop;
+      const hs = Cropper.handleSize + 6;
+      if (!c) return null;
+
+      const handles = {
+        nw: { x: c.x, y: c.y },
+        ne: { x: c.x + c.w, y: c.y },
+        sw: { x: c.x, y: c.y + c.h },
+        se: { x: c.x + c.w, y: c.y + c.h },
+        n:  { x: c.x + c.w / 2, y: c.y },
+        s:  { x: c.x + c.w / 2, y: c.y + c.h },
+        w:  { x: c.x, y: c.y + c.h / 2 },
+        e:  { x: c.x + c.w, y: c.y + c.h / 2 }
+      };
+
+      for (const [key, pt] of Object.entries(handles)) {
+        if (Math.abs(px - pt.x) <= hs && Math.abs(py - pt.y) <= hs) {
+          return key;
+        }
+      }
+
+      if (px >= c.x && px <= c.x + c.w && py >= c.y && py <= c.y + c.h) {
+        return "move";
+      }
+
+      return null;
+    }
+
+    function attachCropperCanvasEvents() {
+      const canvas = Cropper.canvas;
+      if (!canvas) return;
+
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: Math.max(0, Math.min(Cropper.dispW, clientX - rect.left)),
+          y: Math.max(0, Math.min(Cropper.dispH, clientY - rect.top))
+        };
+      };
+
+      const startDrag = (e) => {
+        const pos = getPos(e);
+        const handle = getCropperHandleAt(pos.x, pos.y);
+        Cropper.isDragging = true;
+        Cropper.startX = pos.x;
+        Cropper.startY = pos.y;
+        Cropper.startCrop = { ...Cropper.crop };
+
+        if (handle) {
+          Cropper.dragMode = handle;
+        } else {
+          Cropper.dragMode = "new";
+          Cropper.crop = { x: pos.x, y: pos.y, w: 10, h: 10 };
+          Cropper.startCrop = { ...Cropper.crop };
+        }
+        e.preventDefault();
+      };
+
+      const doDrag = (e) => {
+        if (!Cropper.isDragging) {
+          const pos = getPos(e);
+          const handle = getCropperHandleAt(pos.x, pos.y);
+          const cursors = {
+            nw: "nwse-resize", se: "nwse-resize",
+            ne: "nesw-resize", sw: "nesw-resize",
+            n: "ns-resize", s: "ns-resize",
+            w: "ew-resize", e: "ew-resize",
+            move: "move"
+          };
+          canvas.style.cursor = handle ? (cursors[handle] || "crosshair") : "crosshair";
+          return;
+        }
+
+        const pos = getPos(e);
+        const dx = pos.x - Cropper.startX;
+        const dy = pos.y - Cropper.startY;
+        const sc = Cropper.startCrop;
+        let c = { ...Cropper.crop };
+
+        if (Cropper.dragMode === "move") {
+          c.x = Math.max(0, Math.min(Cropper.dispW - sc.w, sc.x + dx));
+          c.y = Math.max(0, Math.min(Cropper.dispH - sc.h, sc.y + dy));
+          c.w = sc.w;
+          c.h = sc.h;
+        } else if (Cropper.dragMode === "new") {
+          const left = Math.min(Cropper.startX, pos.x);
+          const top = Math.min(Cropper.startY, pos.y);
+          c.x = left;
+          c.y = top;
+          c.w = Math.abs(pos.x - Cropper.startX);
+          c.h = Math.abs(pos.y - Cropper.startY);
+        } else {
+          // Handle resize
+          if (Cropper.dragMode.includes("e")) c.w = Math.max(20, Math.min(Cropper.dispW - sc.x, sc.w + dx));
+          if (Cropper.dragMode.includes("s")) c.h = Math.max(20, Math.min(Cropper.dispH - sc.y, sc.h + dy));
+          if (Cropper.dragMode.includes("w")) {
+            const newW = Math.max(20, sc.w - dx);
+            c.x = sc.x + (sc.w - newW);
+            c.w = newW;
+          }
+          if (Cropper.dragMode.includes("n")) {
+            const newH = Math.max(20, sc.h - dy);
+            c.y = sc.y + (sc.h - newH);
+            c.h = newH;
+          }
+        }
+
+        Cropper.crop = c;
+        if (Cropper.ratio !== "free" && Cropper.dragMode !== "move") {
+          applyRatioConstraint();
+        }
+        drawCropper();
+        e.preventDefault();
+      };
+
+      const endDrag = () => {
+        Cropper.isDragging = false;
+        Cropper.dragMode = null;
+      };
+
+      canvas.addEventListener("mousedown", startDrag);
+      window.addEventListener("mousemove", doDrag);
+      window.addEventListener("mouseup", endDrag);
+
+      canvas.addEventListener("touchstart", startDrag, { passive: false });
+      window.addEventListener("touchmove", doDrag, { passive: false });
+      window.addEventListener("touchend", endDrag);
+    }
+
+    async function applyCropAndSave(replaceOriginal = false) {
+      if (!Cropper.img || !Cropper.crop) return;
+      const c = Cropper.crop;
+      if (c.w < 10 || c.h < 10) {
+        showToast("Vùng cắt quá nhỏ, vui lòng chọn lại", "warning");
+        return;
+      }
+
+      const scaleX = Cropper.naturalW / Cropper.dispW;
+      const scaleH = Cropper.naturalH / Cropper.dispH;
+      const cropX = Math.round(c.x * scaleX);
+      const cropY = Math.round(c.y * scaleH);
+      const cropW = Math.round(c.w * scaleX);
+      const cropH = Math.round(c.h * scaleH);
+
+      // Create offscreen canvas at full resolution
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = cropW;
+      offCanvas.height = cropH;
+      const offCtx = offCanvas.getContext("2d");
+
+      // Draw oriented image onto offscreen canvas shifted by crop coordinates
+      offCtx.save();
+      offCtx.translate(-cropX, -cropY);
+
+      if (Cropper.rotation === 90) {
+        offCtx.translate(Cropper.naturalW, 0);
+        offCtx.rotate((90 * Math.PI) / 180);
+        offCtx.drawImage(Cropper.img, 0, 0);
+      } else if (Cropper.rotation === 180) {
+        offCtx.translate(Cropper.naturalW, Cropper.naturalH);
+        offCtx.rotate((180 * Math.PI) / 180);
+        offCtx.drawImage(Cropper.img, 0, 0);
+      } else if (Cropper.rotation === 270) {
+        offCtx.translate(0, Cropper.naturalH);
+        offCtx.rotate((270 * Math.PI) / 180);
+        offCtx.drawImage(Cropper.img, 0, 0);
+      } else {
+        offCtx.drawImage(Cropper.img, 0, 0);
+      }
+      offCtx.restore();
+
+      showToast("⏳ Đang lưu và tải ảnh đã cắt lên máy chủ...", "info");
+
+      offCanvas.toBlob(async (blob) => {
+        if (!blob) {
+          showToast("Lỗi xử lý ảnh cắt", "error");
+          return;
+        }
+        const file = new File([blob], `cropped_${Date.now()}.jpg`, { type: "image/jpeg" });
+        const uploadedUrl = await uploadImageToServer(file);
+
+        if (uploadedUrl) {
+          if (replaceOriginal && typeof Cropper.existingIndex === "number" && Cropper.existingIndex < manualImageUrls.length) {
+            manualImageUrls[Cropper.existingIndex] = uploadedUrl;
+            showToast("✅ Đã cắt và thay thế ảnh gốc thành công!", "success");
+          } else {
+            manualImageUrls.push(uploadedUrl);
+            showToast("✅ Đã cắt và chèn ảnh mới vào câu hỏi!", "success");
+          }
+          renderManualImageGallery();
+          updateManualPreviewWithImages();
+          closeCropperModal();
+        }
+      }, "image/jpeg", 0.92);
+    }
+    window.applyCropAndSave = applyCropAndSave;
 
     // "Dán ảnh" button — focus textarea so Ctrl+V works
     const btnPasteImg = document.getElementById("btn-paste-img");

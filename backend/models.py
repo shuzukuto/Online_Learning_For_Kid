@@ -237,3 +237,9 @@ class AiVisionSettingsRequest(BaseModel):
     custom_vision_key: Optional[str] = None
     custom_vision_model: Optional[str] = None
 
+class AiVisionTestConnectionRequest(BaseModel):
+    provider: str = Field("custom", description="Nền tảng kiểm tra: 'openrouter', 'opencode', 'custom'")
+    base_url: Optional[str] = Field(None, description="Base URL endpoint cho custom gateway (vd: http://127.0.0.1:20129/v1)")
+    api_key: Optional[str] = Field(None, description="API Key hoặc Bearer Token")
+    model: Optional[str] = Field(None, description="Tên model kiểm tra")
+

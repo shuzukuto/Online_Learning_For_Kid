@@ -1,5 +1,5 @@
 // EduQuest Pro - Core Application & Router
-const APP_VERSION = "v1.0.36";
+const APP_VERSION = "v1.0.37";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
