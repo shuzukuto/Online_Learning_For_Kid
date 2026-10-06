@@ -530,6 +530,32 @@ def extract_questions_from_image(
     engine_used = "rapid"
     opt_line_re = re.compile(r'^(?:\(?([A-Ea-e])[\.:\)]\s*|([A-Ea-e])(?=\d|[A-Z][a-z]))')
 
+    # Engine Selection: AI Vision (OpenRouter / OpenCode)
+    if engine.lower() in ("ai_vision", "vision", "opencode", "openrouter"):
+        try:
+            import asyncio
+            from backend.ai_vision import extract_questions_with_ai_vision
+            
+            def _call_vision():
+                return asyncio.run(extract_questions_with_ai_vision(image_bytes, filename=filename, media_url=media_url))
+
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    ai_qs, engine_used_name = pool.submit(_call_vision).result()
+            else:
+                ai_qs, engine_used_name = _call_vision()
+
+            if ai_qs:
+                return ai_qs
+        except Exception as e:
+            print(f"[extract_questions_from_image] AI Vision attempt failed: {e}. Falling back to standard OCR...")
+
     # Engine Selection: VietOCR ONNX vs RapidOCR
     if engine.lower() in ("vietocr", "deepdoc_vietocr", "vietocr_onnx"):
         try:

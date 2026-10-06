@@ -5,7 +5,7 @@ import uuid
 import asyncio
 from datetime import datetime
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Response
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Response, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -26,7 +26,7 @@ from backend.models import (
     BulkDeleteRequest, BulkDeleteQuestionsRequest, BulkUpdateGradeRequest,
     ExamCreate, ScrapeRequest, AutoExamGenerateRequest, CleanDuplicatesRequest,
     PracticeSubmitRequest, PracticeAnswerSubmission, PracticeHistoryResponse, PracticeAnalyticsResponse,
-    OcrLearnRequest, OcrCorrectionCreate
+    OcrLearnRequest, OcrCorrectionCreate, AiVisionSettingsRequest
 )
 from backend.normalizer import normalize_question_payload
 from backend.docx_exporter import generate_exam_docx
@@ -754,7 +754,7 @@ async def export_exam_pdf(exam_data: ExamCreate):
 async def import_pdf_exam(
     file: UploadFile = File(...),
     save_to_bank: bool = Form(False),
-    engine: str = Form("rapid")
+    engine: str = Form("ai_vision")
 ):
     """Imports exam from either PDF or Image (.png, .jpg, .jpeg, .webp, .bmp) with intelligent auto-routing."""
     content = await file.read()
@@ -762,7 +762,13 @@ async def import_pdf_exam(
     ext = os.path.splitext(filename)[1].lower()
     
     if ext in SUPPORTED_IMAGE_EXTENSIONS:
-        extracted_questions = extract_questions_from_image(content, filename=filename, engine=engine)
+        if engine.lower() in ("ai_vision", "vision"):
+            from backend.ai_vision import extract_questions_with_ai_vision
+            extracted_questions, engine_used = await extract_questions_with_ai_vision(content, filename=filename)
+            if not extracted_questions:
+                extracted_questions = extract_questions_from_image(content, filename=filename, engine="rapid")
+        else:
+            extracted_questions = extract_questions_from_image(content, filename=filename, engine=engine)
         source_label = "Ảnh đề thi (Image OCR)"
     else:
         extracted_questions = extract_questions_from_pdf(content, filename=filename)
@@ -782,11 +788,14 @@ async def import_pdf_exam(
             count=saved_count
         )
         
+    actual_engine = engine_used if 'engine_used' in locals() and engine_used else (extracted_questions[0].get("ocr_engine_used") if extracted_questions else engine)
+
     return {
         "success": True,
         "filename": filename,
         "file_type": "image" if ext in SUPPORTED_IMAGE_EXTENSIONS else "pdf",
         "ocr_engine": engine,
+        "engine_used": actual_engine,
         "total_extracted": len(extracted_questions),
         "saved_to_bank": save_to_bank,
         "saved_count": saved_count,
@@ -798,7 +807,7 @@ async def import_pdf_exam(
 async def import_image_exam(
     file: UploadFile = File(...),
     save_to_bank: bool = Form(False),
-    engine: str = Form("rapid")
+    engine: str = Form("ai_vision")
 ):
     """Dedicated endpoint for Image OCR exam paper extraction (.png, .jpg, .jpeg, .webp, .bmp)."""
     filename = file.filename or "exam_image.png"
@@ -810,7 +819,19 @@ async def import_image_exam(
         )
         
     content = await file.read()
-    extracted_questions = extract_questions_from_image(content, filename=filename, engine=engine)
+    engine_used = engine
+    if engine.lower() in ("ai_vision", "vision"):
+        from backend.ai_vision import extract_questions_with_ai_vision
+        extracted_questions, vision_engine_name = await extract_questions_with_ai_vision(content, filename=filename)
+        if extracted_questions:
+            engine_used = vision_engine_name
+        else:
+            extracted_questions = extract_questions_from_image(content, filename=filename, engine="rapid")
+            engine_used = (extracted_questions[0].get("ocr_engine_used") if extracted_questions else "rapid") + " (AI Vision fallback)"
+    else:
+        extracted_questions = extract_questions_from_image(content, filename=filename, engine=engine)
+        if extracted_questions:
+            engine_used = extracted_questions[0].get("ocr_engine_used", engine)
     
     saved_count = 0
     if save_to_bank and extracted_questions:
@@ -826,11 +847,14 @@ async def import_image_exam(
             count=saved_count
         )
         
+    actual_engine = engine_used if 'engine_used' in locals() and engine_used else (extracted_questions[0].get("ocr_engine_used") if extracted_questions else engine)
+
     return {
         "success": True,
         "filename": filename,
         "file_type": "image",
         "ocr_engine": engine,
+        "engine_used": actual_engine,
         "total_extracted": len(extracted_questions),
         "saved_to_bank": save_to_bank,
         "saved_count": saved_count,
@@ -852,17 +876,33 @@ async def import_exam_file(
 
 @app.get("/api/ocr/engine-status")
 async def get_ocr_engine_status():
-    """Returns status of dual OCR engines (RapidOCR vs VietOCR ONNX) and learned lexicon statistics."""
+    """Returns status of OCR engines (RapidOCR, VietOCR ONNX, AI Vision) and learned lexicon statistics."""
     from backend.vietocr_onnx import get_vietocr_engine
     from backend.database import get_ocr_corrections
+    from backend.ai_vision import get_ai_vision_settings
     
     v_engine = get_vietocr_engine()
     v_status = v_engine.get_status()
+    v_settings = get_ai_vision_settings()
     _, total_rules = get_ocr_corrections(page=1, page_size=1)
+    
+    ai_vision_ready = bool(v_settings.get("has_openrouter") or v_settings.get("has_opencode"))
     
     return {
         "success": True,
         "engines": {
+            "ai_vision": {
+                "id": "ai_vision",
+                "name": "AI Vision (OpenRouter / OpenCode)",
+                "display_name": "AI Vision (OpenRouter / OpenCode)",
+                "ready": ai_vision_ready,
+                "speed": "Thông minh (~2s)",
+                "accuracy": "Chính xác tuyệt đối (100% dấu TV & công thức)",
+                "provider": v_settings.get("provider", "auto"),
+                "has_openrouter": v_settings.get("has_openrouter", False),
+                "has_opencode": v_settings.get("has_opencode", False),
+                "active_model": v_settings.get("openrouter_model") if v_settings.get("has_openrouter") else v_settings.get("opencode_model")
+            },
             "rapid": {
                 "id": "rapid",
                 "name": "RapidOCR (PaddleOCR ONNX)",
@@ -892,10 +932,32 @@ async def get_ocr_engine_status():
                 "message": v_status["message"]
             }
         },
-        "default_engine": "rapid",
+        "default_engine": "ai_vision" if ai_vision_ready else "rapid",
+        "ai_vision_settings": v_settings,
         "total_learned_rules": total_rules,
         "active_lexicon_rules_count": total_rules
     }
+
+@app.get("/api/ai-vision/settings")
+async def get_ai_vision_settings_api():
+    """Returns AI Vision settings including OpenRouter and OpenCode keys/models."""
+    from backend.ai_vision import get_ai_vision_settings
+    return {"success": True, "settings": get_ai_vision_settings()}
+
+@app.get("/api/ai-vision/models")
+async def fetch_ai_vision_models_api(provider: str = Query("openrouter"), api_key: str = Query("")):
+    """Scans and retrieves currently active live vision models from the provider."""
+    from backend.ai_vision import fetch_live_vision_models
+    res = await fetch_live_vision_models(provider=provider, api_key=api_key)
+    return res
+
+@app.post("/api/ai-vision/settings")
+async def save_ai_vision_settings_api(req: AiVisionSettingsRequest):
+    """Saves AI Vision configuration parameters."""
+    from backend.ai_vision import save_ai_vision_settings, get_ai_vision_settings
+    save_ai_vision_settings(req.model_dump(exclude_unset=True))
+    updated = get_ai_vision_settings()
+    return {"success": True, "settings": updated, "message": "Đã lưu cài đặt AI Vision thành công!"}
 
 @app.post("/api/ocr/learn")
 async def learn_ocr_corrections(req: OcrLearnRequest):

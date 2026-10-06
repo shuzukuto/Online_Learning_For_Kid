@@ -227,3 +227,13 @@ class OcrCorrectionCreate(BaseModel):
     correct_text: str = Field(..., description="Từ/cụm từ thay thế đúng")
     source: Optional[str] = "manual_rule"
 
+class AiVisionSettingsRequest(BaseModel):
+    ai_vision_provider: Optional[str] = "auto"
+    openrouter_api_key: Optional[str] = None
+    openrouter_model: Optional[str] = None
+    opencode_api_key: Optional[str] = None
+    opencode_model: Optional[str] = None
+    custom_vision_url: Optional[str] = None
+    custom_vision_key: Optional[str] = None
+    custom_vision_model: Optional[str] = None
+

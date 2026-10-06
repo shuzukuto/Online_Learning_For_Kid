@@ -2,6 +2,68 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.0.36] - 2026-10-06 19:05:00
+
+### User Request
+> trong "Cài đặt AI" thêm nút quét model để cập nhật model mới nhất dùng được => User chọn model để bot tương tác dữ liệu
+
+### Added
+- **Tinh nang Quet Model Truc tiep (Live Vision Model Discovery)**:
+  - Nut **"🔄 Quet Model Moi"** trong Modal "⚙️ Cai dat AI Vision".
+  - Endpoint moi `GET /api/ai-vision/models?provider=...&api_key=...` tu dong ket noi OpenRouter API de quet toan bo danh sach cac model Multimodal/Vision dang hoat dong.
+  - Tu dong phan loai va sap xep: Nhom model **Mien phi 0đ (Free & Recommended ⭐)** len dau danh sach, theo sau la cac model thu phi.
+  - Hien thi trang thai quet truc tiep (so luong model tim thay, so model 0đ).
+  - Nguoi dung chi can bam nut quet, he thong se cap nhat ngay lap tuc dropdown de chon model ung y nhat de bot tuong tac.
+
+### Changed
+- **Cache Buster**: Nang tu `?v=1.0.39` len `?v=1.0.40`.
+- **App Version**: Nang tu `v1.0.35` len `v1.0.36`.
+
+### Files touched
+- `backend/ai_vision.py` (ham fetch_live_vision_models)
+- `backend/app.py` (endpoint GET /api/ai-vision/models)
+- `frontend/index.html` (them nut Quet Model trong modal, bump version badge v1.0.36, cache buster ?v=1.0.40)
+- `frontend/js/collector.js` (ham scanLiveVisionModels, populate options theo group)
+- `frontend/js/app.js` (bump APP_VERSION v1.0.36)
+- `changelog.md`
+
+## [v1.0.35] - 2026-10-06 17:15:00
+
+### User Request
+> Sử dụng các model miễn phí của OpenRouter, kết nối trực tiếp với các model của OpenCode không qua 9router để hoàn thiện tính năng OCR Tiếng Việt
+
+### Added
+- **Động cơ AI Vision OCR Trực tiếp (`backend/ai_vision.py`)**:
+  - Kết nối trực tiếp không qua proxy tới **OpenRouter** (`https://openrouter.ai/api/v1`) với các model Vision miễn phí: `google/gemini-2.0-flash-exp:free`, `qwen/qwen-2-vl-72b-instruct:free`, `meta-llama/llama-3.2-11b-vision-instruct:free`, `mistralai/pixtral-12b:free`.
+  - Kết nối trực tiếp tới **OpenCode Zen API** (`https://opencode.ai/zen/v1`) với các model Vision `gemini-3.6-flash`, `gemini-2.5-flash`, `claude-sonnet-4-5`.
+  - Tự động điều phối Fallback Chain: chuyển model kế tiếp khi gặp rate limit (HTTP 429) hoặc lỗi mạng.
+  - Bộ đệm SHA-256 hash ảnh trên RAM giúp tránh gọi lại API khi bóc tách cùng ảnh, tiết kiệm hạn mức 0đ.
+  - Tối ưu tiền xử lý ảnh Lanczos giữ nguyên độ nét chữ tiếng Việt và công thức toán học.
+  - Prompt thông minh dành riêng cho đề thi học sinh: nhận diện tự động MCQ A/B/C/D, nhận diện ô màu xanh lá/tick xanh là đáp án đúng, chuyển công thức toán sang LaTeX `$x^2$`, lọc sạch rác giao diện điện thoại.
+- **API Endpoints Mới (`backend/app.py`)**:
+  - `GET /api/ai-vision/settings`: Lấy cấu hình các nhà cung cấp, model và trạng thái kết nối.
+  - `POST /api/ai-vision/settings`: Cập nhật cấu hình lưu trực tiếp vào bảng `system_config` của SQLite.
+  - Tích hợp `ai_vision` làm engine ưu tiên hàng đầu trong `/api/ocr/engine-status`, `/api/import/image`, `/api/import/exam-file`.
+- **Giao diện Người dùng Web (`frontend/index.html` & `frontend/js/collector.js`)**:
+  - Bổ sung tùy chọn `✨ AI Vision (OpenRouter / OpenCode)` làm mặc định trong menu chọn động cơ OCR.
+  - Thêm nút **⚙️ Cài đặt AI** và Hộp thoại cấu hình trực tiếp API Key, Model selection.
+
+### Changed
+- **Cache Buster**: Nâng từ `?v=1.0.37` lên `?v=1.0.38`.
+- **App Version**: Nâng từ `v1.0.34` lên `v1.0.35`.
+
+### Files touched
+- `backend/ai_vision.py` (mới)
+- `backend/app.py`
+- `backend/database.py`
+- `backend/models.py`
+- `backend/pdf_extractor.py`
+- `frontend/index.html` (bump version badge v1.0.35, cache buster ?v=1.0.38)
+- `frontend/js/app.js` (bump APP_VERSION v1.0.35)
+- `frontend/js/collector.js`
+- `test_app.py`
+- `changelog.md`
+
 ## [v1.0.34] - 2026-10-06 15:40:00
 
 ### User Request

@@ -8,9 +8,9 @@ Tài liệu này là **đặc tả thiết kế còn hiệu lực** của hệ t
 
 Hệ thống hoạt động theo mô hình Hybrid phân tán:
 1. **Phiên bản chuẩn hóa toàn diện**:
-   - **Web App**: `v1.0.33` (hien thi dong bo tai `frontend/index.html` va `frontend/js/app.js`).
-   - **Chrome Extension**: `v1.3.15` (dong bo 100% tren `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
-   - **Cache Buster**: `?v=1.0.36` tren tat ca lien ket tai nguyen tinh (CSS, JS).
+   - **Web App**: `v1.0.35` (hien thi dong bo tai `frontend/index.html` va `frontend/js/app.js`).
+   - **Chrome Extension**: `v1.3.17` (dong bo 100% tren `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
+   - **Cache Buster**: `?v=1.0.38` tren tat ca lien ket tai nguyen tinh (CSS, JS).
    - **Nguyên tắc loại trừ chuỗi cũ**: Tuyệt đối không để tồn tại bất kỳ phiên bản lỗi thời nào (`v1.3.0`, `v1.3.11`, `v1.3.12`, `v1.3.14`) trong toàn bộ mã nguồn.
 2. **Backend Engine**: FastAPI (Python 3.10+) chạy tại `http://127.0.0.1:8000`.
    - Cơ sở dữ liệu: SQLite (`data/questions.db`).

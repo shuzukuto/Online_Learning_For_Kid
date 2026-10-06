@@ -1,5 +1,5 @@
 // EduQuest Pro - Core Application & Router
-const APP_VERSION = "v1.0.34";
+const APP_VERSION = "v1.0.36";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
@@ -468,6 +468,11 @@ function broadcastNewQuestions(count, source) {
 
 // Init when page loads
 document.addEventListener("DOMContentLoaded", () => {
+  // Sync APP_VERSION to all version badges & sidebar footer
+  document.querySelectorAll(".app-version-badge").forEach(el => el.textContent = APP_VERSION);
+  const sidebarVer = document.getElementById("sidebar-version-tag");
+  if (sidebarVer) sidebarVer.textContent = `Phiên bản: ${APP_VERSION}`;
+
   // Question Bank starts with all grades, all subjects, all platforms, 50 items per page
   State.filters.grade = "";
   State.filters.platform = "all";

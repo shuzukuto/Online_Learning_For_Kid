@@ -287,7 +287,7 @@ def test_full_pipeline():
     print("   => Tự động nắn chỉnh subject 'english' sai lệch về 'vietnamese' thành công!")
 
 
-    print("\n16. Kiểm tra Tính Đồng nhất Phiên bản Toàn hệ thống (Extension v1.3.16, App v1.0.33, Cache Buster ?v=1.0.36)...")
+    print("\n16. Kiểm tra Tính Đồng nhất Phiên bản Toàn hệ thống (Extension v1.3.17, App v1.0.35, Cache Buster ?v=1.0.38)...")
     ext_files = [
         "extension/manifest.json",
         "extension/background.js",
@@ -300,19 +300,19 @@ def test_full_pipeline():
         assert os.path.exists(ef), f"Tệp extension {ef} không tồn tại!"
         with open(ef, "r", encoding="utf-8") as f:
             content = f.read()
-        assert ("1.3.16" in content or "1.3.15" in content), f"Tệp {ef} thiếu phiên bản v1.3.15 hoặc v1.3.16!"
+        assert any(v in content for v in ["1.3.17", "1.3.16", "1.3.15"]), f"Tệp {ef} thiếu phiên bản v1.3.17 hoặc v1.3.16!"
         for obsolete in ["1.3.0", "1.3.11", "1.3.12", "1.3.14"]:
             assert obsolete not in content, f"Tệp {ef} còn sót phiên bản cũ {obsolete}!"
-    print("   => Tiện ích Extension đồng bộ v1.3.15/v1.3.16 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
+    print("   => Tiện ích Extension đồng bộ v1.3.16/v1.3.17 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
 
     with open("frontend/index.html", "r", encoding="utf-8") as f:
         index_html = f.read()
     with open("frontend/js/app.js", "r", encoding="utf-8") as f:
         app_js = f.read()
-    assert "1.0.33" in index_html, "frontend/index.html thiếu phiên bản Web App v1.0.33!"
-    assert "1.0.33" in app_js, "frontend/js/app.js thiếu phiên bản Web App v1.0.33!"
-    assert "?v=1.0.36" in index_html, "frontend/index.html thiếu Cache Buster ?v=1.0.36!"
-    print("   => Web App đồng bộ v1.0.33 và Cache Buster ?v=1.0.36 chính xác!")
+    assert ("1.0.35" in index_html or "1.0.34" in index_html), "frontend/index.html thiếu phiên bản Web App v1.0.35!"
+    assert ("1.0.35" in app_js or "1.0.34" in app_js), "frontend/js/app.js thiếu phiên bản Web App v1.0.35!"
+    assert ("?v=1.0.38" in index_html or "?v=1.0.37" in index_html), "frontend/index.html thiếu Cache Buster ?v=1.0.38!"
+    print("   => Web App đồng bộ v1.0.35 và Cache Buster chính xác!")
 
     print("\n17. Kiểm tra Bộ Thẩm định Normalizer & Phân biệt Dấu thanh 'Khoa học' vs 'Khóa học'...")
     # 17.1 Science questions with "khoa học" / "truyện khoa học" must be accepted

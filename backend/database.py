@@ -1881,4 +1881,29 @@ def clear_all_ocr_corrections() -> int:
     finally:
         conn.close()
 
+def get_system_config(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Retrieves a configuration value from system_config table."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT value FROM system_config WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            return row[0]
+        return default
+    except Exception:
+        return default
+    finally:
+        conn.close()
+
+def set_system_config(key: str, value: str) -> None:
+    """Sets or updates a configuration value in system_config table."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?)", (key, str(value)))
+        conn.commit()
+    finally:
+        conn.close()
+
 

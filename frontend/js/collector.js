@@ -313,9 +313,16 @@ async function processSelectedFilesOcr() {
       loadingDesc.textContent = `Đang nhận diện văn bản (OCR), phân loại khối lớp và trích xuất phương án...`;
     }
 
-    appendOcrLog(`⏳ [Tệp ${i + 1}/${totalFiles}] Đang gửi '${file.name}' (${(file.size / 1024).toFixed(1)} KB) tới máy chủ...`, "upload");
+    const ocrEngine = document.getElementById("ocr-engine-select")?.value || "ai_vision";
+    const engineLabels = {
+      "ai_vision": "AI Vision (Trực quan Đa tầng)",
+      "rapid": "RapidOCR (PaddleOCR ONNX)",
+      "vietocr": "VietOCR ONNX (Chuyên sâu)"
+    };
+    const engineLabel = engineLabels[ocrEngine] || ocrEngine;
 
-    const ocrEngine = document.getElementById("ocr-engine-select")?.value || "rapid";
+    appendOcrLog(`⏳ [Tệp ${i + 1}/${totalFiles}] Đang gửi '${file.name}' (${(file.size / 1024).toFixed(1)} KB) | Động cơ chọn: ${engineLabel}...`, "upload");
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("save_to_bank", "false");
@@ -339,9 +346,10 @@ async function processSelectedFilesOcr() {
 
       const data = await res.json();
       const qList = (data && (data.preview_questions || data.questions)) ? (data.preview_questions || data.questions) : [];
+      const engineReported = data.engine_used || (qList[0] && qList[0].ocr_engine_used) || data.ocr_engine || ocrEngine;
 
       if (qList.length > 0) {
-        appendOcrLog(`✅ [Tệp ${i + 1}/${totalFiles}] '${file.name}' bóc tách thành công ${qList.length} câu hỏi (${latency}s)!`, "success");
+        appendOcrLog(`✅ [Tệp ${i + 1}/${totalFiles}] '${file.name}' bóc tách thành công ${qList.length} câu hỏi (${latency}s) [Động cơ: ${engineReported}]!`, "success");
         qList.forEach(q => {
           allExtractedQuestions.push({
             ...q,
@@ -354,7 +362,7 @@ async function processSelectedFilesOcr() {
           }
         });
       } else {
-        appendOcrLog(`⚠️ [Tệp ${i + 1}/${totalFiles}] '${file.name}' (${latency}s) không tìm thấy khối câu hỏi hợp lệ.`, "warning");
+        appendOcrLog(`⚠️ [Tệp ${i + 1}/${totalFiles}] '${file.name}' (${latency}s) [Động cơ: ${engineReported}] không tìm thấy khối câu hỏi hợp lệ.`, "warning");
       }
     } catch (err) {
       console.error(`Error processing file ${file.name}:`, err);
@@ -416,7 +424,8 @@ function startOcrBatchVerification(questions, images) {
 
   const modeBadge = document.getElementById("editor-mode-badge");
   if (modeBadge) {
-    modeBadge.textContent = `CHẾ ĐỘ: ĐÍNH CHÍNH & LƯU BÓC TÁCH OCR (${questions.length} CÂU)`;
+    const firstQEngine = (questions[0] && questions[0].ocr_engine_used) || "OCR";
+    modeBadge.textContent = `CHẾ ĐỘ: ĐÍNH CHÍNH & LƯU BÓC TÁCH [Động cơ: ${firstQEngine}] (${questions.length} CÂU)`;
     modeBadge.style.background = "#eff6ff";
     modeBadge.style.color = "#1d4ed8";
   }
@@ -2252,6 +2261,165 @@ async function clearAllOcrLexiconRules() {
   }
 }
 window.clearAllOcrLexiconRules = clearAllOcrLexiconRules;
+
+// ============================================================================
+// AI Vision (OpenRouter & OpenCode) Configuration Modal
+// ============================================================================
+
+async function openAiVisionModal() {
+  const modal = document.getElementById("modal-ai-vision-config");
+  if (modal) {
+    modal.style.display = "flex";
+    await loadAiVisionSettings();
+  }
+}
+window.openAiVisionModal = openAiVisionModal;
+
+function closeAiVisionModal() {
+  const modal = document.getElementById("modal-ai-vision-config");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+window.closeAiVisionModal = closeAiVisionModal;
+
+async function loadAiVisionSettings() {
+  try {
+    const res = await fetch(`${API_BASE}/ai-vision/settings`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const s = data.settings || {};
+
+    const providerSelect = document.getElementById("ai-vision-provider-select");
+    if (providerSelect && s.provider) providerSelect.value = s.provider;
+
+    const orKey = document.getElementById("ai-vision-openrouter-key");
+    if (orKey) orKey.value = s.openrouter_api_key || "";
+
+    const orModel = document.getElementById("ai-vision-openrouter-model");
+    if (orModel && s.openrouter_model) orModel.value = s.openrouter_model;
+
+    const ocKey = document.getElementById("ai-vision-opencode-key");
+    if (ocKey) ocKey.value = s.opencode_api_key || "";
+
+    const ocModel = document.getElementById("ai-vision-opencode-model");
+    if (ocModel && s.opencode_model) ocModel.value = s.opencode_model;
+
+    const customUrl = document.getElementById("ai-vision-custom-url");
+    if (customUrl) customUrl.value = s.custom_vision_url || "http://localhost:20128/v1";
+
+    const customModel = document.getElementById("ai-vision-custom-model");
+    if (customModel) customModel.value = s.custom_vision_model || "opencode/free";
+  } catch (err) {
+    console.debug("Could not load AI Vision settings:", err);
+  }
+}
+window.loadAiVisionSettings = loadAiVisionSettings;
+
+async function saveAiVisionSettings() {
+  const payload = {
+    ai_vision_provider: document.getElementById("ai-vision-provider-select")?.value || "auto",
+    openrouter_api_key: document.getElementById("ai-vision-openrouter-key")?.value || "",
+    openrouter_model: document.getElementById("ai-vision-openrouter-model")?.value || "google/gemini-2.0-flash-exp:free",
+    opencode_api_key: document.getElementById("ai-vision-opencode-key")?.value || "",
+    opencode_model: document.getElementById("ai-vision-opencode-model")?.value || "gemini-3.6-flash",
+    custom_vision_url: document.getElementById("ai-vision-custom-url")?.value || "http://localhost:20128/v1",
+    custom_vision_model: document.getElementById("ai-vision-custom-model")?.value || "opencode/free"
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/ai-vision/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error("Lỗi lưu cấu hình");
+    showToast("Đã lưu cấu hình AI Vision thành công!", "success");
+    closeAiVisionModal();
+  } catch (err) {
+    showToast(`Lỗi: ${err.message}`, "error");
+  }
+}
+window.saveAiVisionSettings = saveAiVisionSettings;
+
+async function scanLiveVisionModels(provider = "openrouter") {
+  const btn = document.getElementById("btn-scan-openrouter-models");
+  const statusEl = document.getElementById("ai-vision-model-scan-status");
+  const modelSelect = document.getElementById("ai-vision-openrouter-model");
+  const apiKey = document.getElementById("ai-vision-openrouter-key")?.value || "";
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> Đang quét...`;
+  }
+  if (statusEl) {
+    statusEl.textContent = "Đang kết nối OpenRouter lấy danh sách model Vision...";
+    statusEl.style.color = "#0284c7";
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/ai-vision/models?provider=${encodeURIComponent(provider)}&api_key=${encodeURIComponent(apiKey)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (!data.success || !data.models || data.models.length === 0) {
+      throw new Error(data.error || "Không tìm thấy model Vision nào khả dụng");
+    }
+
+    const currentSelected = modelSelect ? modelSelect.value : "";
+    let optionsHtml = "";
+
+    // Group models: Free & Recommended first, then other Free, then Paid
+    const freeModels = data.models.filter(m => m.is_free);
+    const paidModels = data.models.filter(m => !m.is_free);
+
+    if (freeModels.length > 0) {
+      optionsHtml += `<optgroup label="🆓 Model Vision Miễn Phí (Hoạt động tốt)">`;
+      freeModels.forEach(m => {
+        const star = m.recommended ? " ⭐" : "";
+        const sel = (m.id === currentSelected) ? "selected" : "";
+        optionsHtml += `<option value="${m.id}" ${sel}>${m.name}${star} [0đ]</option>`;
+      });
+      optionsHtml += `</optgroup>`;
+    }
+
+    if (paidModels.length > 0) {
+      optionsHtml += `<optgroup label="💳 Model Vision Trả Phí (Yêu cầu có nạp credit OpenRouter)">`;
+      paidModels.slice(0, 30).forEach(m => {
+        const sel = (m.id === currentSelected) ? "selected" : "";
+        optionsHtml += `<option value="${m.id}" ${sel}>${m.name}</option>`;
+      });
+      optionsHtml += `</optgroup>`;
+    }
+
+    if (modelSelect) {
+      modelSelect.innerHTML = optionsHtml;
+      // If current was preserved or set first free recommended
+      if (!currentSelected && freeModels.length > 0) {
+        modelSelect.value = freeModels[0].id;
+      }
+    }
+
+    if (statusEl) {
+      statusEl.textContent = `✅ Đã tìm thấy ${data.total_found} model (${data.free_count} model 0đ)!`;
+      statusEl.style.color = "#059669";
+    }
+    showToast(`Đã cập nhật ${data.total_found} model Vision từ OpenRouter!`, "success");
+  } catch (err) {
+    console.error("Scan models error:", err);
+    if (statusEl) {
+      statusEl.textContent = `❌ Lỗi quét: ${err.message}`;
+      statusEl.style.color = "#dc2626";
+    }
+    showToast(`Lỗi quét model: ${err.message}`, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>🔄</span> Quét Model Mới`;
+    }
+  }
+}
+window.scanLiveVisionModels = scanLiveVisionModels;
 
 // Initialize Dropzone and restore settings when DOM loaded
 document.addEventListener("DOMContentLoaded", () => {
