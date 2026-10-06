@@ -18,7 +18,7 @@
   <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.41">
+  <link rel="stylesheet" href="css/style.css?v=1.0.42">
 </head>
 <body>
   <div class="app-container">
@@ -29,7 +29,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.37</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.38</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -1844,14 +1844,14 @@
 
   <!-- Modal: AI Vision Settings (OpenRouter & OpenCode Direct) -->
   <div class="lightbox-modal" id="modal-ai-vision-config" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
-    <div style="width: 90%; max-width: 650px; max-height: 90vh; background: white; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+    <div style="width: 90%; max-width: 740px; max-height: 92vh; background: white; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
       <!-- Header -->
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: #0369a1; border-bottom: 1px solid #0284c7; color: white;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 24px;">✨</span>
           <div>
-            <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: #f8fafc;">Cấu hình AI Vision OCR Trực tiếp</h4>
-            <span style="font-size: 11.5px; color: #e0f2fe;">Kết nối trực tiếp OpenRouter & OpenCode (Miễn phí, 100% dấu tiếng Việt)</span>
+            <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: #f8fafc;">Cấu hình AI Vision & Chuỗi Model Fallback Tự Động</h4>
+            <span style="font-size: 11.5px; color: #e0f2fe;">Tự động dự phòng đa tầng qua nhiều model OpenRouter / OpenCode / 9Router khi quá tải</span>
           </div>
         </div>
         <button type="button" class="btn btn-secondary btn-sm" onclick="closeAiVisionModal()" style="color: white; border-color: #38bdf8; background: rgba(255,255,255,0.1); font-size: 14px; padding: 4px 10px;">✕</button>
@@ -1859,82 +1859,134 @@
 
       <!-- Body / Form -->
       <div style="padding: 18px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
-        <!-- Provider Priority -->
+        
+        <!-- Live Fallback Pipeline Preview Banner -->
+        <div style="background: #0f172a; border-radius: 8px; padding: 12px 14px; border: 1px solid #1e293b; color: white;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 14px;">🔗</span>
+              <strong style="font-size: 12px; color: #38bdf8;">Chuỗi Fallback Dự Phòng Sẽ Chạy Thực Tế:</strong>
+            </div>
+            <span id="ai-vision-pipeline-count" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;">0 model</span>
+          </div>
+          <div id="ai-vision-pipeline-chain" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; min-height: 24px;">
+            <span style="color: #94a3b8; font-style: italic;">Đang tính toán chuỗi...</span>
+          </div>
+          <div style="margin-top: 8px; font-size: 10.5px; color: #94a3b8; border-top: 1px solid #1e293b; padding-top: 6px;">
+            💡 Khi bóc tách ảnh: Hệ thống thử từ <strong>#1</strong>. Nếu gặp lỗi quá tải (502), giới hạn request (429) hoặc timeout, bot sẽ <strong>ngay lập tức chuyển sang model kế tiếp</strong> trong chuỗi mà không làm gián đoạn bóc tách!
+          </div>
+        </div>
+
+        <!-- Provider Priority Mode -->
         <div>
-          <label style="font-weight: 700; font-size: 12.5px; color: #0f172a; margin-bottom: 4px; display: block;">Chế độ & Thứ tự ưu tiên:</label>
-          <select id="ai-vision-provider-select" class="form-control" style="font-size: 12.5px;">
-            <option value="auto">🔄 Tự động (Ưu tiên OpenRouter Free ➔ OpenCode ➔ Tùy chỉnh)</option>
-            <option value="openrouter">🌐 Chỉ dùng OpenRouter (Miễn phí)</option>
-            <option value="opencode">⚡ Chỉ dùng OpenCode Zen</option>
-            <option value="custom">🛠️ Dùng Gateway nội bộ (9Router / Local)</option>
+          <label style="font-weight: 700; font-size: 12.5px; color: #0f172a; margin-bottom: 4px; display: block;">Chế độ & Phạm vi điều phối:</label>
+          <select id="ai-vision-provider-select" class="form-control" style="font-size: 12.5px;" onchange="updatePipelinePreview()">
+            <option value="auto">🔄 Tự động Toàn diện (Chạy chuỗi OpenRouter ➔ Chuỗi OpenCode ➔ Chuỗi 9Router)</option>
+            <option value="openrouter">🌐 Chỉ dùng OpenRouter (Chạy chuỗi các model OpenRouter đã chọn)</option>
+            <option value="opencode">⚡ Chỉ dùng OpenCode Zen (Chạy chuỗi các model OpenCode đã chọn)</option>
+            <option value="custom">🛠️ Chỉ dùng Gateway nội bộ (Chạy chuỗi các model 9Router đã chọn)</option>
           </select>
         </div>
 
-        <!-- OpenRouter Box -->
+        <!-- 1. OpenRouter Multi-Model Box -->
         <div style="border: 1px solid #bae6fd; background: #f0f9ff; border-radius: 8px; padding: 12px 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: #0369a1; font-size: 13px;">1. OpenRouter (Model Multimodal Vision)</strong>
-            <a href="https://openrouter.ai/keys" target="_blank" style="font-size: 11.5px; color: #0284c7; text-decoration: underline; font-weight: 600;">Lấy API Key 0đ ↗</a>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <strong style="color: #0369a1; font-size: 13px;">1. OpenRouter (Đa Model Miễn Phí 0đ)</strong>
+              <span id="ai-vision-openrouter-count-badge" style="font-size: 10px; background: #0284c7; color: white; padding: 1px 6px; border-radius: 8px; font-weight: 700;"></span>
+            </div>
+            <a href="https://openrouter.ai/keys" target="_blank" style="font-size: 11px; color: #0284c7; text-decoration: underline; font-weight: 600;">Lấy API Key 0đ ↗</a>
           </div>
-          <div style="margin-bottom: 8px;">
+
+          <div style="margin-bottom: 10px;">
             <label style="font-size: 11.5px; font-weight: 600; color: #334155; margin-bottom: 3px; display: block;">OpenRouter API Key:</label>
             <div style="display: flex; gap: 8px;">
               <input type="password" id="ai-vision-openrouter-key" class="form-control" placeholder="sk-or-v1-..." style="font-size: 12px; flex: 1;" />
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-test-openrouter-connection" onclick="testAiVisionConnection('openrouter')" style="font-size: 11.5px; padding: 4px 10px; font-weight: 700; white-space: nowrap; background: #f0fdf4; color: #166534; border-color: #86efac;" title="Kiểm tra xem API Key OpenRouter có hoạt động và còn hạn mức không">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-test-openrouter-connection" onclick="testAiVisionConnection('openrouter')" style="font-size: 11.5px; padding: 4px 10px; font-weight: 700; white-space: nowrap; background: #f0fdf4; color: #166534; border-color: #86efac;" title="Kiểm tra kết nối và hạn mức còn lại của API Key OpenRouter">
                 <span>🔌</span> Test kết nối
               </button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-scan-openrouter-models" onclick="scanLiveVisionModels('openrouter')" style="font-size: 11.5px; padding: 4px 10px; font-weight: 700; white-space: nowrap; background: #e0f2fe; color: #0369a1; border-color: #7dd3fc;" title="Gửi yêu cầu tới OpenRouter để lấy danh sách các model Vision mới nhất đang hoạt động">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-scan-openrouter-models" onclick="scanLiveVisionModels('openrouter')" style="font-size: 11.5px; padding: 4px 10px; font-weight: 700; white-space: nowrap; background: #e0f2fe; color: #0369a1; border-color: #7dd3fc;" title="Gửi yêu cầu tới OpenRouter để cập nhật toàn bộ danh sách model Vision mới nhất">
                 <span>🔄</span> Quét Model Mới
               </button>
             </div>
           </div>
+
+          <!-- OpenRouter Fallback Chain Manager -->
           <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-              <label style="font-size: 11.5px; font-weight: 600; color: #334155;">Chọn Model Vision làm việc:</label>
-              <span id="ai-vision-model-scan-status" style="font-size: 11px; color: #0284c7; font-weight: 600;"></span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label style="font-size: 11.5px; font-weight: 700; color: #0369a1;">
+                📋 Danh sách Model Fallback (Ưu tiên từ #1 xuống dưới):
+              </label>
+              <div style="display: flex; gap: 4px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="addAllFreeOpenRouterModels()" style="font-size: 10.5px; padding: 2px 7px; background: #dcfce7; color: #15803d; border-color: #86efac; font-weight: 600;" title="Tự động thêm toàn bộ các model 0đ vào chuỗi dự phòng">
+                  ⭐ Thêm tất cả 0đ
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="resetOpenRouterModelsDefault()" style="font-size: 10.5px; padding: 2px 7px; background: #f1f5f9; color: #475569; border-color: #cbd5e1;" title="Khôi phục danh sách model khuyên dùng">
+                  ↺ Chuỗi chuẩn
+                </button>
+              </div>
             </div>
-            <select id="ai-vision-openrouter-model" class="form-control" style="font-size: 12px;">
-              <option value="dots-studio/dots-3-note-preview:free">dots-studio/dots-3-note-preview:free (Note OCR Free ⭐ - Khuyên dùng)</option>
-              <option value="google/gemma-4-26b-a4b-it:free">google/gemma-4-26b-a4b-it:free (Mới - Khuyên dùng)</option>
-              <option value="google/gemma-4-31b-it:free">google/gemma-4-31b-it:free (Mới)</option>
-              <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free (Omni Vision Free)</option>
-              <option value="thinkingmachines/inkling-small:free">thinkingmachines/inkling-small:free</option>
-            </select>
-            <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0;">
-              💡 Nhấn <strong>"Quét Model Mới"</strong> để hệ thống tự động tải toàn bộ danh sách model hỗ trợ đọc ảnh hiện có trên OpenRouter và đưa vào danh sách chọn!
-            </p>
+
+            <!-- Add model to chain row -->
+            <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+              <select id="ai-vision-openrouter-picker" class="form-control" style="font-size: 11.5px; flex: 1;">
+                <option value="dots-studio/dots-3-note-preview:free">dots-studio/dots-3-note-preview:free (⭐ Khuyên dùng 0đ)</option>
+                <option value="google/gemma-4-26b-a4b-it:free">google/gemma-4-26b-a4b-it:free (⭐ Khuyên dùng 0đ)</option>
+                <option value="google/gemma-4-31b-it:free">google/gemma-4-31b-it:free [0đ]</option>
+                <option value="thinkingmachines/inkling-small:free">thinkingmachines/inkling-small:free [0đ]</option>
+                <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [0đ]</option>
+              </select>
+              <button type="button" class="btn btn-primary btn-sm" onclick="addOpenRouterModelFromPicker()" style="font-size: 11.5px; padding: 3px 10px; font-weight: 700; white-space: nowrap; background: #0284c7; border-color: #0284c7;">
+                ➕ Thêm vào chuỗi
+              </button>
+            </div>
+
+            <div id="ai-vision-model-scan-status" style="font-size: 11px; color: #0284c7; font-weight: 600; margin-bottom: 4px;"></div>
+
+            <!-- Active List Chips -->
+            <div id="ai-vision-openrouter-models-list" class="fallback-models-container">
+              <!-- Rendered via JS -->
+            </div>
           </div>
         </div>
 
-        <!-- OpenCode Box -->
+        <!-- 2. OpenCode Direct Box -->
         <div style="border: 1px solid #fed7aa; background: #fffbeb; border-radius: 8px; padding: 12px 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: #b45309; font-size: 13px;">2. OpenCode Direct (Zen API)</strong>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <strong style="color: #b45309; font-size: 13px;">2. OpenCode Direct (Zen API)</strong>
+              <span id="ai-vision-opencode-count-badge" style="font-size: 10px; background: #d97706; color: white; padding: 1px 6px; border-radius: 8px; font-weight: 700;"></span>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
               <span style="font-size: 11px; color: #78350f;">opencode.ai/zen/v1</span>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-test-opencode-connection" onclick="testAiVisionConnection('opencode')" style="font-size: 11px; padding: 2px 8px; font-weight: 700; background: #fef3c7; color: #92400e; border-color: #fde68a;">
                 <span>🔌</span> Test
               </button>
             </div>
           </div>
+
           <div style="margin-bottom: 8px;">
             <label style="font-size: 11.5px; font-weight: 600; color: #334155; margin-bottom: 3px; display: block;">OpenCode API Key / Token:</label>
             <input type="password" id="ai-vision-opencode-key" class="form-control" placeholder="Nhập API Key OpenCode..." style="font-size: 12px;" />
           </div>
+
           <div>
-            <label style="font-size: 11.5px; font-weight: 600; color: #334155; margin-bottom: 3px; display: block;">Model OpenCode:</label>
-            <select id="ai-vision-opencode-model" class="form-control" style="font-size: 12px;">
-              <option value="gemini-3.6-flash">gemini-3.6-flash</option>
-              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-              <option value="claude-sonnet-4-5">claude-sonnet-4-5</option>
-            </select>
+            <label style="font-size: 11.5px; font-weight: 700; color: #b45309; margin-bottom: 4px; display: block;">
+              📋 Các Model OpenCode tham gia chuỗi Fallback:
+            </label>
+            <div id="ai-vision-opencode-models-list" class="fallback-models-container" style="max-height: 120px;">
+              <!-- Rendered via JS -->
+            </div>
           </div>
         </div>
 
-        <!-- Custom / 9Router Box -->
+        <!-- 3. Custom / 9Router Box -->
         <div style="border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: 12px 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: #334155; font-size: 13px;">3. Gateway Tùy chọn (9Router cục bộ / Ollama)</strong>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <strong style="color: #334155; font-size: 13px;">3. Gateway Tùy chọn (9Router cục bộ / Ollama)</strong>
+              <span id="ai-vision-custom-count-badge" style="font-size: 10px; background: #475569; color: white; padding: 1px 6px; border-radius: 8px; font-weight: 700;"></span>
+            </div>
             <div style="display: flex; gap: 6px;">
               <button type="button" class="btn btn-secondary btn-sm" id="btn-test-custom-connection" onclick="testAiVisionConnection('custom')" style="font-size: 11.5px; padding: 3px 9px; font-weight: 700; background: #ecfdf5; color: #065f46; border-color: #a7f3d0;" title="Kiểm tra kết nối trực tiếp tới 9Router">
                 <span>🔌</span> Test connection
@@ -1944,6 +1996,7 @@
               </button>
             </div>
           </div>
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
             <div>
               <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">Base URL:</label>
@@ -1954,25 +2007,51 @@
               <input type="password" id="ai-vision-custom-key" class="form-control" placeholder="Nhập API key 9Router nếu có..." style="font-size: 11.5px;" />
             </div>
           </div>
+
           <div>
-            <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">Tên Model:</label>
-            <div style="display: flex; gap: 8px;">
-              <input type="text" id="ai-vision-custom-model" class="form-control" value="openrouter/dots-studio/dots-3-note-preview:free" placeholder="vd: openrouter/dots-studio/dots-3-note-preview:free hoặc 9router" style="font-size: 11.5px; flex: 1;" />
-              <select id="ai-vision-custom-model-select" class="form-control" style="font-size: 11.5px; width: auto; max-width: 220px; display: none;" onchange="if(this.value){document.getElementById('ai-vision-custom-model').value=this.value;}">
-                <option value="">-- Chọn model 9Router --</option>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label style="font-size: 11.5px; font-weight: 700; color: #334155;">
+                📋 Danh sách Model 9Router trong Chuỗi Fallback:
+              </label>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="resetCustomModelsDefault()" style="font-size: 10.5px; padding: 2px 7px; background: #f1f5f9; color: #475569; border-color: #cbd5e1;">
+                ↺ Mặc định
+              </button>
+            </div>
+
+            <!-- Add model row for 9Router -->
+            <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+              <input type="text" id="ai-vision-custom-input-model" class="form-control" placeholder="Nhập tên model (vd: openrouter/dots-studio/dots-3-note-preview:free hoặc 9router)" style="font-size: 11.5px; flex: 1;" />
+              <select id="ai-vision-custom-model-select" class="form-control" style="font-size: 11.5px; width: auto; max-width: 220px; display: none;" onchange="if(this.value){document.getElementById('ai-vision-custom-input-model').value=this.value;}">
+                <option value="">-- Chọn từ 9Router --</option>
               </select>
+              <button type="button" class="btn btn-primary btn-sm" onclick="addCustomModelFromInput()" style="font-size: 11.5px; padding: 3px 10px; font-weight: 700; white-space: nowrap; background: #0284c7; border-color: #0284c7;">
+                ➕ Thêm vào chuỗi
+              </button>
+            </div>
+
+            <div id="ai-vision-custom-test-status" style="margin-top: 4px; font-size: 11.5px; font-weight: 600; min-height: 16px;"></div>
+
+            <!-- 9Router Chips List -->
+            <div id="ai-vision-custom-models-list" class="fallback-models-container" style="max-height: 140px;">
+              <!-- Rendered via JS -->
             </div>
           </div>
-          <div id="ai-vision-custom-test-status" style="margin-top: 6px; font-size: 11.5px; font-weight: 600; min-height: 16px;"></div>
         </div>
+
       </div>
 
       <!-- Footer -->
-      <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
-        <button type="button" class="btn btn-secondary btn-sm" onclick="closeAiVisionModal()" style="font-size: 12.5px; padding: 6px 14px;">Hủy</button>
-        <button type="button" class="btn btn-primary btn-sm" onclick="saveAiVisionSettings()" style="font-size: 12.5px; padding: 6px 16px; font-weight: 700;">💾 Lưu cấu hình</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+        <span style="font-size: 11.5px; color: #64748b;">
+          ⚙️ Cấu hình được lưu tự động vào CSDL hệ thống.
+        </span>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="closeAiVisionModal()" style="font-size: 12.5px; padding: 6px 14px;">Hủy</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveAiVisionSettings()" style="font-size: 12.5px; padding: 6px 18px; font-weight: 700; background: #0284c7; border-color: #0284c7;">💾 Lưu Cấu Hình Chuỗi</button>
+        </div>
       </div>
     </div>
+  </div>
   </div>
 
   <!-- Modal: OCR Active Lexicon Management (Từ điển Tự học OCR) -->
@@ -2045,11 +2124,11 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.41"></script>
-  <script src="js/bank.js?v=1.0.41"></script>
-  <script src="js/exam_builder.js?v=1.0.41"></script>
-  <script src="js/collector.js?v=1.0.41"></script>
-  <script src="js/practice.js?v=1.0.41"></script>
+  <script src="js/app.js?v=1.0.42"></script>
+  <script src="js/bank.js?v=1.0.42"></script>
+  <script src="js/exam_builder.js?v=1.0.42"></script>
+  <script src="js/collector.js?v=1.0.42"></script>
+  <script src="js/practice.js?v=1.0.42"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>

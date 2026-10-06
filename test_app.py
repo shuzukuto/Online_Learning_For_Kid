@@ -309,10 +309,10 @@ def test_full_pipeline():
         index_html = f.read()
     with open("frontend/js/app.js", "r", encoding="utf-8") as f:
         app_js = f.read()
-    assert any(v in index_html for v in ["1.0.37", "1.0.36", "1.0.35", "1.0.34"]), "frontend/index.html thiếu phiên bản Web App!"
-    assert any(v in app_js for v in ["1.0.37", "1.0.36", "1.0.35", "1.0.34"]), "frontend/js/app.js thiếu phiên bản Web App!"
-    assert any(v in index_html for v in ["?v=1.0.41", "?v=1.0.40", "?v=1.0.39", "?v=1.0.38"]), "frontend/index.html thiếu Cache Buster!"
-    print("   => Web App đồng bộ v1.0.37 và Cache Buster chính xác!")
+    assert any(v in index_html for v in ["1.0.38", "1.0.37", "1.0.36", "1.0.35"]), "frontend/index.html thiếu phiên bản Web App!"
+    assert any(v in app_js for v in ["1.0.38", "1.0.37", "1.0.36", "1.0.35"]), "frontend/js/app.js thiếu phiên bản Web App!"
+    assert any(v in index_html for v in ["?v=1.0.42", "?v=1.0.41", "?v=1.0.40", "?v=1.0.39"]), "frontend/index.html thiếu Cache Buster!"
+    print("   => Web App đồng bộ v1.0.38 và Cache Buster chính xác!")
 
     print("\n17. Kiểm tra Bộ Thẩm định Normalizer & Phân biệt Dấu thanh 'Khoa học' vs 'Khóa học'...")
     # 17.1 Science questions with "khoa học" / "truyện khoa học" must be accepted
@@ -853,6 +853,20 @@ def test_full_pipeline():
     assert resp_test_custom.status_code == 200
     res_custom = resp_test_custom.json()
     print("   => 9Router kết quả:", res_custom["success"], "-", res_custom["message"])
+
+    # Test Multi-Model Fallback Chain Settings API
+    resp_multi = client.post("/api/ai-vision/settings", json={
+        "openrouter_models": ["dots-studio/dots-3-note-preview:free", "google/gemma-4-26b-a4b-it:free"],
+        "opencode_models": ["gemini-3.6-flash", "gemini-2.5-flash"],
+        "custom_vision_models": ["openrouter/dots-studio/dots-3-note-preview:free", "openrouter/google/gemma-4-26b-a4b-it:free"]
+    })
+    assert resp_multi.status_code == 200
+    s_multi = resp_multi.json()["settings"]
+    assert len(s_multi["openrouter_models"]) == 2
+    assert s_multi["openrouter_model"] == "dots-studio/dots-3-note-preview:free"
+    assert len(s_multi["opencode_models"]) == 2
+    assert len(s_multi["custom_vision_models"]) == 2
+    print("   => Cấu hình Chuỗi Multi-Model Fallback lưu trữ và truy xuất thành công 100%!")
 
     print("\n" + "="*60)
     print(">>> TẤT CẢ 25 BƯỚC KIỂM THỬ ĐÃ VƯỢT QUA XUẤT SẮC 100%! <<<")

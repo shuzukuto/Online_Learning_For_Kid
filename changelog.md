@@ -2,6 +2,44 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.0.38] - 2026-10-06 21:30:00
+
+### User Request
+> vì openrouter, openclode cho miễn phí nhiều model, hãy sửa code để chọn nhiều model fallback cho nhau
+
+### Added
+- **Cơ chế Điều phối Đa Model Fallback Tự Động (Multi-Model Fallback Chain)**:
+  - Cho phép người dùng chọn đồng thời nhiều model trên **OpenRouter**, **OpenCode**, và **9Router** để tạo chuỗi dự phòng tự động.
+  - Khi bóc tách ảnh: Hệ thống bắt đầu gọi model ưu tiên `#1`. Nếu model đó gặp lỗi quá tải (502 từ worker pool), vượt hạn mức tốc độ (429 rate limit), lỗi kết nối hoặc quá thời gian timeout (22s), bot sẽ **ngay lập tức chuyển sang model `#2`, `#3`... trong chuỗi fallback** mà không làm gián đoạn hay bắt người dùng bóc tách lại từ đầu.
+  - Nếu toàn bộ các model AI trong chuỗi đều không phản hồi, hệ thống mới tự động chuyển sang lớp phòng thủ cuối cùng là **RapidOCR (PaddleOCR ONNX)**.
+  - Bổ sung các trường cấu hình `openrouter_models`, `opencode_models`, `custom_vision_models` (hỗ trợ lưu danh sách dạng JSON array trong `system_config` của CSDL).
+- **Giao diện Quản lý Chuỗi Fallback Trực quan trong Modal Cài đặt AI Vision**:
+  - **Banner Trực quan Chuỗi Thực thi (`#ai-vision-pipeline-preview`)**: Hiển thị sơ đồ bước chạy thực tế theo thời gian thực (ví dụ: `OpenRouter: dots-3 ➔ OpenRouter: gemma-4 ➔ OpenCode: gemini-3.6 ➔ RapidOCR`).
+  - **Trình quản lý Chuỗi Model OpenRouter**:
+    - Thẻ chip hiển thị thứ tự ưu tiên `#1` (Màu xanh lá - Primary), `#2`, `#3`... kèm nhãn `0đ`.
+    - Nút di chuyển vị trí `▲` (ưu tiên cao hơn) và `▼` (ưu tiên thấp hơn) hoặc xóa `✕` khỏi chuỗi.
+    - Menu chọn model từ danh sách đã quét kèm nút **"➕ Thêm vào chuỗi"**.
+    - Nút tắt thông minh: **"⭐ Thêm tất cả 0đ"** (tự động nạp toàn bộ các model miễn phí vào chuỗi dự phòng) và **"↺ Chuỗi chuẩn"** (khôi phục danh sách model tối ưu).
+  - **Trình chọn Model OpenCode**: Danh sách checkbox cho phép kích hoạt `gemini-3.6-flash`, `gemini-2.5-flash`, `claude-sonnet-4-5` với số thứ tự tự động cập nhật.
+  - **Trình quản lý Chuỗi 9Router**: Cho phép thêm nhiều model từ danh sách 28 model đã quét của 9Router hoặc nhập model tùy chỉnh để fallback cho nhau.
+
+### Changed & Optimized
+- **Tối ưu hóa Thời gian Phản hồi**:
+  - Giảm timeout mỗi lượt thử model từ 40s xuống **22s**, giúp chuỗi fallback chuyển model nhanh chóng khi gặp model bị nghẽn mạng hoặc quá tải.
+  - Bổ sung nhật ký chi tiết ghi nhận chính xác model nào đã hoàn thành bóc tách và các model đã thử trước đó bị lỗi.
+- **Cache Buster**: Nâng từ `?v=1.0.41` lên `?v=1.0.42`.
+- **App Version**: Nâng từ `v1.0.37` lên `v1.0.38`.
+
+### Files touched
+- `backend/models.py` (cập nhật AiVisionSettingsRequest hỗ trợ openrouter_models, opencode_models, custom_vision_models)
+- `backend/ai_vision.py` (get_ai_vision_settings, save_ai_vision_settings, extract_questions_with_ai_vision đa model fallback)
+- `frontend/css/style.css` (style fallback-model-chip, pipeline-step-badge, fallback-models-container)
+- `frontend/index.html` (giao diện chuỗi fallback preview banner và thẻ quản lý model)
+- `frontend/js/collector.js` (logic quản lý mảng model, thêm/xóa/đổi thứ tự, render banner preview, lưu và tải cài đặt)
+- `frontend/js/app.js` (bump APP_VERSION v1.0.38)
+- `test_app.py` (bổ sung kiểm thử chuỗi multi-model fallback và đồng bộ version v1.0.38)
+- `changelog.md`
+
 ## [v1.0.37] - 2026-10-06 20:50:00
 
 ### User Request

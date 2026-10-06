@@ -231,11 +231,14 @@ class AiVisionSettingsRequest(BaseModel):
     ai_vision_provider: Optional[str] = "auto"
     openrouter_api_key: Optional[str] = None
     openrouter_model: Optional[str] = None
+    openrouter_models: Optional[List[str]] = None
     opencode_api_key: Optional[str] = None
     opencode_model: Optional[str] = None
+    opencode_models: Optional[List[str]] = None
     custom_vision_url: Optional[str] = None
     custom_vision_key: Optional[str] = None
     custom_vision_model: Optional[str] = None
+    custom_vision_models: Optional[List[str]] = None
 
 class AiVisionTestConnectionRequest(BaseModel):
     provider: str = Field("custom", description="Nền tảng kiểm tra: 'openrouter', 'opencode', 'custom'")

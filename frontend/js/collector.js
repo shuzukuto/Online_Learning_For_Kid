@@ -2283,6 +2283,330 @@ function closeAiVisionModal() {
 }
 window.closeAiVisionModal = closeAiVisionModal;
 
+// State for AI Vision Multi-Model Fallback Chains
+let currentOpenRouterModels = [];
+let currentOpenCodeModels = [];
+let currentCustomModels = [];
+let availableOpenRouterModels = [];
+let availableCustomModels = [];
+
+function updatePipelinePreview() {
+  const provider = document.getElementById("ai-vision-provider-select")?.value || "auto";
+  const chainEl = document.getElementById("ai-vision-pipeline-chain");
+  const countEl = document.getElementById("ai-vision-pipeline-count");
+  if (!chainEl) return;
+
+  const steps = [];
+  if (provider === "auto" || provider === "openrouter") {
+    currentOpenRouterModels.forEach((m) => {
+      steps.push({
+        label: `OpenRouter: ${m}`,
+        short: m.replace(":free", "").split("/").pop(),
+        type: "openrouter",
+        isFree: m.includes(":free") || m.includes("free")
+      });
+    });
+  }
+  if (provider === "auto" || provider === "opencode") {
+    currentOpenCodeModels.forEach((m) => {
+      steps.push({
+        label: `OpenCode: ${m}`,
+        short: m,
+        type: "opencode",
+        isFree: false
+      });
+    });
+  }
+  if (provider === "auto" || provider === "custom") {
+    currentCustomModels.forEach((m) => {
+      steps.push({
+        label: `9Router: ${m}`,
+        short: m.split("/").pop(),
+        type: "custom",
+        isFree: m.includes(":free") || m.includes("free")
+      });
+    });
+  }
+
+  if (countEl) {
+    countEl.textContent = `${steps.length} model AI + 1 RapidOCR`;
+  }
+
+  if (steps.length === 0) {
+    chainEl.innerHTML = `<span style="color: #ef4444; font-weight: 600;">⚠️ Chưa chọn model AI nào! Hệ thống sẽ chuyển thẳng sang RapidOCR.</span>`;
+    return;
+  }
+
+  let html = "";
+  steps.forEach((st, idx) => {
+    const arrow = idx > 0 ? `<span style="color: #64748b; font-weight: 700; margin: 0 1px;">➔</span>` : '';
+    html += `
+      ${arrow}
+      <span class="pipeline-step-badge badge-${st.type}" title="${st.label}">
+        <strong>#${idx + 1}</strong> ${st.short} ${st.isFree ? '⭐ 0đ' : ''}
+      </span>
+    `;
+  });
+  html += `
+    <span style="color: #64748b; font-weight: 700; margin: 0 1px;">➔</span>
+    <span class="pipeline-step-badge badge-rapid" title="Fallback dự phòng cuối cùng nếu toàn bộ model AI gặp sự cố">
+      🛡️ RapidOCR
+    </span>
+  `;
+  chainEl.innerHTML = html;
+}
+window.updatePipelinePreview = updatePipelinePreview;
+
+function renderOpenRouterModelsList() {
+  const listEl = document.getElementById("ai-vision-openrouter-models-list");
+  const countBadge = document.getElementById("ai-vision-openrouter-count-badge");
+  if (!listEl) return;
+
+  if (countBadge) {
+    countBadge.textContent = `${currentOpenRouterModels.length} model`;
+  }
+
+  if (currentOpenRouterModels.length === 0) {
+    listEl.innerHTML = `<div style="text-align: center; color: #94a3b8; font-size: 11px; padding: 10px;">Chưa chọn model nào. Hãy nhấn <strong>"Thêm vào chuỗi"</strong> hoặc <strong>"⭐ Thêm tất cả 0đ"</strong>.</div>`;
+    updatePipelinePreview();
+    return;
+  }
+
+  listEl.innerHTML = currentOpenRouterModels.map((m, idx) => {
+    const isFirst = idx === 0;
+    const isFree = m.includes(":free") || m.toLowerCase().includes("free");
+    const freeBadge = isFree ? `<span style="font-size: 9.5px; background: #dcfce7; color: #15803d; padding: 1px 5px; border-radius: 4px; font-weight: 700; margin-left: 6px;">0đ</span>` : "";
+    return `
+      <div class="fallback-model-chip ${isFirst ? 'chip-primary' : ''}">
+        <div style="display: flex; align-items: center; overflow: hidden; flex: 1;">
+          <span class="fallback-chip-num ${isFirst ? 'num-first' : ''}">#${idx + 1}</span>
+          <span class="fallback-chip-name" title="${m}">${m}</span>
+          ${freeBadge}
+        </div>
+        <div class="fallback-chip-actions">
+          ${idx > 0 ? `<button type="button" class="fallback-chip-btn" onclick="moveOpenRouterModel(${idx}, -1)" title="Ưu tiên cao hơn">▲</button>` : ''}
+          ${idx < currentOpenRouterModels.length - 1 ? `<button type="button" class="fallback-chip-btn" onclick="moveOpenRouterModel(${idx}, 1)" title="Ưu tiên thấp hơn">▼</button>` : ''}
+          <button type="button" class="fallback-chip-btn btn-del" onclick="removeOpenRouterModel(${idx})" title="Xóa khỏi chuỗi">✕</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  updatePipelinePreview();
+}
+window.renderOpenRouterModelsList = renderOpenRouterModelsList;
+
+function addOpenRouterModel(m) {
+  if (!m || !m.trim()) return;
+  m = m.trim();
+  if (currentOpenRouterModels.includes(m)) {
+    showToast(`Model '${m}' đã có trong chuỗi fallback!`, "warning");
+    return;
+  }
+  currentOpenRouterModels.push(m);
+  renderOpenRouterModelsList();
+  showToast(`Đã thêm '${m}' vào chuỗi OpenRouter!`, "success");
+}
+window.addOpenRouterModel = addOpenRouterModel;
+
+function addOpenRouterModelFromPicker() {
+  const picker = document.getElementById("ai-vision-openrouter-picker");
+  if (picker && picker.value) {
+    addOpenRouterModel(picker.value);
+  }
+}
+window.addOpenRouterModelFromPicker = addOpenRouterModelFromPicker;
+
+function removeOpenRouterModel(idx) {
+  if (idx >= 0 && idx < currentOpenRouterModels.length) {
+    currentOpenRouterModels.splice(idx, 1);
+    renderOpenRouterModelsList();
+  }
+}
+window.removeOpenRouterModel = removeOpenRouterModel;
+
+function moveOpenRouterModel(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx >= 0 && newIdx < currentOpenRouterModels.length) {
+    const temp = currentOpenRouterModels[idx];
+    currentOpenRouterModels[idx] = currentOpenRouterModels[newIdx];
+    currentOpenRouterModels[newIdx] = temp;
+    renderOpenRouterModelsList();
+  }
+}
+window.moveOpenRouterModel = moveOpenRouterModel;
+
+function addAllFreeOpenRouterModels() {
+  const defaultFree = [
+    "dots-studio/dots-3-note-preview:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "google/gemma-4-31b-it:free",
+    "thinkingmachines/inkling-small:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+  ];
+  const listToAdd = (availableOpenRouterModels.length > 0)
+    ? availableOpenRouterModels.filter(m => m.is_free).map(m => m.id)
+    : defaultFree;
+
+  let addedCount = 0;
+  listToAdd.forEach(m => {
+    if (!currentOpenRouterModels.includes(m)) {
+      currentOpenRouterModels.push(m);
+      addedCount++;
+    }
+  });
+  renderOpenRouterModelsList();
+  showToast(`Đã thêm ${addedCount} model 0đ vào chuỗi OpenRouter!`, "success");
+}
+window.addAllFreeOpenRouterModels = addAllFreeOpenRouterModels;
+
+function resetOpenRouterModelsDefault() {
+  currentOpenRouterModels = [
+    "dots-studio/dots-3-note-preview:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "google/gemma-4-31b-it:free",
+    "thinkingmachines/inkling-small:free"
+  ];
+  renderOpenRouterModelsList();
+  showToast("Đã khôi phục chuỗi OpenRouter khuyên dùng!", "info");
+}
+window.resetOpenRouterModelsDefault = resetOpenRouterModelsDefault;
+
+function renderOpenCodeModelsList() {
+  const container = document.getElementById("ai-vision-opencode-models-list");
+  const countBadge = document.getElementById("ai-vision-opencode-count-badge");
+  if (!container) return;
+
+  const defaultList = [
+    { id: "gemini-3.6-flash", name: "Google Gemini 3.6 Flash (Zen ⭐ Khuyên dùng)", rec: true },
+    { id: "gemini-2.5-flash", name: "Google Gemini 2.5 Flash (Zen Fast)", rec: false },
+    { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5 Vision (Zen)", rec: false }
+  ];
+
+  if (countBadge) {
+    countBadge.textContent = `${currentOpenCodeModels.length} model`;
+  }
+
+  container.innerHTML = defaultList.map(item => {
+    const isChecked = currentOpenCodeModels.includes(item.id);
+    const orderIdx = currentOpenCodeModels.indexOf(item.id);
+    const orderBadge = isChecked
+      ? `<span class="fallback-chip-num ${orderIdx === 0 ? 'num-first' : ''}" style="width: 18px; height: 18px; font-size: 9px; margin-right: 6px;">#${orderIdx + 1}</span>`
+      : `<span style="width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; background: #e2e8f0; border-radius: 50%; font-size: 9px; color: #64748b; margin-right: 6px;">-</span>`;
+
+    return `
+      <label class="fallback-model-chip" style="cursor: pointer; margin: 0; user-select: none;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <input type="checkbox" value="${item.id}" ${isChecked ? 'checked' : ''} onchange="toggleOpenCodeModel('${item.id}', this.checked)" style="cursor: pointer;" />
+          ${orderBadge}
+          <span style="font-weight: 600; color: #1e293b;">${item.name}</span>
+        </div>
+      </label>
+    `;
+  }).join("");
+
+  updatePipelinePreview();
+}
+window.renderOpenCodeModelsList = renderOpenCodeModelsList;
+
+function toggleOpenCodeModel(modelId, isChecked) {
+  if (isChecked) {
+    if (!currentOpenCodeModels.includes(modelId)) currentOpenCodeModels.push(modelId);
+  } else {
+    currentOpenCodeModels = currentOpenCodeModels.filter(m => m !== modelId);
+  }
+  renderOpenCodeModelsList();
+}
+window.toggleOpenCodeModel = toggleOpenCodeModel;
+
+function renderCustomModelsList() {
+  const listEl = document.getElementById("ai-vision-custom-models-list");
+  const countBadge = document.getElementById("ai-vision-custom-count-badge");
+  if (!listEl) return;
+
+  if (countBadge) {
+    countBadge.textContent = `${currentCustomModels.length} model`;
+  }
+
+  if (currentCustomModels.length === 0) {
+    listEl.innerHTML = `<div style="text-align: center; color: #94a3b8; font-size: 11px; padding: 8px;">Chưa chọn model 9Router nào. Hãy chọn từ danh sách hoặc nhập tên model.</div>`;
+    updatePipelinePreview();
+    return;
+  }
+
+  listEl.innerHTML = currentCustomModels.map((m, idx) => {
+    const isFirst = idx === 0;
+    return `
+      <div class="fallback-model-chip ${isFirst ? 'chip-primary' : ''}">
+        <div style="display: flex; align-items: center; overflow: hidden; flex: 1;">
+          <span class="fallback-chip-num ${isFirst ? 'num-first' : ''}">#${idx + 1}</span>
+          <span class="fallback-chip-name" title="${m}">${m}</span>
+        </div>
+        <div class="fallback-chip-actions">
+          ${idx > 0 ? `<button type="button" class="fallback-chip-btn" onclick="moveCustomModel(${idx}, -1)" title="Ưu tiên cao hơn">▲</button>` : ''}
+          ${idx < currentCustomModels.length - 1 ? `<button type="button" class="fallback-chip-btn" onclick="moveCustomModel(${idx}, 1)" title="Ưu tiên thấp hơn">▼</button>` : ''}
+          <button type="button" class="fallback-chip-btn btn-del" onclick="removeCustomModel(${idx})" title="Xóa khỏi chuỗi">✕</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  updatePipelinePreview();
+}
+window.renderCustomModelsList = renderCustomModelsList;
+
+function addCustomModel(m) {
+  if (!m || !m.trim()) return;
+  m = m.trim();
+  if (currentCustomModels.includes(m)) {
+    showToast(`Model '${m}' đã có trong chuỗi 9Router!`, "warning");
+    return;
+  }
+  currentCustomModels.push(m);
+  renderCustomModelsList();
+  showToast(`Đã thêm '${m}' vào 9Router!`, "success");
+}
+window.addCustomModel = addCustomModel;
+
+function addCustomModelFromInput() {
+  const inputEl = document.getElementById("ai-vision-custom-input-model");
+  const val = inputEl ? inputEl.value : "";
+  if (val) {
+    addCustomModel(val);
+    if (inputEl) inputEl.value = "";
+  }
+}
+window.addCustomModelFromInput = addCustomModelFromInput;
+
+function removeCustomModel(idx) {
+  if (idx >= 0 && idx < currentCustomModels.length) {
+    currentCustomModels.splice(idx, 1);
+    renderCustomModelsList();
+  }
+}
+window.removeCustomModel = removeCustomModel;
+
+function moveCustomModel(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx >= 0 && newIdx < currentCustomModels.length) {
+    const temp = currentCustomModels[idx];
+    currentCustomModels[idx] = currentCustomModels[newIdx];
+    currentCustomModels[newIdx] = temp;
+    renderCustomModelsList();
+  }
+}
+window.moveCustomModel = moveCustomModel;
+
+function resetCustomModelsDefault() {
+  currentCustomModels = [
+    "openrouter/dots-studio/dots-3-note-preview:free",
+    "openrouter/google/gemma-4-26b-a4b-it:free"
+  ];
+  renderCustomModelsList();
+  showToast("Đã khôi phục chuỗi 9Router mặc định!", "info");
+}
+window.resetCustomModelsDefault = resetCustomModelsDefault;
+
 async function loadAiVisionSettings() {
   try {
     const res = await fetch(`${API_BASE}/ai-vision/settings`);
@@ -2296,14 +2620,28 @@ async function loadAiVisionSettings() {
     const orKey = document.getElementById("ai-vision-openrouter-key");
     if (orKey) orKey.value = s.openrouter_api_key || "";
 
-    const orModel = document.getElementById("ai-vision-openrouter-model");
-    if (orModel && s.openrouter_model) orModel.value = s.openrouter_model;
+    if (Array.isArray(s.openrouter_models) && s.openrouter_models.length > 0) {
+      currentOpenRouterModels = [...s.openrouter_models];
+    } else if (s.openrouter_model) {
+      currentOpenRouterModels = [s.openrouter_model];
+    } else {
+      currentOpenRouterModels = [
+        "dots-studio/dots-3-note-preview:free",
+        "google/gemma-4-26b-a4b-it:free",
+        "google/gemma-4-31b-it:free"
+      ];
+    }
 
     const ocKey = document.getElementById("ai-vision-opencode-key");
     if (ocKey) ocKey.value = s.opencode_api_key || "";
 
-    const ocModel = document.getElementById("ai-vision-opencode-model");
-    if (ocModel && s.opencode_model) ocModel.value = s.opencode_model;
+    if (Array.isArray(s.opencode_models) && s.opencode_models.length > 0) {
+      currentOpenCodeModels = [...s.opencode_models];
+    } else if (s.opencode_model) {
+      currentOpenCodeModels = [s.opencode_model];
+    } else {
+      currentOpenCodeModels = ["gemini-3.6-flash", "gemini-2.5-flash"];
+    }
 
     const customUrl = document.getElementById("ai-vision-custom-url");
     if (customUrl) customUrl.value = s.custom_vision_url || "http://127.0.0.1:20129/v1";
@@ -2311,8 +2649,18 @@ async function loadAiVisionSettings() {
     const customKey = document.getElementById("ai-vision-custom-key");
     if (customKey) customKey.value = s.custom_vision_key || "";
 
-    const customModel = document.getElementById("ai-vision-custom-model");
-    if (customModel) customModel.value = s.custom_vision_model || "openrouter/dots-studio/dots-3-note-preview:free";
+    if (Array.isArray(s.custom_vision_models) && s.custom_vision_models.length > 0) {
+      currentCustomModels = [...s.custom_vision_models];
+    } else if (s.custom_vision_model) {
+      currentCustomModels = [s.custom_vision_model];
+    } else {
+      currentCustomModels = ["openrouter/dots-studio/dots-3-note-preview:free"];
+    }
+
+    renderOpenRouterModelsList();
+    renderOpenCodeModelsList();
+    renderCustomModelsList();
+    updatePipelinePreview();
   } catch (err) {
     console.debug("Could not load AI Vision settings:", err);
   }
@@ -2323,12 +2671,15 @@ async function saveAiVisionSettings() {
   const payload = {
     ai_vision_provider: document.getElementById("ai-vision-provider-select")?.value || "auto",
     openrouter_api_key: document.getElementById("ai-vision-openrouter-key")?.value || "",
-    openrouter_model: document.getElementById("ai-vision-openrouter-model")?.value || "dots-studio/dots-3-note-preview:free",
+    openrouter_models: currentOpenRouterModels,
+    openrouter_model: currentOpenRouterModels[0] || "dots-studio/dots-3-note-preview:free",
     opencode_api_key: document.getElementById("ai-vision-opencode-key")?.value || "",
-    opencode_model: document.getElementById("ai-vision-opencode-model")?.value || "gemini-3.6-flash",
+    opencode_models: currentOpenCodeModels,
+    opencode_model: currentOpenCodeModels[0] || "gemini-3.6-flash",
     custom_vision_url: document.getElementById("ai-vision-custom-url")?.value || "http://127.0.0.1:20129/v1",
     custom_vision_key: document.getElementById("ai-vision-custom-key")?.value || "",
-    custom_vision_model: document.getElementById("ai-vision-custom-model")?.value || "openrouter/dots-studio/dots-3-note-preview:free"
+    custom_vision_models: currentCustomModels,
+    custom_vision_model: currentCustomModels[0] || "openrouter/dots-studio/dots-3-note-preview:free"
   };
 
   try {
@@ -2338,7 +2689,7 @@ async function saveAiVisionSettings() {
       body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error("Lỗi lưu cấu hình");
-    showToast("Đã lưu cấu hình AI Vision thành công!", "success");
+    showToast("Đã lưu chuỗi cấu hình AI Vision thành công!", "success");
     closeAiVisionModal();
   } catch (err) {
     showToast(`Lỗi: ${err.message}`, "error");
@@ -2370,7 +2721,7 @@ async function testAiVisionConnection(provider = "custom") {
       provider: "custom",
       base_url: document.getElementById("ai-vision-custom-url")?.value || "http://127.0.0.1:20129/v1",
       api_key: document.getElementById("ai-vision-custom-key")?.value || "",
-      model: document.getElementById("ai-vision-custom-model")?.value || "openrouter/dots-studio/dots-3-note-preview:free"
+      model: currentCustomModels[0] || "openrouter/dots-studio/dots-3-note-preview:free"
     };
   }
 
@@ -2423,7 +2774,6 @@ window.testAiVisionConnection = testAiVisionConnection;
 async function scan9RouterModels() {
   const btn = document.getElementById("btn-scan-custom-models");
   const statusEl = document.getElementById("ai-vision-custom-test-status");
-  const modelInput = document.getElementById("ai-vision-custom-model");
   const modelSelect = document.getElementById("ai-vision-custom-model-select");
   const baseUrl = document.getElementById("ai-vision-custom-url")?.value || "http://127.0.0.1:20129/v1";
   const apiKey = document.getElementById("ai-vision-custom-key")?.value || "";
@@ -2450,20 +2800,18 @@ async function scan9RouterModels() {
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
 
-    // Now query /models directly or through proxy to populate select
-    const targetUrl = `${baseUrl.replace(/\/+$/, "")}/models`;
-    const mRes = await fetch(targetUrl, {
-      headers: apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}
-    });
+    // Fetch models via backend endpoint
+    const mRes = await fetch(`${API_BASE}/ai-vision/models?provider=custom&base_url=${encodeURIComponent(baseUrl)}&api_key=${encodeURIComponent(apiKey)}`);
     if (mRes.ok) {
       const mData = await mRes.json();
-      const list = mData.data || [];
+      const list = mData.models || [];
+      availableCustomModels = list;
       if (list.length > 0 && modelSelect) {
-        modelSelect.innerHTML = `<option value="">-- Chọn model (${list.length}) --</option>` + 
+        modelSelect.innerHTML = `<option value="">-- Chọn từ 9Router (${list.length}) --</option>` + 
           list.map(m => `<option value="${m.id}">${m.id}</option>`).join("");
         modelSelect.style.display = "inline-block";
         if (statusEl) {
-          statusEl.textContent = `✅ Đã tìm thấy ${list.length} model trên 9Router! Bạn có thể chọn từ dropdown bên cạnh.`;
+          statusEl.textContent = `✅ Đã tìm thấy ${list.length} model trên 9Router! Chọn dropdown hoặc nhấn "Thêm vào chuỗi".`;
           statusEl.style.color = "#059669";
         }
         showToast(`Tìm thấy ${list.length} model trên 9Router!`, "success");
@@ -2494,7 +2842,7 @@ window.scan9RouterModels = scan9RouterModels;
 async function scanLiveVisionModels(provider = "openrouter") {
   const btn = document.getElementById("btn-scan-openrouter-models");
   const statusEl = document.getElementById("ai-vision-model-scan-status");
-  const modelSelect = document.getElementById("ai-vision-openrouter-model");
+  const pickerSelect = document.getElementById("ai-vision-openrouter-picker");
   const apiKey = document.getElementById("ai-vision-openrouter-key")?.value || "";
 
   if (btn) {
@@ -2515,45 +2863,38 @@ async function scanLiveVisionModels(provider = "openrouter") {
       throw new Error(data.error || "Không tìm thấy model Vision nào khả dụng");
     }
 
-    const currentSelected = modelSelect ? modelSelect.value : "";
+    availableOpenRouterModels = data.models || [];
     let optionsHtml = "";
 
-    // Group models: Free & Recommended first, then other Free, then Paid
     const freeModels = data.models.filter(m => m.is_free);
     const paidModels = data.models.filter(m => !m.is_free);
 
     if (freeModels.length > 0) {
-      optionsHtml += `<optgroup label="🆓 Model Vision Miễn Phí (Hoạt động tốt)">`;
+      optionsHtml += `<optgroup label="🆓 Model Vision Miễn Phí 0đ (Hoạt động tốt)">`;
       freeModels.forEach(m => {
-        const star = m.recommended ? " ⭐" : "";
-        const sel = (m.id === currentSelected) ? "selected" : "";
-        optionsHtml += `<option value="${m.id}" ${sel}>${m.name}${star} [0đ]</option>`;
+        const star = m.recommended ? " ⭐ Khuyên dùng" : "";
+        optionsHtml += `<option value="${m.id}">${m.name}${star} [0đ]</option>`;
       });
       optionsHtml += `</optgroup>`;
     }
 
     if (paidModels.length > 0) {
-      optionsHtml += `<optgroup label="💳 Model Vision Trả Phí (Yêu cầu có nạp credit OpenRouter)">`;
+      optionsHtml += `<optgroup label="💳 Model Vision Trả Phí">`;
       paidModels.slice(0, 30).forEach(m => {
-        const sel = (m.id === currentSelected) ? "selected" : "";
-        optionsHtml += `<option value="${m.id}" ${sel}>${m.name}</option>`;
+        optionsHtml += `<option value="${m.id}">${m.name}</option>`;
       });
       optionsHtml += `</optgroup>`;
     }
 
-    if (modelSelect) {
-      modelSelect.innerHTML = optionsHtml;
-      // If current was preserved or set first free recommended
-      if (!currentSelected && freeModels.length > 0) {
-        modelSelect.value = freeModels[0].id;
-      }
+    if (pickerSelect) {
+      pickerSelect.innerHTML = optionsHtml;
     }
 
     if (statusEl) {
-      statusEl.textContent = `✅ Đã tìm thấy ${data.total_found} model (${data.free_count} model 0đ)!`;
+      statusEl.textContent = `✅ Đã tìm thấy ${data.total_found} model (${data.free_count} model 0đ)! Bạn có thể nhấn "+ Thêm vào chuỗi" hoặc "⭐ Thêm tất cả 0đ".`;
       statusEl.style.color = "#059669";
     }
-    showToast(`Đã cập nhật ${data.total_found} model Vision từ OpenRouter!`, "success");
+    showToast(`Đã tìm thấy ${data.total_found} model (${data.free_count} model 0đ)!`, "success");
   } catch (err) {
     console.error("Scan models error:", err);
     if (statusEl) {

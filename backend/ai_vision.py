@@ -38,30 +38,64 @@ _VISION_CACHE: Dict[str, List[Dict[str, Any]]] = {}
 _MAX_CACHE_ENTRIES = 100
 
 
+def _parse_models_list(raw_val: str, default_list: List[str]) -> List[str]:
+    """Parses JSON or comma-separated list of models, falling back to default_list."""
+    if not raw_val or not raw_val.strip():
+        return list(default_list)
+    try:
+        parsed = json.loads(raw_val)
+        if isinstance(parsed, list):
+            clean = [str(x).strip() for x in parsed if str(x).strip()]
+            if clean:
+                return clean
+    except Exception:
+        pass
+    parts = [p.strip() for p in raw_val.split(",") if p.strip()]
+    return parts if parts else list(default_list)
+
+
 def get_ai_vision_settings() -> Dict[str, Any]:
     """Retrieves current AI Vision settings from system_config and env."""
     provider = get_system_config("ai_vision_provider", os.getenv("AI_VISION_PROVIDER", "auto"))
     openrouter_key = get_system_config("openrouter_api_key", os.getenv("OPENROUTER_API_KEY", ""))
     openrouter_model = get_system_config("openrouter_model", os.getenv("OPENROUTER_MODEL", OPENROUTER_FREE_MODELS[0]))
+    raw_or_models = get_system_config("openrouter_models", "")
+    default_or = [openrouter_model] + [m for m in OPENROUTER_FREE_MODELS if m != openrouter_model]
+    openrouter_models = _parse_models_list(raw_or_models, default_or)
+    if openrouter_models:
+        openrouter_model = openrouter_models[0]
     
     opencode_key = get_system_config("opencode_api_key", os.getenv("OPENCODE_API_KEY", ""))
     opencode_model = get_system_config("opencode_model", os.getenv("OPENCODE_MODEL", OPENCODE_MODELS[0]))
+    raw_oc_models = get_system_config("opencode_models", "")
+    default_oc = [opencode_model] + [m for m in OPENCODE_MODELS if m != opencode_model]
+    opencode_models = _parse_models_list(raw_oc_models, default_oc)
+    if opencode_models:
+        opencode_model = opencode_models[0]
     
-    custom_url = get_system_config("custom_vision_url", os.getenv("CUSTOM_VISION_URL", "http://localhost:20128/v1"))
+    custom_url = get_system_config("custom_vision_url", os.getenv("CUSTOM_VISION_URL", "http://127.0.0.1:20129/v1"))
     custom_key = get_system_config("custom_vision_key", os.getenv("CUSTOM_VISION_KEY", ""))
-    custom_model = get_system_config("custom_vision_model", os.getenv("CUSTOM_VISION_MODEL", "opencode/free"))
+    custom_model = get_system_config("custom_vision_model", os.getenv("CUSTOM_VISION_MODEL", "openrouter/dots-studio/dots-3-note-preview:free"))
+    raw_custom_models = get_system_config("custom_vision_models", "")
+    default_custom = [custom_model] if custom_model else ["openrouter/dots-studio/dots-3-note-preview:free"]
+    custom_vision_models = _parse_models_list(raw_custom_models, default_custom)
+    if custom_vision_models:
+        custom_model = custom_vision_models[0]
 
     return {
         "provider": provider,
         "openrouter_api_key": openrouter_key,
         "openrouter_model": openrouter_model,
+        "openrouter_models": openrouter_models,
         "openrouter_models_available": OPENROUTER_FREE_MODELS,
         "opencode_api_key": opencode_key,
         "opencode_model": opencode_model,
+        "opencode_models": opencode_models,
         "opencode_models_available": OPENCODE_MODELS,
         "custom_vision_url": custom_url,
         "custom_vision_key": custom_key,
         "custom_vision_model": custom_model,
+        "custom_vision_models": custom_vision_models,
         "has_openrouter": bool(openrouter_key.strip()),
         "has_opencode": bool(opencode_key.strip()),
     }
@@ -196,15 +230,28 @@ def save_ai_vision_settings(settings: Dict[str, Any]) -> None:
         "ai_vision_provider",
         "openrouter_api_key",
         "openrouter_model",
+        "openrouter_models",
         "opencode_api_key",
         "opencode_model",
+        "opencode_models",
         "custom_vision_url",
         "custom_vision_key",
-        "custom_vision_model"
+        "custom_vision_model",
+        "custom_vision_models"
     ]
     for key, val in settings.items():
         if key in allowed_keys and val is not None:
-            set_system_config(key, str(val).strip())
+            if key in ("openrouter_models", "opencode_models", "custom_vision_models"):
+                if isinstance(val, list):
+                    clean_list = [str(x).strip() for x in val if str(x).strip()]
+                    set_system_config(key, json.dumps(clean_list))
+                    if clean_list:
+                        singular_key = key.replace("_models", "_model")
+                        set_system_config(singular_key, clean_list[0])
+                elif isinstance(val, str):
+                    set_system_config(key, val.strip())
+            else:
+                set_system_config(key, str(val).strip())
 
 
 def _prepare_image_payload(image_bytes: bytes) -> str:
@@ -544,16 +591,20 @@ async def extract_questions_with_ai_vision(
     cfg = get_ai_vision_settings()
     image_data_uri = _prepare_image_payload(image_bytes)
 
-    # 2. Build Candidate Execution Order
+    active_provider = cfg.get("provider", "auto")
+
+    # 2. Build Candidate Execution Order across multi-models
     attempts: List[Tuple[str, str, str, str, Optional[Dict[str, str]]]] = []
     
     # Provider 1: OpenRouter (Direct)
-    or_key = cfg["openrouter_api_key"]
-    if or_key:
-        or_models = [cfg["openrouter_model"]] + [m for m in OPENROUTER_FREE_MODELS if m != cfg["openrouter_model"]]
+    or_key = cfg.get("openrouter_api_key", "").strip()
+    if or_key and active_provider in ("auto", "openrouter"):
+        or_models = cfg.get("openrouter_models", [])
+        if not or_models:
+            or_models = [cfg["openrouter_model"]] if cfg.get("openrouter_model") else OPENROUTER_FREE_MODELS
         for m in or_models:
             attempts.append((
-                "openrouter",
+                "OpenRouter",
                 "https://openrouter.ai/api/v1",
                 or_key,
                 m,
@@ -564,45 +615,52 @@ async def extract_questions_with_ai_vision(
             ))
 
     # Provider 2: OpenCode Zen (Direct)
-    oc_key = cfg["opencode_api_key"]
-    if oc_key:
-        oc_models = [cfg["opencode_model"]] + [m for m in OPENCODE_MODELS if m != cfg["opencode_model"]]
+    oc_key = cfg.get("opencode_api_key", "").strip()
+    if oc_key and active_provider in ("auto", "opencode"):
+        oc_models = cfg.get("opencode_models", [])
+        if not oc_models:
+            oc_models = [cfg["opencode_model"]] if cfg.get("opencode_model") else OPENCODE_MODELS
         for m in oc_models:
             attempts.append((
-                "opencode",
+                "OpenCode",
                 "https://opencode.ai/zen/v1",
                 oc_key,
                 m,
                 None
             ))
 
-    # Provider 3: Custom / Local endpoint (e.g. 9Router or Ollama if configured)
-    custom_url = cfg["custom_vision_url"]
-    custom_model = cfg["custom_vision_model"]
-    if custom_url and cfg.get("provider") in ("custom", "auto"):
-        attempts.append((
-            "custom_gateway",
-            custom_url,
-            cfg["custom_vision_key"],
-            custom_model,
-            None
-        ))
+    # Provider 3: Custom / Local endpoint (9Router / Local gateway)
+    custom_url = cfg.get("custom_vision_url", "").strip()
+    if custom_url and active_provider in ("auto", "custom"):
+        c_models = cfg.get("custom_vision_models", [])
+        if not c_models:
+            c_models = [cfg["custom_vision_model"]] if cfg.get("custom_vision_model") else ["openrouter/dots-studio/dots-3-note-preview:free"]
+        for m in c_models:
+            attempts.append((
+                "9Router",
+                custom_url,
+                cfg.get("custom_vision_key", "").strip(),
+                m,
+                None
+            ))
 
-    # 3. Execute with automated fallback
-    for provider_name, base_url, key, model_name, extra_headers in attempts:
+    # 3. Execute with automated multi-model fallback chain
+    failed_models: List[str] = []
+    for idx, (provider_name, base_url, key, model_name, extra_headers) in enumerate(attempts):
         try:
+            print(f"[AI Vision] [Model {idx + 1}/{len(attempts)}] Đang thử {provider_name} :: {model_name}...")
             extracted = await call_openai_compatible_vision(
                 base_url=base_url,
                 api_key=key,
                 model=model_name,
                 image_data_uri=image_data_uri,
                 extra_headers=extra_headers,
-                timeout=40.0
+                timeout=22.0
             )
             if extracted:
                 normalized_questions = []
-                for idx, item in enumerate(extracted):
-                    q_num = item.get("question_number", idx + 1)
+                for qidx, item in enumerate(extracted):
+                    q_num = item.get("question_number", qidx + 1)
                     q_text = str(item.get("question_text", "")).strip()
                     options = item.get("options", [])
                     if not isinstance(options, list):
@@ -634,9 +692,20 @@ async def extract_questions_with_ai_vision(
                     _VISION_CACHE.pop(next(iter(_VISION_CACHE)))
                 _VISION_CACHE[img_hash] = normalized_questions
 
-                return normalized_questions, f"{provider_name}:{model_name}"
+                if failed_models:
+                    engine_label = f"{provider_name}:{model_name} (sau khi {len(failed_models)} model trước lỗi)"
+                else:
+                    engine_label = f"{provider_name}:{model_name}"
+
+                print(f"[AI Vision] ✅ Thành công với {engine_label}!")
+                return normalized_questions, engine_label
+            else:
+                failed_models.append(f"{model_name}")
+                print(f"[AI Vision] ⚠️ Model {provider_name}:{model_name} không trả về kết quả hợp lệ. Tự động chuyển model dự phòng...")
         except Exception as e:
-            print(f"[extract_questions_with_ai_vision] Fallback from {provider_name} ({model_name}) due to: {e}")
+            failed_models.append(f"{model_name}")
+            print(f"[AI Vision] ⚠️ Fallback từ {provider_name} ({model_name}) do: {e}")
             continue
 
-    return [], "ai_vision_failed"
+    fail_info = f"ai_vision_failed (đã thử qua {len(attempts)} model)"
+    return [], fail_info
