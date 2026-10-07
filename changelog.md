@@ -2,6 +2,63 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.0.39] - 2026-10-07 08:05:00
+
+### User Request
+> kiểm tra code cho việc ghi log các hạng mục:
+> - thời gian không đồng bộ với hệ thống, formatting không đồng nhất
+> - log không theo dòng mà liền với nhau
+> đã cấu hình AI kết nối nhiều model nhưng có vẻ app không kết nối được đến các model đó. Hãy học cách kết nối từ 9router và sửa lỗi.
+> hiện tại ứng dụng đang host trên docker và 9router đang chạy trên windows tại endpoint: http://127.0.0.1:20129/v1 với model là 9router. Cấu hình app để kết nối với 9router.
+
+### User Request [Q0011]
+> bot kết nối với 9router tốt, gửi được request đến model nhưng có vẻ không đọc được kết quả nhận về. Tuy nhiên fallback sang các model của openrouter cũng không hoạt động. hãy kiểm tra lại và kiểm thử bằng file ảnh "C:\Users\ptlua\Desktop\sample.jpg"
+
+### Added
+- **Cấu hình Cầu nối Mạng Docker Host Bridge & 9Router Endpoint**:
+  - Bổ sung cấu hình `extra_hosts: ["host.docker.internal:host-gateway"]` và biến môi trường `CUSTOM_VISION_URL=http://host.docker.internal:20129/v1` trong `docker-compose.yml` cho phép ứng dụng trong container gọi trực tiếp ra 9Router trên Windows host.
+  - Tích hợp hàm `_resolve_docker_host_url()` trong `backend/ai_vision.py` tự động chuyển đổi `127.0.0.1` hoặc `localhost` sang `host.docker.internal` khi chạy trong Docker hoặc khi gặp lỗi kết nối cục bộ.
+  - Thêm 2 chế độ điều phối mới trên UI: **`🚀 Ưu tiên 9Router`** và **`🛠️ Chỉ dùng 9Router`**, kèm nút tắt nhanh **`🐳 Host Docker`** và **`💻 Localhost`**.
+- **Xử lý Luồng Dữ liệu AI Vision & Bóc Tách Suy luận (Reasoning)**:
+  - Bắt buộc tham số `"stream": false` trong payload gọi `/chat/completions` để triệt tiêu lỗi cú pháp SSE `Extra data JSON parsing`.
+  - Cơ chế bóc tách thông minh hỗ trợ trích xuất cả `content` lẫn trường `reasoning` / `reasoning_content` đối với các mô hình suy luận (như `dots-3-note-preview:free`).
+  - Hỗ trợ `strict=False` cho mọi thao tác `json.loads` trong `_clean_json_response` và `call_openai_compatible_vision` nhằm khắc phục hoàn toàn lỗi `Invalid control character` khi chuỗi câu hỏi có ký tự xuống dòng.
+  - Chuẩn hóa prompt OCR `_build_vision_prompt()`: cấm mô hình giải toán (no-solve), chuyển `correct_answer: ""` để mô hình tập trung bóc tách chữ thay vì tiêu tốn hàng nghìn tokens suy luận lời giải toán học.
+  - Điều chỉnh `max_tokens: 8192` và timeout động (75.0s cho 9Router gateway cục bộ, 32.0s cho OpenRouter).
+  - Tối ưu chuỗi ưu tiên mô hình dự phòng OpenRouter: đưa mô hình thị giác chuyên dụng (`dots-3-note-preview:free`, `google/gemma-4`, `nemotron-omni`) lên trước; loại bỏ `openrouter/free` khỏi vị trí ưu tiên số 1 vì nó điều hướng ngẫu nhiên sang model kiểm duyệt an toàn (`content-safety`).
+  - Tự động phát hiện mã lỗi HTTP 410 (Gone), 429 (Rate Limit), 503 để chuyển tiếp nhanh chóng sang model kế tiếp mà không làm treo ứng dụng.
+- **Dự phòng Bộ Xuất PDF MOET A4**:
+  - Thêm trình tạo PDF dự phòng chuẩn nhị phân `%PDF-1.4` trong `backend/app.py` khi môi trường chưa cài đặt headless Playwright.
+
+### Fixed
+- **Đồng bộ Múi giờ Việt Nam (UTC+7) & Sửa Triệt để Lỗi Dính Dòng Log**:
+  - Backend: Cố định múi giờ `VN_TZ = timezone(timedelta(hours=7))` cho toàn bộ nhật ký thu thập và bản ghi CSDL.
+  - Docker: Thiết lập biến môi trường `TZ=Asia/Ho_Chi_Minh` cho container.
+  - Frontend: Chuyển thẻ `#scraper-live-log` sang thẻ `<pre>` với `white-space: pre-wrap`, bảo toàn nguyên vẹn 100% ký tự xuống dòng `\n`.
+  - Quản lý nhật ký thông qua mảng JavaScript trong bộ nhớ (`logLines`), loại bỏ hoàn toàn cơ chế đọc/ghi nối chuỗi qua `innerText` của DOM ẩn.
+  - Chuẩn hóa hàm thời gian `getLogTimeVN()` theo định dạng 24h `[HH:mm:ss]`.
+  - Bổ sung hàm `unSquishLogLines()` tự động gỡ dính các dòng log cũ khi khôi phục từ `localStorage`.
+- **Cơ sở dữ liệu SQLite**:
+  - Phục hồi toàn diện tệp `data/questions.db` khỏi trạng thái `disk image is malformed`, bảo toàn nguyên vẹn 4.150 câu hỏi và tái cấu trúc chỉ mục FTS5.
+- **Sửa Lỗi NameError Logger**: Bổ sung `logger = logging.getLogger("eduquest")` trong `backend/app.py`.
+
+### Changed & Version Bump
+- **Web App**: Nâng từ `v1.0.38` lên **`v1.0.39`** (đồng bộ trên `frontend/index.html`, `frontend/js/app.js`, `rules.md`).
+- **Cache Buster**: Nâng từ `?v=1.0.42` lên **`?v=1.0.43`** trên toàn bộ liên kết tài nguyên tĩnh CSS/JS.
+- **Chrome Extension**: Đồng bộ toàn diện phiên bản **`v1.3.18`** trên cả giao diện Web Dashboard (`index.html`) và `rules.md`.
+
+### Files touched
+- `docker-compose.yml` (host-gateway, TZ=Asia/Ho_Chi_Minh, CUSTOM_VISION_URL)
+- `backend/ai_vision.py` (_resolve_docker_host_url, stream: false, reasoning extraction, 9router_first)
+- `backend/app.py` (logger import, _generate_fallback_pdf)
+- `backend/scrapers/vioedu.py` (VN_TZ, clean HTML strip)
+- `frontend/index.html` (bump v1.0.39, ?v=1.0.43, v1.3.18 badges, pre tag)
+- `frontend/js/app.js` (bump APP_VERSION v1.0.39)
+- `frontend/js/collector.js` (unSquishLogLines, in-memory logLines, getLogTimeVN)
+- `rules.md` (đồng bộ quy chuẩn v1.0.39, v1.3.18, ?v=1.0.43)
+- `test_app.py` (cập nhật assertion v1.0.39 & ?v=1.0.43)
+- `changelog.md`
+
 ## [v1.0.38] - 2026-10-06 21:30:00
 
 ### User Request
