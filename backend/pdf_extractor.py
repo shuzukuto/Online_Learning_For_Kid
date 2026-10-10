@@ -4,8 +4,10 @@ import re
 import io
 import uuid
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Union
+
+VN_TZ = timezone(timedelta(hours=7))
 from pypdf import PdfReader
 from PIL import Image
 
@@ -368,7 +370,7 @@ def parse_exam_text_into_questions(
             "correct_answer": detected_correct_answer,
             "explanation": None,
             "difficulty": difficulty,
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now(VN_TZ).isoformat()
         })
         
     return questions

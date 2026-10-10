@@ -3,12 +3,14 @@ import re
 import uuid
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 import httpx
 from bs4 import BeautifulSoup
 from backend.database import insert_or_update_question, log_collector_event, bulk_insert_questions
 from backend.normalizer import normalize_question_payload, is_valid_question_payload
+
+VN_TZ = timezone(timedelta(hours=7)) # Chuẩn múi giờ Việt Nam UTC+7
 
 VIOEDU_BASE_URL = "https://vio.edu.vn"
 
@@ -522,7 +524,10 @@ async def fetch_vioedu_skill_practice_questions(
                             collected.append(raw_q)
                             if log_func:
                                 s_name = raw_q.get("skillName") or "Luyện tập"
-                                log_func(f"  ✨ Thu thập câu hỏi #{len(collected)} [{s_name}]: {clean_vioedu_stem(raw_q.get('content', ''))[:55]}...")
+                                raw_stem = clean_vioedu_stem(raw_q.get('content', ''))
+                                clean_snippet = re.sub(r'<[^>]+>', ' ', raw_stem)
+                                clean_snippet = re.sub(r'\s+', ' ', clean_snippet).strip()[:55]
+                                log_func(f"  ✨ Thu thập câu hỏi #{len(collected)} [{s_name}]: {clean_snippet}...")
                         else:
                             consecutive_repeats += 1
                             if consecutive_repeats >= 4:
@@ -639,7 +644,7 @@ async def crawl_vioedu_rounds_headless(
     live_logs: List[str] = []
     
     def log_step(message: str, status: str = "info"):
-        formatted = f"[{datetime.now().strftime('%H:%M:%S')}] {message}"
+        formatted = f"[{datetime.now(VN_TZ).strftime('%H:%M:%S')}] {message}"
         live_logs.append(formatted)
         print(f"[VioEdu Bot] {formatted}")
         

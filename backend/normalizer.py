@@ -122,6 +122,33 @@ async def download_and_localize_image(url: str, referer: str = None) -> str:
         
     return url
 
+VALID_SUBJECTS = {"math", "vietnamese", "english", "science", "informatics", "history_geo"}
+
+SUBJECT_CANONICAL_MAP = {
+    "toán": "math",
+    "toan": "math",
+    "toán học": "math",
+    "math": "math",
+    "mathematics": "math",
+    "tiếng việt": "vietnamese",
+    "tieng viet": "vietnamese",
+    "vietnamese": "vietnamese",
+    "văn": "vietnamese",
+    "tiếng anh": "english",
+    "tieng anh": "english",
+    "english": "english",
+    "khoa học": "science",
+    "khoa hoc": "science",
+    "science": "science",
+    "tnxh": "science",
+    "tin học": "informatics",
+    "tin hoc": "informatics",
+    "informatics": "informatics",
+    "lịch sử": "history_geo",
+    "địa lý": "history_geo",
+    "history_geo": "history_geo"
+}
+
 from backend.classifier import classify_subject
 
 async def normalize_question_payload(q: Dict[str, Any]) -> Dict[str, Any]:
@@ -134,11 +161,35 @@ async def normalize_question_payload(q: Dict[str, Any]) -> Dict[str, Any]:
     q["content_html"] = clean_html
     q["content_text"] = QUESTION_NUMBER_REGEX.sub('', clean_text or q.get("content_text", "")).strip()
 
-    # Auto-classify subject if not explicitly set or verify accuracy
+    # Subject handling:
+    # Nếu câu hỏi đến từ source_platform in ["ai_agent_import", "manual"] hoặc current_sub đã được chỉ định rõ ràng và hợp lệ,
+    # TUYỆT ĐỐI KHÔNG tự ý ghi đè q["subject"] bằng classify_subject(). Chỉ phân loại tự động nếu q.get("subject") hoàn toàn rỗng.
     current_sub = q.get("subject")
+    if current_sub and isinstance(current_sub, str):
+        sub_key = current_sub.strip().lower()
+        if sub_key in SUBJECT_CANONICAL_MAP:
+            current_sub = SUBJECT_CANONICAL_MAP[sub_key]
+            q["subject"] = current_sub
+
+    source_platform = str(q.get("source_platform") or "").strip().lower()
+    is_protected_source = source_platform in ["ai_agent_import", "manual"]
+    is_valid_subject = current_sub in VALID_SUBJECTS
+
     from backend.classifier import VN_DIACRITICS_REGEX
     has_vn = bool(VN_DIACRITICS_REGEX.search(q["content_text"]))
-    if not current_sub or current_sub == "math" or (current_sub == "english" and has_vn):
+
+    should_classify = False
+    if not current_sub or not str(current_sub).strip():
+        # Chỉ phân loại tự động nếu q.get("subject") hoàn toàn rỗng
+        should_classify = True
+    elif not is_protected_source:
+        if not is_valid_subject:
+            should_classify = True
+        elif current_sub == "english" and has_vn:
+            # Phát hiện câu hỏi crawler bị gán nhầm 'english' nhưng toàn văn tiếng Việt
+            should_classify = True
+
+    if should_classify:
         detected_sub = classify_subject(
             content_text=q["content_text"],
             content_html=q["content_html"],

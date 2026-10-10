@@ -19,12 +19,12 @@ let countdownInterval = null;
 // ============================================================================
 // OCR Debug Live Log & Telemetry
 // ============================================================================
+let ocrLogList = [];
+
 function appendOcrLog(message, type = "info") {
   const logBox = document.getElementById("ocr-live-log");
   const badge = document.getElementById("ocr-log-badge");
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const timeStr = getLogTimeVN();
 
   const typeLabels = {
     info: "[INFO]",
@@ -40,37 +40,34 @@ function appendOcrLog(message, type = "info") {
   const formattedLine = `[${timeStr}] ${typeTag} ${message}`;
 
   console.log(`[OCR-DEBUG] ${formattedLine}`);
-
-  if (logBox) {
-    if (!logBox.dataset.hasLogs) {
-      logBox.innerText = formattedLine;
-      logBox.dataset.hasLogs = "true";
-    } else {
-      logBox.innerText += "\n" + formattedLine;
-    }
-    // Auto-scroll to bottom
-    logBox.scrollTop = logBox.scrollHeight;
-
-    // Update badge count
-    const lines = logBox.innerText.trim().split("\n");
-    if (badge) badge.textContent = `${lines.length} bản ghi`;
-
-    // Persist up to 60 lines in localStorage
-    try {
-      const stored = lines.slice(-60).join("\n");
-      localStorage.setItem("eduquest_ocr_log", stored);
-    } catch (e) {}
+  ocrLogList.push(formattedLine);
+  if (ocrLogList.length > 200) {
+    ocrLogList = ocrLogList.slice(-200);
   }
+
+  const fullText = ocrLogList.join("\n");
+  if (logBox) {
+    logBox.textContent = fullText;
+    logBox.dataset.hasLogs = "true";
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+  if (badge) badge.textContent = `${ocrLogList.length} bản ghi`;
+
+  try {
+    localStorage.setItem("eduquest_ocr_log", ocrLogList.slice(-60).join("\n"));
+  } catch (e) {}
 }
 window.appendOcrLog = appendOcrLog;
 
 function copyOcrLiveLog() {
-  const logBox = document.getElementById("ocr-live-log");
-  if (!logBox || !logBox.innerText.trim()) {
+  let text = ocrLogList.length > 0
+    ? ocrLogList.join("\n")
+    : (localStorage.getItem("eduquest_ocr_log") || (document.getElementById("ocr-live-log")?.textContent || ""));
+  text = unSquishLogLines(text);
+  if (!text.trim()) {
     showToast("Chưa có nội dung nhật ký để sao chép", "warning");
     return;
   }
-  const text = logBox.innerText.trim();
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text)
       .then(() => showToast("📋 Đã sao chép toàn bộ nhật ký bóc tách OCR!", "success"))
@@ -99,13 +96,14 @@ function fallbackCopyOcrLog(text) {
 }
 
 function clearOcrLiveLog() {
+  ocrLogList = [];
   const logBox = document.getElementById("ocr-live-log");
   const badge = document.getElementById("ocr-log-badge");
   if (logBox) {
-    logBox.innerText = "[Hệ thống] Đã làm sạch màn hình nhật ký. Sẵn sàng bóc tách tệp mới.";
+    logBox.textContent = "[Hệ thống] Đã làm sạch màn hình nhật ký. Sẵn sàng bóc tách tệp mới.";
     logBox.dataset.hasLogs = "true";
-    if (badge) badge.textContent = "1 bản ghi";
   }
+  if (badge) badge.textContent = "1 bản ghi";
   localStorage.removeItem("eduquest_ocr_log");
   showToast("🗑️ Đã xóa sạch màn hình nhật ký OCR", "info");
 }
@@ -116,12 +114,15 @@ function restoreOcrLog() {
     const saved = localStorage.getItem("eduquest_ocr_log");
     const logBox = document.getElementById("ocr-live-log");
     const badge = document.getElementById("ocr-log-badge");
-    if (saved && logBox) {
-      logBox.innerText = saved;
-      logBox.dataset.hasLogs = "true";
-      const lines = saved.trim().split("\n");
-      if (badge) badge.textContent = `${lines.length} bản ghi`;
-      logBox.scrollTop = logBox.scrollHeight;
+    if (saved) {
+      const clean = unSquishLogLines(saved);
+      ocrLogList = clean.split("\n").filter(l => l.trim().length > 0);
+      if (logBox && ocrLogList.length > 0) {
+        logBox.textContent = ocrLogList.join("\n");
+        logBox.dataset.hasLogs = "true";
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+      if (badge) badge.textContent = `${ocrLogList.length} bản ghi`;
     }
   } catch (e) {}
 }
@@ -345,12 +346,39 @@ async function processSelectedFilesOcr() {
       }
 
       const data = await res.json();
+      if (Array.isArray(data.ai_vision_logs) && data.ai_vision_logs.length > 0) {
+        data.ai_vision_logs.forEach(logLine => {
+          let logType = "info";
+          if (logLine.includes("❌") || logLine.includes("lỗi") || logLine.includes("Error")) logType = "error";
+          else if (logLine.includes("⚠️") || logLine.includes("hết hạn") || logLine.includes("Rate Limit")) logType = "warning";
+          else if (logLine.includes("✅") || logLine.includes("thành công") || logLine.includes("✨")) logType = "success";
+          appendOcrLog(logLine, logType);
+        });
+      }
+
       const qList = (data && (data.preview_questions || data.questions)) ? (data.preview_questions || data.questions) : [];
       const engineReported = data.engine_used || (qList[0] && qList[0].ocr_engine_used) || data.ocr_engine || ocrEngine;
 
       if (qList.length > 0) {
         appendOcrLog(`✅ [Tệp ${i + 1}/${totalFiles}] '${file.name}' bóc tách thành công ${qList.length} câu hỏi (${latency}s) [Động cơ: ${engineReported}]!`, "success");
+        
+        const serverImgUrl = data.image_url || data.source_image_url || null;
+        let localFileUrl = null;
+        if (isImage) {
+          try { localFileUrl = URL.createObjectURL(file); } catch(e){}
+        }
+        const effectiveSourceUrl = serverImgUrl || localFileUrl;
+        if (effectiveSourceUrl && !allImages.includes(effectiveSourceUrl)) {
+          allImages.push(effectiveSourceUrl);
+        }
+
         qList.forEach(q => {
+          if ((!q.images || q.images.length === 0) && effectiveSourceUrl) {
+            q.images = [effectiveSourceUrl];
+          }
+          if (!q.source_image_url && effectiveSourceUrl) {
+            q.source_image_url = effectiveSourceUrl;
+          }
           allExtractedQuestions.push({
             ...q,
             source_file_name: file.name
@@ -401,6 +429,8 @@ function startOcrBatchVerification(questions, images) {
     q._ocrIndex = idx;
   });
 
+  const primarySourceImg = (images && images.length > 0) ? images[0] : (questions[0] && (questions[0].source_image_url || (questions[0].images && questions[0].images[0]))) || null;
+
   window.State.ocrBatch = {
     items: questions,
     currentIndex: 0,
@@ -408,7 +438,8 @@ function startOcrBatchVerification(questions, images) {
     savedCount: 0,
     skippedCount: 0,
     totalCount: questions.length,
-    images: images || []
+    images: images || [],
+    sourceImageUrl: primarySourceImg
   };
 
   // Switch to view-manual if not already active
@@ -520,31 +551,57 @@ function loadOcrQuestionToForm(index) {
   if (elContent) elContent.value = q.content_text || q.content_html || "";
 
   const opts = q.options || [];
-  const optA = opts.find(o => o.id === "A") || opts[0];
-  const optB = opts.find(o => o.id === "B") || opts[1];
-  const optC = opts.find(o => o.id === "C") || opts[2];
-  const optD = opts.find(o => o.id === "D") || opts[3];
 
-  if (elOptA) elOptA.value = optA ? optA.content : "";
-  if (elOptB) elOptB.value = optB ? optB.content : "";
-  if (elOptC) elOptC.value = optC ? optC.content : "";
-  if (elOptD) elOptD.value = optD ? optD.content : "";
+  // Helper to extract clean content from option (string or object)
+  function getCleanOptContent(opt) {
+    if (!opt) return "";
+    if (typeof opt === "string") {
+      return opt.replace(/^\(?[A-Da-d]\)?[\.\:\)\-]\s*/, "").trim();
+    }
+    if (typeof opt === "object") {
+      const c = (opt.content !== undefined) ? opt.content : ((opt.text !== undefined) ? opt.text : (opt.value || ""));
+      return typeof c === "string" ? c.replace(/^\(?[A-Da-d]\)?[\.\:\)\-]\s*/, "").trim() : String(c);
+    }
+    return String(opt);
+  }
+
+  function findOptionMatch(letter, idx) {
+    if (!Array.isArray(opts)) return null;
+    const byId = opts.find(o => typeof o === "object" && o && String(o.id || o.key || o.label).toUpperCase() === letter);
+    if (byId) return byId;
+    const byStr = opts.find(o => typeof o === "string" && new RegExp(`^\\(?${letter}\\)?[\\.\\:\\)\\-]`, "i").test(o.trim()));
+    if (byStr) return byStr;
+    return opts[idx] || null;
+  }
+
+  const optA = findOptionMatch("A", 0);
+  const optB = findOptionMatch("B", 1);
+  const optC = findOptionMatch("C", 2);
+  const optD = findOptionMatch("D", 3);
+
+  if (elOptA) elOptA.value = getCleanOptContent(optA);
+  if (elOptB) elOptB.value = getCleanOptContent(optB);
+  if (elOptC) elOptC.value = getCleanOptContent(optC);
+  if (elOptD) elOptD.value = getCleanOptContent(optD);
 
   // Determine correct answer
-  const correctOpt = q.correct_answer || (opts.find(o => o.is_correct)?.id) || "A";
-  if (elCorrect) elCorrect.value = correctOpt;
+  let correctOpt = (q.correct_answer || "").toString().trim().toUpperCase();
+  if (!correctOpt && Array.isArray(opts)) {
+    const foundCorrect = opts.find(o => o && (o.is_correct === true || o.is_correct === "true"));
+    if (foundCorrect) correctOpt = String(foundCorrect.id || "").toUpperCase();
+  }
+  const matchLetter = correctOpt.match(/^([A-D])/i);
+  const finalLetter = matchLetter ? matchLetter[1].toUpperCase() : (["A", "B", "C", "D"].includes(correctOpt) ? correctOpt : "A");
+  if (elCorrect) elCorrect.value = finalLetter;
 
   if (elDiff) elDiff.value = q.difficulty || "medium";
   if (elExplanation) elExplanation.value = q.explanation || "";
 
-  // Sync OCR question images to the manual image gallery
-  if (typeof manualImageUrls !== "undefined") {
-    const qImages = (q.images && q.images.length > 0) ? [...q.images] : [];
-    // If no question-specific images, try batch-level images
-    if (qImages.length === 0 && window.State.ocrBatch.images && window.State.ocrBatch.images.length > 0) {
-      qImages.push(...window.State.ocrBatch.images);
-    }
-    manualImageUrls = qImages;
+  // Sync OCR question images to the manual image gallery (only if question has cropped diagrams/images)
+  const qImages = (q.images && q.images.length > 0) ? [...q.images] : [];
+  if (typeof window.manualImageUrls !== "undefined" || typeof manualImageUrls !== "undefined") {
+    window.manualImageUrls = [...qImages];
+    if (typeof manualImageUrls !== "undefined") manualImageUrls = window.manualImageUrls;
     if (typeof renderManualImageGallery === "function") renderManualImageGallery();
   }
 
@@ -600,11 +657,14 @@ function loadOcrQuestionToForm(index) {
   const imgThumb = document.getElementById("ocr-source-image-thumb");
   const imgName = document.getElementById("ocr-source-image-name");
 
-  const currentImgUrl = (q.images && q.images.length > 0) ? q.images[0] : (window.State.ocrBatch.images[0] || null);
+  const batchSource = (window.State.ocrBatch && window.State.ocrBatch.sourceImageUrl) ||
+                      (window.State.ocrBatch && window.State.ocrBatch.images && window.State.ocrBatch.images[0]) || null;
+  const currentImgUrl = (q.images && q.images.length > 0) ? q.images[0] : (q.source_image_url || batchSource);
+  const displaySource = batchSource || currentImgUrl;
 
-  if (currentImgUrl && imgBar && imgThumb) {
+  if (displaySource && imgBar && imgThumb) {
     imgBar.style.display = "flex";
-    imgThumb.src = currentImgUrl;
+    imgThumb.src = displaySource;
     if (imgName) imgName.textContent = q.source_file_name || q.exam_name || "Ảnh đề thi gốc";
   } else if (imgBar) {
     imgBar.style.display = "none";
@@ -817,40 +877,61 @@ function setupLightboxEvents() {
 function openCurrentQuestionImageZoom() {
   let imgUrl = null;
   let title = "Ảnh đề thi";
+  const candidateList = [];
 
-  if (window.State.ocrBatch && window.State.ocrBatch.items) {
-    const q = window.State.ocrBatch.items[window.State.ocrBatch.currentIndex];
-    if (q && q.images && q.images.length > 0) {
-      imgUrl = q.images[0];
-      title = q.source_file_name || q.exam_name || "Ảnh đề thi gốc";
+  // 1. From active OCR batch
+  if (window.State && window.State.ocrBatch) {
+    const batch = window.State.ocrBatch;
+    if (batch.items && typeof batch.currentIndex === "number") {
+      const q = batch.items[batch.currentIndex];
+      if (q) {
+        if (q.source_image_url) candidateList.push(q.source_image_url);
+        if (q.images && q.images.length > 0) candidateList.push(...q.images);
+        title = q.source_file_name || q.exam_name || "Ảnh đề thi gốc";
+      }
     }
-    if (window.State.ocrBatch.images && window.State.ocrBatch.images.length > 0) {
-      ocrLightboxState.imageUrls = window.State.ocrBatch.images;
-      ocrLightboxState.currentIndex = ocrLightboxState.imageUrls.indexOf(imgUrl);
-      if (ocrLightboxState.currentIndex < 0) ocrLightboxState.currentIndex = 0;
+    if (batch.sourceImageUrl) candidateList.push(batch.sourceImageUrl);
+    if (batch.images && batch.images.length > 0) candidateList.push(...batch.images);
+  }
+
+  // 2. From manual question attached images
+  const mImages = (typeof window.manualImageUrls !== "undefined" && window.manualImageUrls) || (typeof manualImageUrls !== "undefined" && manualImageUrls);
+  if (mImages && mImages.length > 0) {
+    candidateList.push(...mImages);
+    if (!title || title === "Ảnh đề thi") title = "Ảnh đính kèm câu hỏi";
+  }
+
+  // 3. From OCR source image thumb
+  const thumb = document.getElementById("ocr-source-image-thumb");
+  if (thumb && thumb.src && !thumb.src.endsWith("#") && thumb.src !== window.location.href) {
+    candidateList.push(thumb.src);
+  }
+
+  // 4. From selected files
+  if (typeof selectedOcrFiles !== "undefined" && selectedOcrFiles && selectedOcrFiles.length > 0) {
+    for (const f of selectedOcrFiles) {
+      if (f && f.type && f.type.startsWith("image/")) {
+        try {
+          const blobUrl = URL.createObjectURL(f);
+          candidateList.push(blobUrl);
+          if (!title || title === "Ảnh đề thi") title = f.name;
+        } catch (e) {}
+      }
     }
   }
 
-  if (!imgUrl && ocrLightboxState.imageUrls.length > 0) {
+  // Deduplicate candidates
+  const uniqueUrls = [];
+  candidateList.forEach(u => {
+    if (u && typeof u === "string" && !uniqueUrls.includes(u)) uniqueUrls.push(u);
+  });
+
+  if (uniqueUrls.length > 0) {
+    ocrLightboxState.imageUrls = uniqueUrls;
+    ocrLightboxState.currentIndex = 0;
+    imgUrl = uniqueUrls[0];
+  } else if (ocrLightboxState.imageUrls && ocrLightboxState.imageUrls.length > 0) {
     imgUrl = ocrLightboxState.imageUrls[0];
-  }
-
-  if (!imgUrl) {
-    const thumb = document.getElementById("ocr-source-image-thumb");
-    if (thumb && thumb.src) imgUrl = thumb.src;
-  }
-
-  // Fallback to selected files if blob/preview available
-  if (!imgUrl && typeof selectedOcrFiles !== "undefined" && selectedOcrFiles && selectedOcrFiles.length > 0) {
-    const f = selectedOcrFiles[0];
-    if (f && f.type && f.type.startsWith("image/")) {
-      try {
-        imgUrl = URL.createObjectURL(f);
-        ocrLightboxState.imageUrls = [imgUrl];
-        ocrLightboxState.currentIndex = 0;
-        title = f.name;
-      } catch (e) {}
-    }
   }
 
   if (!imgUrl) {
@@ -933,14 +1014,62 @@ function applyImageTransform() {
 }
 
 
+// -------------------------------------------------------------
+// Universal Log Utilities (VN 24h Time & Safe Formatting)
+// -------------------------------------------------------------
+function getLogTimeVN(d = new Date()) {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    return formatter.format(d);
+  } catch (e) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+}
+
+function unSquishLogLines(rawText) {
+  if (!rawText || !rawText.trim()) return "";
+  let s = String(rawText);
+  // Tách các dòng log bị dính liền dạng: ...nội dung[HH:mm:ss]...
+  s = s.replace(/([^\n])\s*(\[\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?\])/g, (m, p1, p2) => p1 + "\n" + p2);
+  // Tách các dòng bắt đầu bằng icon/emoji hoặc mũi tên mục tiêu nếu bị dính
+  s = s.replace(/([^\n])\s*(->\s*Danh sách mục tiêu:|🚀|🤖|⏳|✅|❌|⚠️|📋|🔄|💡)/g, (m, p1, p2) => p1 + "\n" + p2);
+  return s.split("\n").map(l => l.trimEnd()).filter(l => l.trim().length > 0).join("\n");
+}
+
+let scraperLogLines = [];
+
+function renderScraperLog() {
+  const logBox = document.getElementById("scraper-live-log");
+  const toolbar = document.getElementById("scraper-log-toolbar");
+  if (!logBox) return;
+  const fullText = scraperLogLines.join("\n") + (scraperLogLines.length > 0 ? "\n" : "");
+  logBox.textContent = fullText;
+  if (scraperLogLines.length > 0) {
+    logBox.style.display = "block";
+    if (toolbar) toolbar.style.display = "flex";
+  }
+  try {
+    localStorage.setItem("eduquest_scraper_log", fullText);
+  } catch (e) {}
+}
+
 // Scraper Log Actions (Copy & Clear)
 function copyScraperLiveLog() {
-  const logBox = document.getElementById("scraper-live-log");
-  if (!logBox || !logBox.innerText.trim()) {
+  let text = scraperLogLines.length > 0
+    ? scraperLogLines.join("\n")
+    : (localStorage.getItem("eduquest_scraper_log") || (document.getElementById("scraper-live-log")?.textContent || ""));
+  text = unSquishLogLines(text);
+  if (!text.trim()) {
     showToast("Chưa có nội dung nhật ký để sao chép", "error");
     return;
   }
-  const text = logBox.innerText.trim();
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text)
       .then(() => showToast("Đã sao chép toàn bộ nhật ký Bot!", "success"))
@@ -968,10 +1097,11 @@ function fallbackCopyScraperLog(text) {
 }
 
 function clearScraperLiveLog() {
+  scraperLogLines = [];
   const logBox = document.getElementById("scraper-live-log");
   const toolbar = document.getElementById("scraper-log-toolbar");
   if (logBox) {
-    logBox.innerText = "";
+    logBox.textContent = "";
     logBox.style.display = "none";
   }
   if (toolbar) toolbar.style.display = "none";
@@ -993,18 +1123,12 @@ async function runAutoScraper() {
     return;
   }
 
-  const logBox = document.getElementById("scraper-live-log");
-  const toolbar = document.getElementById("scraper-log-toolbar");
-  logBox.style.display = "block";
-  if (toolbar) toolbar.style.display = "flex";
-
-  const timeNow = new Date().toLocaleTimeString();
-  const initLines = [
-    `[${timeNow}] Đang mở trình duyệt ngầm và kết nối tài khoản ${username}...`,
-    `[${timeNow}] 🚀 Khởi chạy Bot Đăng nhập Ngầm cho nền tảng ${platform.toUpperCase()}...`
+  const timeNow = getLogTimeVN();
+  scraperLogLines = [
+    `[${timeNow}] 🚀 Khởi chạy Bot Đăng nhập Ngầm cho nền tảng ${platform.toUpperCase()}...`,
+    `[${timeNow}] Đang mở trình duyệt ngầm và kết nối tài khoản ${username}...`
   ];
-  logBox.innerText = initLines.join("\n") + "\n";
-  localStorage.setItem("eduquest_scraper_log", logBox.innerText);
+  renderScraperLog();
 
   if (btn) {
     btn.disabled = true;
@@ -1026,14 +1150,13 @@ async function runAutoScraper() {
     });
 
     const data = await res.json();
+    const finishTime = getLogTimeVN();
 
-    // Render logs with NEWEST ON TOP
+    // Render logs with NEWEST ON TOP from backend array
     if (data.logs && Array.isArray(data.logs) && data.logs.length > 0) {
-      const reversedLogs = [...data.logs].reverse();
-      logBox.innerText = reversedLogs.join("\n") + "\n";
+      scraperLogLines = [...data.logs].reverse();
     }
 
-    const finishTime = new Date().toLocaleTimeString();
     if (data.success) {
       const fixedGrade = data.account_grade || grade;
       if (data.account_grade) {
@@ -1042,15 +1165,11 @@ async function runAutoScraper() {
       }
 
       if (data.inserted_count > 0) {
-        const msg = `[${finishTime}] 🎉 Thành công xuất sắc! Đã lưu ${data.inserted_count} câu hỏi vào CSDL (Khối lớp cố định: Lớp ${fixedGrade})!\n`;
-        logBox.innerText = msg + logBox.innerText;
         showToast(`Bot đã cào thành công ${data.inserted_count} câu hỏi mới (Khối ${fixedGrade})!`, "success");
         if (typeof broadcastNewQuestions === "function") {
           broadcastNewQuestions(data.inserted_count, `VioEdu Bot (Lớp ${fixedGrade})`);
         }
       } else {
-        const msg = `[${finishTime}] ℹ️ Các câu hỏi đã có sẵn trong CSDL hoặc phòng thi hiện chưa mở câu hỏi mới.\n`;
-        logBox.innerText = msg + logBox.innerText;
         showToast(`Đã hoàn tất quét VioEdu (Khối ${fixedGrade}). Dữ liệu đã được cập nhật.`, "info");
       }
 
@@ -1059,21 +1178,24 @@ async function runAutoScraper() {
         loadQuestions();
       }
     } else {
-      const errMsg = `[${finishTime}] ❌ Lỗi: ${data.error || "Không thể hoàn thành tiến trình cào dữ liệu."}\n`;
-      logBox.innerText = errMsg + logBox.innerText;
+      const errMsg = `[${finishTime}] ❌ Lỗi: ${data.error || "Không thể hoàn thành tiến trình cào dữ liệu."}`;
+      scraperLogLines.unshift(errMsg);
       showToast(data.error || "Lỗi đăng nhập / cào dữ liệu VioEdu", "error");
     }
+
+    renderScraperLog();
+
   } catch (err) {
-    const errTime = new Date().toLocaleTimeString();
-    const excMsg = `[${errTime}] ❌ Ngoại lệ: ${err.message}\n`;
-    logBox.innerText = excMsg + logBox.innerText;
+    const errTime = getLogTimeVN();
+    const excMsg = `[${errTime}] ❌ Ngoại lệ: ${err.message}`;
+    scraperLogLines.unshift(excMsg);
+    renderScraperLog();
     showToast("Lỗi kết nối máy chủ cào dữ liệu: " + err.message, "error");
   } finally {
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = "🚀 Bắt đầu cào dữ liệu";
     }
-    localStorage.setItem("eduquest_scraper_log", logBox.innerText);
     loadCollectorLogs();
   }
 }
@@ -1164,7 +1286,7 @@ function addPresetHunterTarget(url) {
     id: "url_" + Date.now(),
     url: url,
     active: true,
-    addedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    addedAt: getLogTimeVN()
   };
   hunterTargetUrls.unshift(newEntry);
   saveHunterTargetUrls();
@@ -1191,7 +1313,7 @@ function addHunterTargetUrl() {
     id: "url_" + Date.now(),
     url: val,
     active: true,
-    addedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    addedAt: getLogTimeVN()
   };
 
   hunterTargetUrls.unshift(newEntry);
@@ -1322,11 +1444,12 @@ function formatAndSortHunterLog(rawText) {
 
 function copyHunterLiveLog() {
   const logBox = document.getElementById("hunter-live-log");
-  if (!logBox || !logBox.innerText.trim()) {
+  const rawText = logBox ? (logBox.textContent || "") : (localStorage.getItem("eduquest_hunter_log") || "");
+  const text = unSquishLogLines(rawText.trim());
+  if (!text) {
     showToast("Chưa có nội dung nhật ký để sao chép", "error");
     return;
   }
-  const text = logBox.innerText.trim();
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text)
       .then(() => showToast("Đã sao chép toàn bộ nhật ký Săn câu hỏi!", "success"))
@@ -1357,7 +1480,7 @@ function clearHunterLiveLog() {
   const logBox = document.getElementById("hunter-live-log");
   const toolbar = document.getElementById("hunter-log-toolbar");
   if (logBox) {
-    logBox.innerText = "";
+    logBox.textContent = "";
     logBox.style.display = "none";
   }
   if (toolbar) toolbar.style.display = "none";
@@ -1381,7 +1504,7 @@ async function runInternetHunter(isAuto = false) {
     btn.innerText = "⏳ Đang quét internet...";
   }
 
-  const timeNow = new Date().toLocaleTimeString();
+  const timeNow = getLogTimeVN();
   const runHeader = `[${timeNow}] ${isAuto ? "🔄 [TỰ ĐỘNG ĐỊNH KỲ]" : "⚡ [THỦ CÔNG]"} Săn câu hỏi (Môn: ${subject.toUpperCase()}, Khối ${grade})...`;
   const targetsLine = activeCustomUrls.length > 0
     ? `-> Danh sách mục tiêu: Sẽ cào ${activeCustomUrls.length} web/link: ${activeCustomUrls.slice(0, 2).join(', ')}${activeCustomUrls.length > 2 ? '...' : ''}`
@@ -1392,10 +1515,10 @@ async function runInternetHunter(isAuto = false) {
   const newRunText = newRunLines.join("\n");
 
   // Prepend newest run on top
-  const previousText = logBox ? (logBox.innerText || "").trim() : "";
+  const previousText = logBox ? (logBox.textContent || "").trim() : "";
   if (logBox) {
-    logBox.innerText = previousText ? newRunText + "\n\n" + previousText : newRunText;
-    localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+    logBox.textContent = previousText ? newRunText + "\n\n" + previousText : newRunText;
+    localStorage.setItem("eduquest_hunter_log", logBox.textContent);
   }
 
   try {
@@ -1410,18 +1533,18 @@ async function runInternetHunter(isAuto = false) {
     });
 
     const data = await res.json();
-    const finishTime = new Date().toLocaleTimeString();
+    const finishTime = getLogTimeVN();
 
     if (data.success) {
       const finishLine = `[${finishTime}] Thu thập thành công! Đã bóc tách và lưu ${data.total_harvested} câu hỏi vào CSDL.`;
       if (logBox) {
-        if (logBox.innerText.includes(inProgressLine)) {
-          logBox.innerText = logBox.innerText.replace(inProgressLine, finishLine);
+        if (logBox.textContent.includes(inProgressLine)) {
+          logBox.textContent = logBox.textContent.replace(inProgressLine, finishLine);
         } else {
-          const cur = (logBox.innerText || "").trim();
-          logBox.innerText = cur ? finishLine + "\n" + cur : finishLine;
+          const cur = (logBox.textContent || "").trim();
+          logBox.textContent = cur ? finishLine + "\n" + cur : finishLine;
         }
-        localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+        localStorage.setItem("eduquest_hunter_log", logBox.textContent);
       }
       showToast(`Đã săn thành công ${data.total_harvested} câu hỏi từ Internet!`);
       if (typeof broadcastNewQuestions === "function") {
@@ -1433,26 +1556,26 @@ async function runInternetHunter(isAuto = false) {
     } else {
       const errorLine = `[${finishTime}] Thông báo: ${data.error || "Không tìm thấy dữ liệu mới."}`;
       if (logBox) {
-        if (logBox.innerText.includes(inProgressLine)) {
-          logBox.innerText = logBox.innerText.replace(inProgressLine, errorLine);
+        if (logBox.textContent.includes(inProgressLine)) {
+          logBox.textContent = logBox.textContent.replace(inProgressLine, errorLine);
         } else {
-          const cur = (logBox.innerText || "").trim();
-          logBox.innerText = cur ? errorLine + "\n" + cur : errorLine;
+          const cur = (logBox.textContent || "").trim();
+          logBox.textContent = cur ? errorLine + "\n" + cur : errorLine;
         }
-        localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+        localStorage.setItem("eduquest_hunter_log", logBox.textContent);
       }
     }
   } catch (err) {
-    const finishTime = new Date().toLocaleTimeString();
+    const finishTime = getLogTimeVN();
     const errorLine = `[${finishTime}] Lỗi kết nối: ${err.message}`;
     if (logBox) {
-      if (logBox.innerText.includes(inProgressLine)) {
-        logBox.innerText = logBox.innerText.replace(inProgressLine, errorLine);
+      if (logBox.textContent.includes(inProgressLine)) {
+        logBox.textContent = logBox.textContent.replace(inProgressLine, errorLine);
       } else {
-        const cur = (logBox.innerText || "").trim();
-        logBox.innerText = cur ? errorLine + "\n" + cur : errorLine;
+        const cur = (logBox.textContent || "").trim();
+        logBox.textContent = cur ? errorLine + "\n" + cur : errorLine;
       }
-      localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+      localStorage.setItem("eduquest_hunter_log", logBox.textContent);
     }
     if (!isAuto) showToast("Lỗi khi săn câu hỏi Internet", "error");
   } finally {
@@ -1579,15 +1702,15 @@ async function harvestCurrentGradeMathQuick() {
     btn.innerText = `⏳ Đang nạp đề Toán Khối ${grade}...`;
   }
 
-  const timeNow = new Date().toLocaleTimeString();
+  const timeNow = getLogTimeVN();
   const runHeader = `[${timeNow}] 🌟 [NẠP NHANH TOÁN KHỐI ${grade}] Quét đa nguồn Tiếng Việt (VioEdu, Trạng Nguyên, OLM, VnDoc, SGK Hành Trang Số) & Tiếng Anh (K5 Learning, IXL, Khan Academy, Olympic Kangaroo, TIMO, SASMO)...`;
   const inProgressLine = `⏳ Đang kết nối các kho học liệu Toán Khối ${grade}...`;
 
   const newRunText = `${runHeader}\n${inProgressLine}`;
-  const previousText = logBox ? (logBox.innerText || "").trim() : "";
+  const previousText = logBox ? (logBox.textContent || "").trim() : "";
   if (logBox) {
-    logBox.innerText = previousText ? newRunText + "\n\n" + previousText : newRunText;
-    localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+    logBox.textContent = previousText ? newRunText + "\n\n" + previousText : newRunText;
+    localStorage.setItem("eduquest_hunter_log", logBox.textContent);
   }
 
   try {
@@ -1597,18 +1720,18 @@ async function harvestCurrentGradeMathQuick() {
       body: JSON.stringify({ grade: grade, subject: "math" })
     });
     const data = await res.json();
-    const finishTime = new Date().toLocaleTimeString();
+    const finishTime = getLogTimeVN();
 
     if (data.success) {
       const finishLine = `[${finishTime}] Thu thập thành công! Đã bóc tách và nạp ${data.total_harvested} câu hỏi Toán Khối ${grade} (Anh & Việt & Olympic) vào Ngân hàng.`;
       if (logBox) {
-        if (logBox.innerText.includes(inProgressLine)) {
-          logBox.innerText = logBox.innerText.replace(inProgressLine, finishLine);
+        if (logBox.textContent.includes(inProgressLine)) {
+          logBox.textContent = logBox.textContent.replace(inProgressLine, finishLine);
         } else {
-          const cur = (logBox.innerText || "").trim();
-          logBox.innerText = cur ? finishLine + "\n" + cur : finishLine;
+          const cur = (logBox.textContent || "").trim();
+          logBox.textContent = cur ? finishLine + "\n" + cur : finishLine;
         }
-        localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+        localStorage.setItem("eduquest_hunter_log", logBox.textContent);
       }
       showToast(`Tuyệt vời! Đã nạp thành công ${data.total_harvested} câu hỏi Toán Khối ${grade} (Anh & Việt & Olympic)!`);
       if (typeof broadcastNewQuestions === "function") {
@@ -1620,21 +1743,21 @@ async function harvestCurrentGradeMathQuick() {
     } else {
       const errLine = `[${finishTime}] Thông báo: ${data.error || `Không thể thu thập dữ liệu Toán khối ${grade}.`}`;
       if (logBox) {
-        if (logBox.innerText.includes(inProgressLine)) {
-          logBox.innerText = logBox.innerText.replace(inProgressLine, errLine);
+        if (logBox.textContent.includes(inProgressLine)) {
+          logBox.textContent = logBox.textContent.replace(inProgressLine, errLine);
         }
-        localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+        localStorage.setItem("eduquest_hunter_log", logBox.textContent);
       }
       showToast(data.error || "Không thể thu thập dữ liệu", "error");
     }
   } catch (err) {
-    const finishTime = new Date().toLocaleTimeString();
+    const finishTime = getLogTimeVN();
     const errLine = `[${finishTime}] Lỗi kết nối máy chủ: ${err.message}`;
     if (logBox) {
-      if (logBox.innerText.includes(inProgressLine)) {
-        logBox.innerText = logBox.innerText.replace(inProgressLine, errLine);
+      if (logBox.textContent.includes(inProgressLine)) {
+        logBox.textContent = logBox.textContent.replace(inProgressLine, errLine);
       }
-      localStorage.setItem("eduquest_hunter_log", logBox.innerText);
+      localStorage.setItem("eduquest_hunter_log", logBox.textContent);
     }
     showToast(`Lỗi khi nạp nhanh đề Toán Khối ${grade}: ` + err.message, "error");
   } finally {
@@ -2021,7 +2144,7 @@ function restoreCollectorSettings() {
     if (formatted) {
       hunterLogBox.style.display = "block";
       if (hunterToolbar) hunterToolbar.style.display = "flex";
-      hunterLogBox.innerText = formatted;
+      hunterLogBox.textContent = formatted;
       localStorage.setItem("eduquest_hunter_log", formatted);
     }
   }
@@ -2030,9 +2153,11 @@ function restoreCollectorSettings() {
   const scraperLogBox = document.getElementById("scraper-live-log");
   const scraperToolbar = document.getElementById("scraper-log-toolbar");
   if (savedScraperLog && scraperLogBox) {
+    const cleanLog = unSquishLogLines(savedScraperLog);
     scraperLogBox.style.display = "block";
     if (scraperToolbar) scraperToolbar.style.display = "flex";
-    scraperLogBox.innerText = savedScraperLog;
+    scraperLogBox.textContent = cleanLog;
+    localStorage.setItem("eduquest_scraper_log", cleanLog);
   }
 
   // 7. Restore OCR live log
@@ -2297,27 +2422,7 @@ function updatePipelinePreview() {
   if (!chainEl) return;
 
   const steps = [];
-  if (provider === "auto" || provider === "openrouter") {
-    currentOpenRouterModels.forEach((m) => {
-      steps.push({
-        label: `OpenRouter: ${m}`,
-        short: m.replace(":free", "").split("/").pop(),
-        type: "openrouter",
-        isFree: m.includes(":free") || m.includes("free")
-      });
-    });
-  }
-  if (provider === "auto" || provider === "opencode") {
-    currentOpenCodeModels.forEach((m) => {
-      steps.push({
-        label: `OpenCode: ${m}`,
-        short: m,
-        type: "opencode",
-        isFree: false
-      });
-    });
-  }
-  if (provider === "auto" || provider === "custom") {
+  if (provider === "9router_first") {
     currentCustomModels.forEach((m) => {
       steps.push({
         label: `9Router: ${m}`,
@@ -2326,6 +2431,53 @@ function updatePipelinePreview() {
         isFree: m.includes(":free") || m.includes("free")
       });
     });
+    currentOpenRouterModels.forEach((m) => {
+      steps.push({
+        label: `OpenRouter: ${m}`,
+        short: m.replace(":free", "").split("/").pop(),
+        type: "openrouter",
+        isFree: m.includes(":free") || m.includes("free")
+      });
+    });
+    currentOpenCodeModels.forEach((m) => {
+      steps.push({
+        label: `OpenCode: ${m}`,
+        short: m,
+        type: "opencode",
+        isFree: false
+      });
+    });
+  } else {
+    if (provider === "auto" || provider === "openrouter") {
+      currentOpenRouterModels.forEach((m) => {
+        steps.push({
+          label: `OpenRouter: ${m}`,
+          short: m.replace(":free", "").split("/").pop(),
+          type: "openrouter",
+          isFree: m.includes(":free") || m.includes("free")
+        });
+      });
+    }
+    if (provider === "auto" || provider === "opencode") {
+      currentOpenCodeModels.forEach((m) => {
+        steps.push({
+          label: `OpenCode: ${m}`,
+          short: m,
+          type: "opencode",
+          isFree: false
+        });
+      });
+    }
+    if (provider === "auto" || provider === "custom") {
+      currentCustomModels.forEach((m) => {
+        steps.push({
+          label: `9Router: ${m}`,
+          short: m.split("/").pop(),
+          type: "custom",
+          isFree: m.includes(":free") || m.includes("free")
+        });
+      });
+    }
   }
 
   if (countEl) {

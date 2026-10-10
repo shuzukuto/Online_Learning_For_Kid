@@ -8,10 +8,10 @@ Tài liệu này là **đặc tả thiết kế còn hiệu lực** của hệ t
 
 Hệ thống hoạt động theo mô hình Hybrid phân tán:
 1. **Phiên bản chuẩn hóa toàn diện**:
-   - **Web App**: `v1.0.35` (hien thi dong bo tai `frontend/index.html` va `frontend/js/app.js`).
-   - **Chrome Extension**: `v1.3.17` (dong bo 100% tren `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
-   - **Cache Buster**: `?v=1.0.38` tren tat ca lien ket tai nguyen tinh (CSS, JS).
-   - **Nguyên tắc loại trừ chuỗi cũ**: Tuyệt đối không để tồn tại bất kỳ phiên bản lỗi thời nào (`v1.3.0`, `v1.3.11`, `v1.3.12`, `v1.3.14`) trong toàn bộ mã nguồn.
+   - **Web App**: `v1.0.40` (hien thi dong bo tai `frontend/index.html` va `frontend/js/app.js`).
+   - **Chrome Extension**: `v1.3.18` (dong bo 100% tren `manifest.json`, `background.js`, `interceptor.js`, `content.js`, `popup.html`, `popup.js`).
+   - **Cache Buster**: `?v=1.0.44` tren tat ca lien ket tai nguyen tinh (CSS, JS).
+   - **Nguyên tắc loại trừ chuỗi cũ**: Tuyệt đối không để tồn tại bất kỳ phiên bản lỗi thời nào (`v1.3.0`, `v1.3.11`, `v1.3.12`, `v1.3.14`, `v1.3.15`, `v1.3.16`, `v1.3.17`) trong toàn bộ mã nguồn.
 2. **Backend Engine**: FastAPI (Python 3.10+) chạy tại `http://127.0.0.1:8000`.
    - Cơ sở dữ liệu: SQLite (`data/questions.db`).
    - Thư mục Media/Ảnh: `data/media/`.
@@ -27,20 +27,21 @@ Hệ thống hoạt động theo mô hình Hybrid phân tán:
      + Trung tâm Thu thập (Collector Center: Scrapers, Internet Hunter).
      + Soạn Câu hỏi Mới (Question Editor & Multi-file Image/PDF OCR Studio).
      + 🎯 Luyện tập Trực tuyến (Interactive Practice Arena, Trending Charts, Mastery, Badges).
-   - **Quy chuẩn UX Tab Trình duyệt**: Bỏ hoàn toàn biểu tượng/logo ở tab trình duyệt bằng chuẩn W3C `<link rel="icon" href="data:,">`.
+   - **Quy chuẩn UX Tab Trình duyệt (Favicon & Brand Icon)**: Tích hợp hệ sinh thái biểu tượng nhận diện thương hiệu EduQuest Pro đa độ phân giải và định dạng chuẩn W3C/PWA: SVG vector tự động thích ứng Dark/Light Mode (`<link rel="icon" type="image/svg+xml" href="favicon.svg">`), PNG chuẩn sắc nét 32x32 và 16x16, Apple Touch Icon 180x180, ICO đa kích thước (16, 32, 48) và Web Manifest (`site.webmanifest`).
 4. **Trình thu thập dữ liệu (Collector Modules)**:
-   - **Chrome/Edge Extension (v1.3.15)**: Thu thập tự động câu hỏi trên VioEdu, Hành Trang Số, Trạng Nguyên, CodeMath, IOE, VietJack, Lời Giải Hay qua Network Request Interception, DOM Extraction và Bulk Lesson Crawler.
+   - **Chrome/Edge Extension (v1.3.18)**: Thu thập tự động câu hỏi trên VioEdu, Hành Trang Số, Trạng Nguyên, CodeMath, IOE, VietJack, Lời Giải Hay qua Network Request Interception, DOM Extraction và Bulk Lesson Crawler.
    - **Bộ bóc tách đề thi PDF & Image OCR**: Phân tích đề thi Olympic TIMO, ASMO, HKIMO và ảnh chụp đề thi bằng PyPDF, OpenCV và RapidOCR/EasyOCR.
    - **Internet Hunter & Parametric Generator**: Thu thập tự động từ các nguồn học liệu trực tuyến mở (Blogger Atom JSON, SGK điện tử) kết hợp động cơ sinh câu hỏi tham số hóa 12 khối lớp và đa bộ môn.
+5. **Quy chuẩn Vận hành Docker (Post-Task Docker Rebuild)**: Bắt buộc tự động chạy `docker compose up -d --build` và kiểm tra phản hồi HTTP 200 tại `http://localhost:8000/api/stats/count` mỗi khi hoàn tất bất kỳ thay đổi nào về mã nguồn hoặc tài nguyên của ứng dụng trước khi kết thúc tác vụ.
 
 
 ---
 
-## 2. Tiện ích Mở rộng (Chrome / Edge Extension v1.3.15)
+## 2. Tiện ích Mở rộng (Chrome / Edge Extension v1.3.18)
 
 ### 2.1. Kiến trúc Extension & Thu thập Bài học Hàng loạt (Bulk Harvester)
 - **Manifest**: Manifest V3, quyền `activeTab`, `storage`, `scripting`, truy cập host `*.vio.edu.vn`, `*.tnmath.edu.vn`, `*.trangnguyen.edu.vn`, `*.hanhtrangso.nxbgd.vn`, `*.vietjack.com`, `*.loigiaihay.com`, `*.vndoc.com`, `*.hoc247.net`, `localhost:8000`.
-- **Page Context Interceptor (`interceptor.js v1.3.15`)**:
+- **Page Context Interceptor (`interceptor.js v1.3.18`)**:
    - Tiêm trực tiếp vào môi trường DOM gốc (page context) để ghi đè `window.fetch`, `XMLHttpRequest.prototype.open`, `XMLHttpRequest.prototype.send`, `WebSocket.prototype.send`.
    - **Hỗ trợ Angular HttpClient (`responseType = 'json'`) & GraphQL**: Bắt trực tiếp cả REST API và GraphQL queries (`PracticeQuestionQuery`, `GetQuestionResultQuery`), phân tích chuyên sâu các đối tượng câu hỏi VioEdu (`skillName`, `depthOfKnowledge`, `textDropdownAnswers`, `leftMatching`, `rightMatching`), bao quát cả các luồng đánh giá năng lực `onboard-flow`.
    - **Hỗ trợ URL Rút gọn**: Hàm `getShortUrl()` trích xuất `hostname + pathname` rút gọn (tối đa 22 ký tự), gắn kèm vào mọi log phát đi.

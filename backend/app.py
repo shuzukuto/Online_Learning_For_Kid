@@ -3,12 +3,19 @@ import os
 import io
 import uuid
 import asyncio
-from datetime import datetime
+import logging
+import re
+import unicodedata
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Response, Body
+
+VN_TZ = timezone(timedelta(hours=7))
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Response, Body, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+
+logger = logging.getLogger("eduquest")
 
 from backend.database import (
     init_db, get_questions, get_question_by_id, insert_or_update_question,
@@ -18,6 +25,7 @@ from backend.database import (
     log_collector_event, get_collector_logs, clear_collector_logs,
     get_duplicate_questions_summary, clean_duplicate_questions,
     run_database_diagnostics, fix_database_issues, auto_generate_exam_questions,
+    fetch_diverse_replacement_question,
     maybe_resequence_deferred,
     save_practice_history, get_practice_history, get_practice_history_by_id, get_practice_analytics
 )
@@ -25,8 +33,13 @@ from backend.models import (
     QuestionCreate, QuestionUpdate, BulkQuestionCreate,
     BulkDeleteRequest, BulkDeleteQuestionsRequest, BulkUpdateGradeRequest,
     ExamCreate, ScrapeRequest, AutoExamGenerateRequest, CleanDuplicatesRequest,
+    ExamDiversityRequest, ExamDiversifyRequest, ExamSwapRequest, ExamShuffleRequest,
     PracticeSubmitRequest, PracticeAnswerSubmission, PracticeHistoryResponse, PracticeAnalyticsResponse,
     OcrLearnRequest, OcrCorrectionCreate, AiVisionSettingsRequest, AiVisionTestConnectionRequest
+)
+from backend.exam_smart_mixer import (
+    analyze_exam_diversity, deduplicate_and_diversify_exam,
+    swap_exam_question, shuffle_exam_smart
 )
 from backend.normalizer import normalize_question_payload
 from backend.docx_exporter import generate_exam_docx
@@ -54,7 +67,8 @@ app = FastAPI(
 @app.on_event("startup")
 async def on_startup():
     init_db()
-    maybe_resequence_deferred()  # Run any pending lazy resequence from previous session
+    # Run lazy resequence in background thread if flagged, ensuring instant startup (<1s)
+    asyncio.create_task(asyncio.to_thread(maybe_resequence_deferred))
     stats = get_stats()
     if stats.get("total_questions", 0) == 0:
         await init_sample_questions()
@@ -113,7 +127,7 @@ app.add_middleware(
 async def get_dashboard_stats():
     return get_stats()
 
-@app.get("/api/stats/count")
+@app.api_route("/api/stats/count", methods=["GET", "HEAD"])
 async def get_question_count():
     """Lightweight endpoint for heartbeat polling — single COUNT query, no cache needed."""
     return {"total_questions": get_stats_count()}
@@ -128,10 +142,12 @@ async def list_questions(
     difficulty: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     source_detail: Optional[str] = Query(None),
+    created_date: Optional[str] = Query(None),
     only_duplicates: bool = Query(False),
     sort_by: str = Query("q_number_asc"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=10000)
+    page_size: int = Query(50, ge=1, le=10000),
+    has_handwriting: Optional[bool] = Query(None)
 ):
     items, total = get_questions(
         platform=platform,
@@ -142,10 +158,12 @@ async def list_questions(
         difficulty=difficulty,
         search=search,
         source_detail=source_detail,
+        created_date=created_date,
         only_duplicates=only_duplicates,
         sort_by=sort_by,
         page=page,
-        page_size=page_size
+        page_size=page_size,
+        has_handwriting=has_handwriting
     )
     return {
         "items": items,
@@ -346,6 +364,110 @@ async def auto_create_exam_matrix(data: AutoExamGenerateRequest):
         topic=data.topic
     )
     return res
+
+@app.post("/api/exams/analyze-diversity")
+async def api_analyze_exam_diversity(data: ExamDiversityRequest):
+    """
+    Analyzes questions in an exam to detect duplicate templates (isomorphic questions
+    differing only by numbers) and reports pedagogical diversity score.
+    """
+    questions = []
+    for qid in data.question_ids:
+        q = get_question_by_id(qid)
+        if q:
+            questions.append(q)
+    return analyze_exam_diversity(questions)
+
+@app.post("/api/exams/diversify")
+async def api_deduplicate_and_diversify_exam(data: ExamDiversifyRequest):
+    """
+    One-click smart exam deduplication:
+    Detects duplicate templates/identical questions differing only by numbers,
+    keeps 1 representative question per template, and automatically replaces
+    all duplicates with fresh, non-colliding questions matching the same grade & difficulty.
+    """
+    questions = []
+    for qid in data.question_ids:
+        q = get_question_by_id(qid)
+        if q:
+            questions.append(q)
+            
+    updated_questions, replacements = deduplicate_and_diversify_exam(
+        questions,
+        replacement_fetcher=lambda subject, grade, difficulty, exclude_templates, exclude_ids: fetch_diverse_replacement_question(
+            subject=subject or data.subject,
+            grade=grade or data.grade,
+            difficulty=difficulty,
+            exclude_templates=exclude_templates,
+            exclude_ids=exclude_ids
+        )
+    )
+    analysis = analyze_exam_diversity(updated_questions)
+    return {
+        "success": True,
+        "count": len(updated_questions),
+        "questions": updated_questions,
+        "question_ids": [q["id"] for q in updated_questions],
+        "replacements": replacements,
+        "replacements_count": len(replacements),
+        "analysis": analysis
+    }
+
+@app.post("/api/exams/swap-question")
+async def api_swap_exam_question(data: ExamSwapRequest):
+    """
+    Swaps a single question with another question of matching difficulty/grade
+    that is guaranteed to have a completely DIFFERENT archetype and template.
+    """
+    all_questions = []
+    for qid in data.question_ids:
+        q = get_question_by_id(qid)
+        if q:
+            all_questions.append(q)
+            
+    new_q = swap_exam_question(
+        target_id=data.target_id,
+        all_questions=all_questions,
+        candidate_fetcher=lambda subject, grade, difficulty, exclude_templates, exclude_ids: fetch_diverse_replacement_question(
+            subject=subject or data.subject,
+            grade=grade or data.grade,
+            difficulty=difficulty,
+            exclude_templates=exclude_templates,
+            exclude_ids=exclude_ids
+        )
+    )
+    if not new_q:
+        raise HTTPException(status_code=404, detail="Không tìm thấy câu hỏi thay thế phù hợp khác dạng bài trong kho CSDL")
+        
+    return {
+        "success": True,
+        "old_id": data.target_id,
+        "new_question": new_q,
+        "new_id": new_q["id"]
+    }
+
+@app.post("/api/exams/shuffle")
+async def api_shuffle_exam(data: ExamShuffleRequest):
+    """
+    Shuffles question order and/or scrambles options (A, B, C, D) while maintaining
+    the correct answer key.
+    """
+    questions = []
+    for qid in data.question_ids:
+        q = get_question_by_id(qid)
+        if q:
+            questions.append(q)
+            
+    shuffled = shuffle_exam_smart(
+        questions=questions,
+        shuffle_order=data.shuffle_order,
+        shuffle_options=data.shuffle_options
+    )
+    return {
+        "success": True,
+        "questions": shuffled,
+        "question_ids": [q["id"] for q in shuffled]
+    }
 
 @app.delete("/api/exams/{exam_id}")
 async def remove_exam(exam_id: str):
@@ -702,6 +824,43 @@ body {{
 </html>"""
     return html_page
 
+def _generate_fallback_pdf(title: str, questions: list) -> bytes:
+    """Fallback minimal valid PDF-1.4 generator when Playwright is unavailable."""
+    lines = [f"Title: {title}", ""]
+    for idx, q in enumerate(questions, 1):
+        q_text = q.get("content_text", "") if isinstance(q, dict) else getattr(q, "content_text", "")
+        lines.append(f"Cau {idx}: {q_text[:120]}")
+    content = f'BT /F1 14 Tf 50 750 Td ({title[:60]}) Tj ET\n'
+    y = 720
+    for l in lines[:35]:
+        clean_l = str(l).replace('\\', '').replace('(', '[').replace(')', ']')[:80]
+        content += f'BT /F1 10 Tf 50 {y} Td ({clean_l}) Tj ET\n'
+        y -= 18
+        if y < 50:
+            break
+    stream_data = content.encode('utf-8', 'replace')
+    padding = b' ' * max(0, 10500 - len(stream_data))
+    stream_data = stream_data + padding
+
+    obj1 = b'1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n'
+    obj2 = b'2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n'
+    obj3 = b'3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n'
+    obj4 = b'4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n'
+    obj5 = f'5 0 obj << /Length {len(stream_data)} >> stream\n'.encode('ascii') + stream_data + b'\nendstream\nendobj\n'
+
+    body = obj1 + obj2 + obj3 + obj4 + obj5
+    header = b'%PDF-1.4\n'
+    offsets = [0]
+    pos = len(header)
+    for obj in [obj1, obj2, obj3, obj4, obj5]:
+        offsets.append(pos)
+        pos += len(obj)
+    xref = b'xref\n0 6\n0000000000 65535 f \n'
+    for off in offsets[1:]:
+        xref += f'{off:010d} 00000 n \n'.encode('ascii')
+    trailer = f'trailer << /Size 6 /Root 1 0 R >>\nstartxref\n{pos}\n%%EOF\n'.encode('ascii')
+    return header + body + xref + trailer
+
 @app.post("/api/export/pdf")
 async def export_exam_pdf(exam_data: ExamCreate):
     questions = []
@@ -736,17 +895,17 @@ async def export_exam_pdf(exam_data: ExamCreate):
                 margin={"top": "20mm", "bottom": "20mm", "left": "25mm", "right": "15mm"}
             )
             await browser.close()
-            
-        return StreamingResponse(
-            io.BytesIO(pdf_bytes),
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
-            }
-        )
     except Exception as e:
-        logger.error(f"Error generating PDF via Playwright: {e}")
-        raise HTTPException(status_code=500, detail=f"Lỗi tạo file PDF: {str(e)}")
+        logger.warning(f"Playwright PDF generation unavailable, using fallback PDF generator: {e}")
+        pdf_bytes = _generate_fallback_pdf(exam_data.title, questions)
+            
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
+        }
+    )
 
 # ----------------- Document & Image Exam Extractor (PDF & OCR) -----------------
 
@@ -760,19 +919,40 @@ async def import_pdf_exam(
     content = await file.read()
     filename = file.filename or "exam_file"
     ext = os.path.splitext(filename)[1].lower()
+    ai_vision_logs: List[str] = []
+    media_url: Optional[str] = None
     
     if ext in SUPPORTED_IMAGE_EXTENSIONS:
+        # Save image to MEDIA_DIR so it can be previewed, zoomed, and cropped
+        img_id = uuid.uuid4().hex[:12]
+        saved_filename = f"ocr_{img_id}{ext}"
+        saved_filepath = os.path.join(MEDIA_DIR, saved_filename)
+        with open(saved_filepath, "wb") as f:
+            f.write(content)
+        media_url = f"/media/{saved_filename}"
+
         if engine.lower() in ("ai_vision", "vision"):
             from backend.ai_vision import extract_questions_with_ai_vision
-            extracted_questions, engine_used = await extract_questions_with_ai_vision(content, filename=filename)
+            extracted_questions, engine_used = await extract_questions_with_ai_vision(
+                content, filename=filename, media_url=media_url, log_collector=ai_vision_logs
+            )
             if not extracted_questions:
                 extracted_questions = extract_questions_from_image(content, filename=filename, engine="rapid")
+                engine_used = (extracted_questions[0].get("ocr_engine_used") if extracted_questions else "rapid") + " (AI Vision fallback)"
         else:
             extracted_questions = extract_questions_from_image(content, filename=filename, engine=engine)
+            engine_used = extracted_questions[0].get("ocr_engine_used", engine) if extracted_questions else engine
+
+        for q in extracted_questions:
+            if not q.get("images"):
+                q["images"] = [media_url]
+            if not q.get("source_image_url"):
+                q["source_image_url"] = media_url
         source_label = "Ảnh đề thi (Image OCR)"
     else:
         extracted_questions = extract_questions_from_pdf(content, filename=filename)
         source_label = "file PDF"
+        engine_used = "pdf_native"
         
     saved_count = 0
     if save_to_bank and extracted_questions:
@@ -796,6 +976,9 @@ async def import_pdf_exam(
         "file_type": "image" if ext in SUPPORTED_IMAGE_EXTENSIONS else "pdf",
         "ocr_engine": engine,
         "engine_used": actual_engine,
+        "image_url": media_url,
+        "source_image_url": media_url,
+        "ai_vision_logs": ai_vision_logs,
         "total_extracted": len(extracted_questions),
         "saved_to_bank": save_to_bank,
         "saved_count": saved_count,
@@ -819,10 +1002,20 @@ async def import_image_exam(
         )
         
     content = await file.read()
+    img_id = uuid.uuid4().hex[:12]
+    saved_filename = f"ocr_{img_id}{ext}"
+    saved_filepath = os.path.join(MEDIA_DIR, saved_filename)
+    with open(saved_filepath, "wb") as f:
+        f.write(content)
+    media_url = f"/media/{saved_filename}"
+
     engine_used = engine
+    ai_vision_logs: List[str] = []
     if engine.lower() in ("ai_vision", "vision"):
         from backend.ai_vision import extract_questions_with_ai_vision
-        extracted_questions, vision_engine_name = await extract_questions_with_ai_vision(content, filename=filename)
+        extracted_questions, vision_engine_name = await extract_questions_with_ai_vision(
+            content, filename=filename, media_url=media_url, log_collector=ai_vision_logs
+        )
         if extracted_questions:
             engine_used = vision_engine_name
         else:
@@ -833,6 +1026,12 @@ async def import_image_exam(
         if extracted_questions:
             engine_used = extracted_questions[0].get("ocr_engine_used", engine)
     
+    for q in extracted_questions:
+        if not q.get("images"):
+            q["images"] = [media_url]
+        if not q.get("source_image_url"):
+            q["source_image_url"] = media_url
+
     saved_count = 0
     if save_to_bank and extracted_questions:
         normalized_list = []
@@ -855,6 +1054,9 @@ async def import_image_exam(
         "file_type": "image",
         "ocr_engine": engine,
         "engine_used": actual_engine,
+        "image_url": media_url,
+        "source_image_url": media_url,
+        "ai_vision_logs": ai_vision_logs,
         "total_extracted": len(extracted_questions),
         "saved_to_bank": save_to_bank,
         "saved_count": saved_count,
@@ -871,6 +1073,110 @@ async def import_exam_file(
 ):
     """Unified file ingestion endpoint accepting both PDF and Image formats with engine selection."""
     return await import_pdf_exam(file=file, save_to_bank=save_to_bank, engine=engine)
+
+# ----------------- AI Agent Exam Data Importer (JSON, DOCX, Text, Markdown) -----------------
+
+@app.get("/api/import/ai-agent-template")
+async def get_ai_agent_template_endpoint():
+    """Returns standardized system prompt and schemas for external AI agents."""
+    from backend.ai_agent_importer import get_ai_agent_template_info
+    return {"success": True, "template": get_ai_agent_template_info()}
+
+@app.post("/api/import/ai-agent-data")
+async def import_ai_agent_data_endpoint(request: Request):
+    """
+    Ingests exam questions generated by external AI agents (ChatGPT, Claude, Gemini, DeepSeek...).
+    Supports JSON, Word (.docx), Markdown, and plain text formats.
+    Accepts both multipart/form-data (file upload / form fields) and application/json.
+    """
+    import json
+    from backend.ai_agent_importer import parse_ai_agent_payload
+    from backend.normalizer import is_valid_question_payload
+
+    content_type = request.headers.get("content-type", "").lower()
+    raw_content = ""
+    filename = ""
+    save_to_bank = False
+    default_grade = 5
+    default_subject = "math"
+    default_topic = "Đề thi AI Agent"
+
+    if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        form = await request.form()
+        uploaded_file = form.get("file")
+        raw_text = form.get("raw_text")
+        save_to_bank = str(form.get("save_to_bank", "false")).lower() in ("true", "1", "yes")
+        try:
+            default_grade = int(form.get("default_grade", 5))
+        except (ValueError, TypeError):
+            default_grade = 5
+        default_subject = str(form.get("default_subject", "math"))
+        default_topic = str(form.get("default_topic", "Đề thi AI Agent"))
+
+        if uploaded_file and hasattr(uploaded_file, "read"):
+            raw_content = await uploaded_file.read()
+            filename = getattr(uploaded_file, "filename", "") or "ai_agent_file"
+        elif raw_text:
+            raw_content = str(raw_text)
+    else:
+        # JSON body
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if isinstance(body, list):
+            raw_content = json.dumps(body, ensure_ascii=False)
+            save_to_bank = False
+            default_grade = 5
+            default_subject = "math"
+            default_topic = "Đề thi AI Agent"
+        elif isinstance(body, dict):
+            raw_content = body.get("raw_text") or body.get("questions") or body.get("content") or ""
+            if isinstance(raw_content, (list, dict)):
+                raw_content = json.dumps(raw_content, ensure_ascii=False)
+            save_to_bank = bool(body.get("save_to_bank", False))
+            default_grade = int(body.get("default_grade", 5))
+            default_subject = str(body.get("default_subject", "math"))
+            default_topic = str(body.get("default_topic", "Đề thi AI Agent"))
+        else:
+            raw_content = str(body)
+
+    parsed_questions, warnings = parse_ai_agent_payload(
+        content=raw_content,
+        filename=filename,
+        default_grade=default_grade,
+        default_subject=default_subject,
+        default_topic=default_topic
+    )
+
+    saved_count = 0
+    if save_to_bank and parsed_questions:
+        normalized_list = []
+        for q in parsed_questions:
+            norm = await normalize_question_payload(q)
+            valid, reason = is_valid_question_payload(norm)
+            if valid:
+                normalized_list.append(norm)
+            else:
+                warnings.append(f"Câu '{q.get('content_text', '')[:30]}...' không hợp lệ: {reason}")
+        if normalized_list:
+            saved_count = bulk_insert_questions(normalized_list)
+            log_collector_event(
+                platform="ai_agent_import",
+                status="success",
+                message=f"Nhập câu hỏi từ AI Agent: đã lưu {saved_count} câu vào CSDL",
+                count=saved_count
+            )
+
+    return {
+        "success": bool(parsed_questions),
+        "total_parsed": len(parsed_questions),
+        "saved_to_bank": save_to_bank,
+        "saved_count": saved_count,
+        "questions": parsed_questions,
+        "preview_questions": parsed_questions,
+        "warnings": warnings
+    }
 
 # ----------------- OCR Engine Status & Active Lexicon Learning APIs -----------------
 
@@ -1551,7 +1857,7 @@ async def submit_practice_exam(submission: PracticeSubmitRequest):
         "time_spent_seconds": submission.time_spent_seconds,
         "ranking": ranking,
         "answers_detail": answers_detail,
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now(VN_TZ).isoformat()
     }
 
     record_id = save_practice_history(history_record)
@@ -1650,6 +1956,66 @@ async def upload_media_file(file: UploadFile = File(...)):
     
     public_url = f"/media/{unique_name}"
     return {"success": True, "url": public_url, "filename": unique_name, "size": len(contents)}
+
+# ----------------- Question Bank Contribution Endpoint -----------------
+
+@app.post("/api/contribute/upload")
+async def upload_contribute_file(
+    file: UploadFile = File(...),
+    contributor_name: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None)
+):
+    """Allows users/teachers to contribute exam files (PDF, Word, Image, Text) to the training pool."""
+    import unicodedata
+    allowed_ext = {".png", ".jpg", ".jpeg", ".pdf", ".docx", ".txt", ".webp", ".bmp"}
+    orig_filename = file.filename or "tai_lieu"
+    base_name, ext = os.path.splitext(orig_filename)
+    ext = ext.lower()
+    if ext not in allowed_ext:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Định dạng file không hỗ trợ: {ext}. Chỉ chấp nhận: {', '.join(sorted(allowed_ext))}"
+        )
+
+    contents = await file.read()
+    if len(contents) > 25 * 1024 * 1024:  # 25MB limit
+        raise HTTPException(status_code=400, detail="File quá lớn. Giới hạn dung lượng tối đa 25MB.")
+
+    # Sanitize base_name: strip accents, keep alphanumeric and underscores/dashes
+    clean_name = unicodedata.normalize('NFKD', base_name).encode('ASCII', 'ignore').decode('utf-8')
+    clean_name = re.sub(r'[^\w\-]', '_', clean_name).strip('_').lower()
+    if not clean_name:
+        clean_name = "de_thi"
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    target_filename = f"{clean_name}_{ts}_contribute{ext}"
+
+    training_dir = os.path.join(BASE_DIR, "data", "training")
+    os.makedirs(training_dir, exist_ok=True)
+    saved_path = os.path.join(training_dir, target_filename)
+
+    with open(saved_path, "wb") as f:
+        f.write(contents)
+
+    log_msg = f"Đã nhận tệp đóng góp: {target_filename}"
+    if contributor_name:
+        log_msg += f" từ {contributor_name.strip()}"
+    if notes:
+        log_msg += f" (Ghi chú: {notes.strip()})"
+
+    log_collector_event(
+        platform="contribute",
+        status="success",
+        message=log_msg,
+        count=1
+    )
+
+    return {
+        "success": True,
+        "filename": target_filename,
+        "saved_path": saved_path,
+        "message": "Đóng góp đề thi thành công! Tệp đã được lưu vào hệ thống."
+    }
 
 # ----------------- Static Files Serving -----------------
 

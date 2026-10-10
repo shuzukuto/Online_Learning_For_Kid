@@ -13,12 +13,17 @@
   <!-- KaTeX CSS for High-Precision Math Rendering -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
 
-  <!-- Suppress Browser Tab Favicon / Logo (Clear any browser cached favicon) -->
-  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
-  <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
+  <!-- Favicon & Brand Icons (EduQuest Pro) -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.0.46">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.0.46">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.0.46">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.0.46">
+  <link rel="shortcut icon" href="favicon.ico?v=1.0.46">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#2563eb">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.42">
+  <link rel="stylesheet" href="css/style.css?v=1.0.46">
 </head>
 <body>
   <div class="app-container">
@@ -29,7 +34,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.38</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.42</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -71,7 +76,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.0.35</span>
+          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.0.42</span>
         </div>
       </div>
     </aside>
@@ -178,6 +183,12 @@
         <!-- Admin Maintenance & Quality Bar -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="openAiAgentImportModal()" style="font-weight: 700; color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; display: flex; align-items: center; gap: 6px;">
+              <span>🤖</span> Nhập từ AI Agent (JSON / Word / Text)
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-open-contribute-modal" onclick="openContributeModal()" style="font-weight: 700; color: #059669; border-color: #a7f3d0; background: #ecfdf5; display: flex; align-items: center; gap: 6px;">
+              <span>🎁</span> Đóng góp đề thi
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="openDuplicatesModal()" style="font-weight: 700; color: #be123c; border-color: #fecdd3; background: #fff1f2; display: flex; align-items: center; gap: 6px;">
               <span>🔍</span> Quét & Lọc Trùng lặp
             </button>
@@ -233,6 +244,7 @@
 
             <select id="filter-source-detail" class="select-filter" onchange="State.filters.source_detail = this.value; State.filters.page = 1; loadQuestions();">
               <option value="all">Mọi nguồn chi tiết</option>
+              <option value="ai_agent_import">🤖 AI Agent (ChatGPT/Claude/Docx)</option>
               <option value="CodeMath">CodeMath (Olympic TIMO/HKIMO)</option>
               <option value="Hành Trang Số">Hành Trang Số (SGK)</option>
               <option value="VioEdu">VioEdu (FPT)</option>
@@ -259,6 +271,8 @@
               <option value="olympiad">Olympic Quốc tế</option>
             </select>
 
+            <div style="display: flex; align-items: center; gap: 4px;" title="Lọc theo ngày thêm vào CSDL"><span style="font-size: 13px;">📅</span><input type="date" id="filter-created-date" class="select-filter" style="font-size: 12px; height: 32px; padding: 2px 6px;" onchange="State.filters.created_date = this.value; State.filters.page = 1; loadQuestions();" /></div>
+
             <select id="filter-page-size" class="select-filter" style="font-weight: 700; color: #1e40af; background: #eff6ff; border-color: #bfdbfe;" onchange="setPageSize(this.value)">
               <option value="15">15 câu / trang</option>
               <option value="30">30 câu / trang</option>
@@ -278,6 +292,7 @@
           <!-- Platform Chips -->
           <div class="chips-container">
             <button class="chip active" data-platform="all" onclick="setPlatformFilter('all')">Tất cả nền tảng</button>
+            <button class="chip" data-platform="ai_agent_import" onclick="setPlatformFilter('ai_agent_import')">🤖 AI Agent</button>
             <button class="chip" data-platform="internet_hunter" onclick="setPlatformFilter('internet_hunter')">🌐 Săn Internet</button>
             <button class="chip" data-platform="hanhtrangso" onclick="setPlatformFilter('hanhtrangso')">📚 Hành Trang Số</button>
             <button class="chip" data-platform="vioedu" onclick="setPlatformFilter('vioedu')">⭐ VioEdu</button>
@@ -341,7 +356,7 @@
                 <span>⚡</span> Ma trận Tạo Đề Tự Động (Auto Exam Matrix Generator)
               </h4>
               <p style="font-size: 12.5px; color: #475569; margin: 2px 0 0 0;">
-                Tự động chọn ngẫu nhiên các câu hỏi từ CSDL theo đúng cơ cấu ma trận độ khó (Dễ - Trung bình - Khó), Môn học và Khối lớp.
+                Tự động tuyển chọn câu hỏi thông minh theo ma trận, <strong>chống trùng lặp dạng bài</strong> (các câu hỏi khác nhau về nội dung lẫn cách làm, không bị lặp câu chỉ đổi số).
               </p>
             </div>
             <!-- Quick Preset Pills -->
@@ -408,8 +423,13 @@
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #dbeafe; padding-top: 12px; margin-top: 4px; flex-wrap: wrap; gap: 8px;">
-            <div id="matrix-status-text" style="font-size: 12px; color: #1e40af; font-weight: 700;">
-              ✓ Cơ cấu ma trận: 8 Dễ + 8 TB + 4 Khó = 20 câu
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span class="tag-badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 11px; font-weight: 700;">
+                🛡️ AI Diversity: Chống trùng dạng & Đa dạng cách giải
+              </span>
+              <div id="matrix-status-text" style="font-size: 12px; color: #1e40af; font-weight: 700;">
+                ✓ Cơ cấu ma trận: 8 Dễ + 8 TB + 4 Khó = 20 câu
+              </div>
             </div>
             <button type="button" class="btn btn-primary btn-sm" id="btn-auto-matrix" onclick="autoGenerateExamByMatrix()" style="padding: 7px 18px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
               <span>🎲</span> Tự động Tạo Đề theo Ma trận
@@ -461,12 +481,12 @@
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 24px;">🔌</span>
                 <div>
-                  <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.15</span></h3>
+                  <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.18</span></h3>
                   <span style="font-size: 12px; color: #10b981; font-weight: 600;">● Tự động bắt trọn 100% đề thi VioEdu & Trạng Nguyên</span>
                 </div>
               </div>
-              <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.15 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
-                📁 Vị trí thư mục Extension (v1.3.15)
+              <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.18 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
+                📁 Vị trí thư mục Extension (v1.3.18)
               </button>
             </div>
             <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 14px;">
@@ -474,7 +494,7 @@
             </p>
 
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6;">
-              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.15):</strong><br/>
+              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.18):</strong><br/>
               1. Mở Chrome/Edge, vào: <code>chrome://extensions</code><br/>
               2. Bật công tắc <strong>Developer mode (Chế độ cho nhà phát triển)</strong> ở góc trên bên phải.<br/>
               3. Nhấn <strong>Load unpacked (Tải tiện ích đã giải nén)</strong> hoặc bấm 🔄 Làm mới tiện ích đã nạp:
@@ -655,7 +675,7 @@
             </div>
           </div>
 
-          <div id="hunter-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 12px; padding: 14px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6;"></div>
+          <pre id="hunter-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 14px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; word-break: break-word;"></pre>
         </div>
 
         <!-- Scraper Bot & Activity Logs Grid -->
@@ -742,7 +762,7 @@
                 </div>
               </div>
 
-              <div id="scraper-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 11.5px; padding: 12px; border-radius: 8px; max-height: 180px; overflow-y: auto; white-space: pre-wrap;"></div>
+              <pre id="scraper-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 12px; border-radius: 8px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; word-break: break-word;"></pre>
             </div>
           </div>
 
@@ -1125,6 +1145,9 @@
                 <option value="rapid">⚡ RapidOCR (Siêu tốc)</option>
                 <option value="vietocr">🧠 VietOCR ONNX (Chuyên sâu)</option>
               </select>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-open-ai-agent-import" onclick="openAiAgentImportModal()" style="font-size: 11.5px; padding: 2px 9px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #6d28d9; border-color: #ddd6fe; background: #f5f3ff;" title="Nhập dữ liệu đề thi đã xử lý từ AI Agent (JSON / Word / Text)">
+                <span>🤖</span> Nhập từ AI Agent
+              </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btn-open-ai-vision" onclick="openAiVisionModal()" style="font-size: 11.5px; padding: 2px 9px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #0369a1; border-color: #bae6fd; background: #f0f9ff;" title="Cấu hình kết nối trực tiếp OpenRouter, OpenCode và chọn Model Vision">
                 <span>⚙️</span> Cài đặt AI
               </button>
@@ -1201,7 +1224,7 @@
                 </button>
               </div>
             </div>
-            <div id="ocr-live-log" style="background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 10px 12px; border-radius: 8px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);">[Hệ thống] Trình bóc tách OCR đã sẵn sàng. Hãy chọn hoặc kéo thả tệp đề thi (PDF / Ảnh) vào khung bên trên để bắt đầu.</div>
+            <pre id="ocr-live-log" style="background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 10px 12px; border-radius: 8px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); word-break: break-word;">[Hệ thống] Trình bóc tách OCR đã sẵn sàng. Hãy chọn hoặc kéo thả tệp đề thi (PDF / Ảnh) vào khung bên trên để bắt đầu.</pre>
           </div>
         </div>
 
@@ -1271,12 +1294,15 @@
 
           <!-- Source Image Mini Preview Bar -->
           <div id="ocr-source-image-bar" style="display: flex; align-items: center; gap: 12px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 14px;">
-            <img id="ocr-source-image-thumb" src="" alt="Thumbnail ảnh đề thi" style="height: 48px; width: 64px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0; cursor: pointer;" onclick="openCurrentQuestionImageZoom()" />
+            <img id="ocr-source-image-thumb" src="" alt="Thumbnail ảnh đề thi" style="height: 48px; width: 64px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0; cursor: pointer;" onclick="openCurrentQuestionImageZoom()" title="Nhấp để phóng to xem ảnh gốc" />
             <div style="flex: 1; font-size: 12px; color: #334155; line-height: 1.4;">
               <div>Ảnh nguồn: <strong id="ocr-source-image-name">exam.png</strong></div>
-              <div style="color: #64748b;">(Nhấp vào ảnh nhỏ hoặc bấm nút "🔍 Phóng to xem ảnh gốc" để soi chi tiết)</div>
+              <div style="color: #64748b;">(Nhấp vào ảnh nhỏ hoặc bấm nút "🔍 Soi ảnh chi tiết" để soi, hoặc bấm "✂️ Cắt hình" để trích xuất vào câu hỏi)</div>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="openCurrentQuestionImageZoom()" style="font-size: 11.5px; padding: 4px 10px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openCropperForSourceImage()" style="font-size: 11.5px; padding: 4px 10px; color: #0284c7; border-color: #bae6fd; font-weight: 700; background: #f0f9ff;" title="Cắt hình vẽ, sơ đồ từ ảnh đề thi gốc này vào câu hỏi">
+              ✂️ Cắt hình vào câu hỏi
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openCurrentQuestionImageZoom()" style="font-size: 11.5px; padding: 4px 10px; font-weight: 700; color: #1e40af; border-color: #93c5fd; background: white;">
               🔍 Soi ảnh chi tiết
             </button>
           </div>
@@ -1351,13 +1377,16 @@
                     <button type="button" class="btn btn-secondary btn-sm m-img-btn" onclick="document.getElementById('m-img-file-input').click()" title="Tải ảnh từ máy">
                       📷 Chèn ảnh
                     </button>
-                    <button type="button" class="btn btn-secondary btn-sm m-img-btn" onclick="document.getElementById('m-cropper-file-input').click()" title="Chọn ảnh từ máy để cắt (Crop) trước khi chèn vào câu hỏi" style="color: #0284c7; font-weight: 700; border-color: #bae6fd; background: #f0f9ff;">
-                      ✂️ Cắt ảnh
+                    <button type="button" class="btn btn-secondary btn-sm m-img-btn" id="btn-crop-source" onclick="openCropperForSourceImage()" title="Cắt trực tiếp từ ảnh đề thi gốc đang soi để chèn vào câu hỏi" style="color: #0284c7; font-weight: 700; border-color: #bae6fd; background: #f0f9ff;">
+                      ✂️ Cắt từ ảnh đề thi gốc
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm m-img-btn" onclick="document.getElementById('m-cropper-file-input').click()" title="Chọn ảnh từ máy để cắt (Crop) trước khi chèn vào câu hỏi" style="color: #475569; font-weight: 600;">
+                      ✂️ Cắt ảnh từ máy
                     </button>
                     <button type="button" class="btn btn-secondary btn-sm m-img-btn" id="btn-paste-img" title="Dán ảnh từ clipboard (Ctrl+V)">
                       📋 Dán ảnh (Ctrl+V)
                     </button>
-                    <span class="m-img-hint">Kéo thả ảnh vào ô soạn thảo hoặc Ctrl+V để dán</span>
+                    <span class="m-img-hint">Kéo thả ảnh hoặc Ctrl+V để dán</span>
                     <input type="file" id="m-img-file-input" accept="image/*" multiple style="display: none;" />
                     <input type="file" id="m-cropper-file-input" accept="image/*" style="display: none;" />
                   </div>
@@ -1366,9 +1395,14 @@
                 <div id="m-img-gallery" class="m-img-gallery" style="display: none;">
                   <div class="m-img-gallery-header">
                     <span>🖼️ Ảnh đính kèm (<span id="m-img-count">0</span>)</span>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllManualImages()" style="font-size: 11px; padding: 2px 8px; color: #ef4444;" title="Xóa tất cả ảnh">
-                      🗑️ Xóa tất cả
-                    </button>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="openCurrentQuestionImageZoom()" style="font-size: 11px; padding: 2px 8px; color: #1e40af; border-color: #bfdbfe; font-weight: 600;" title="Phóng to ảnh đính kèm để soi chi tiết">
+                        🔍 Soi phóng to
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllManualImages()" style="font-size: 11px; padding: 2px 8px; color: #ef4444;" title="Xóa tất cả ảnh">
+                        🗑️ Xóa tất cả
+                      </button>
+                    </div>
                   </div>
                   <div id="m-img-grid" class="m-img-grid">
                     <!-- Image thumbnails inserted by JS -->
@@ -1881,10 +1915,11 @@
         <div>
           <label style="font-weight: 700; font-size: 12.5px; color: #0f172a; margin-bottom: 4px; display: block;">Chế độ & Phạm vi điều phối:</label>
           <select id="ai-vision-provider-select" class="form-control" style="font-size: 12.5px;" onchange="updatePipelinePreview()">
+            <option value="9router_first" selected>🚀 Ưu tiên 9Router (Chạy 9Router cục bộ trước ➔ Fallback OpenRouter/OpenCode)</option>
+            <option value="custom">🛠️ Chỉ dùng 9Router (Chạy trực tiếp 9Router trên máy host qua cổng 20129)</option>
             <option value="auto">🔄 Tự động Toàn diện (Chạy chuỗi OpenRouter ➔ Chuỗi OpenCode ➔ Chuỗi 9Router)</option>
             <option value="openrouter">🌐 Chỉ dùng OpenRouter (Chạy chuỗi các model OpenRouter đã chọn)</option>
             <option value="opencode">⚡ Chỉ dùng OpenCode Zen (Chạy chuỗi các model OpenCode đã chọn)</option>
-            <option value="custom">🛠️ Chỉ dùng Gateway nội bộ (Chạy chuỗi các model 9Router đã chọn)</option>
           </select>
         </div>
 
@@ -1999,8 +2034,12 @@
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
             <div>
-              <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">Base URL:</label>
-              <input type="text" id="ai-vision-custom-url" class="form-control" value="http://127.0.0.1:20129/v1" placeholder="http://127.0.0.1:20129/v1" style="font-size: 11.5px;" />
+              <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">Base URL (9Router):</label>
+              <input type="text" id="ai-vision-custom-url" class="form-control" value="http://127.0.0.1:20129/v1" placeholder="http://host.docker.internal:20129/v1 hoặc http://127.0.0.1:20129/v1" style="font-size: 11.5px;" />
+              <div style="margin-top: 3px; display: flex; gap: 4px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('ai-vision-custom-url').value='http://host.docker.internal:20129/v1'" style="font-size: 10px; padding: 1px 6px;" title="Dùng khi app chạy trong Docker trên Windows">🐳 Host Docker</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('ai-vision-custom-url').value='http://127.0.0.1:20129/v1'" style="font-size: 10px; padding: 1px 6px;" title="Dùng khi app chạy trực tiếp trên Windows">💻 Localhost</button>
+              </div>
             </div>
             <div>
               <label style="font-size: 11px; color: #64748b; margin-bottom: 2px; display: block; font-weight: 600;">API Key / Bearer Token (Tùy chọn):</label>
@@ -2116,6 +2155,253 @@
     </div>
   </div>
 
+  <!-- Modal: Đóng góp Ngân hàng Câu hỏi -->
+  <div class="lightbox-modal" id="modal-contribute-questions" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
+    <div style="background: #ffffff; border-radius: 14px; max-width: 580px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; border: 1px solid #e2e8f0;">
+      
+      <!-- Modal Header -->
+      <div style="padding: 16px 22px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">🎁</span>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #ffffff;">Đóng góp Ngân hàng Câu hỏi</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.9; color: #ecfdf5;">Gửi đề thi ảnh, PDF, Word (.docx) hoặc Văn bản (.txt) vào hệ thống</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeContributeModal()" style="background: rgba(255,255,255,0.2); border: none; color: #ffffff; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✕</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div style="padding: 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto;">
+        <!-- Drag & Drop Zone -->
+        <div id="contribute-drop-zone" style="border: 2px dashed #10b981; border-radius: 12px; background: #f0fdf4; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.2s;" onclick="document.getElementById('contribute-file-input').click()">
+          <div style="font-size: 38px; margin-bottom: 8px;">📤</div>
+          <div style="font-weight: 700; color: #065f46; font-size: 14.5px; margin-bottom: 4px;">Kéo thả tệp đề thi vào đây hoặc bấm để chọn tệp</div>
+          <div style="font-size: 12px; color: #047857;">Hỗ trợ: PDF, Word (.docx), Ảnh (.png, .jpg, .jpeg), Văn bản (.txt) (Tối đa 25MB)</div>
+          <input type="file" id="contribute-file-input" style="display: none;" accept=".png,.jpg,.jpeg,.pdf,.docx,.txt" onchange="handleContributeFileSelect(this.files)" />
+          <div id="contribute-file-info" style="margin-top: 12px; font-weight: 600; font-size: 13px; color: #15803d; display: none;"></div>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #374151; margin-bottom: 5px;">Họ tên người đóng góp (không bắt buộc):</label>
+          <input type="text" id="contribute-author-input" class="form-control" placeholder="Ví dụ: Thầy Nguyễn Văn A, Cô Lê Thị B..." style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px;" />
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #374151; margin-bottom: 5px;">Ghi chú / Nguồn đề thi (không bắt buộc):</label>
+          <input type="text" id="contribute-notes-input" class="form-control" placeholder="Ví dụ: Đề thi học kỳ 2 Toán lớp 5, Đề thi chọn HSG..." style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px;" />
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="padding: 14px 22px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeContributeModal()">Hủy bỏ</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-submit-contribute" onclick="submitContributeFile()" style="background: #059669; border-color: #059669; font-weight: 700; padding: 6px 18px; display: inline-flex; align-items: center; gap: 6px;">
+          <span>🚀</span> Gửi đóng góp
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Import from AI Agent (JSON / DOCX / Text) -->
+  <div class="lightbox-modal" id="modal-ai-agent-import" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
+    <div style="background: #ffffff; border-radius: 14px; max-width: 960px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; border: 1px solid #e2e8f0;">
+      
+      <!-- Modal Header -->
+      <div style="padding: 16px 22px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">🤖</span>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #ffffff;">Nhập Ngân Hàng Câu Hỏi từ AI Agent</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.9; color: #ede9fe;">Nhận dữ liệu từ ChatGPT, Claude, Gemini, DeepSeek... (Định dạng JSON, Word .docx hoặc Văn bản tự do)</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeAiAgentImportModal()" style="background: rgba(255,255,255,0.2); border: none; color: #ffffff; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">✕</button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div style="display: flex; border-bottom: 1px solid #e2e8f0; background: #f8fafc; padding: 0 16px;">
+        <button type="button" class="ai-import-tab active" id="tab-btn-ai-paste" onclick="switchAiImportTab('paste')" style="padding: 11px 18px; border: none; background: transparent; font-size: 13px; font-weight: 700; color: #4f46e5; border-bottom: 3px solid #4f46e5; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span>📋</span> Dán Văn bản / JSON
+        </button>
+        <button type="button" class="ai-import-tab" id="tab-btn-ai-file" onclick="switchAiImportTab('file')" style="padding: 11px 18px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span>📁</span> Tải Tệp (.json, .docx, .txt)
+        </button>
+        <button type="button" class="ai-import-tab" id="tab-btn-ai-prompt" onclick="switchAiImportTab('prompt')" style="padding: 11px 18px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span>💡</span> Mẫu Prompt & Hướng dẫn cho AI
+        </button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div style="padding: 18px 22px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px;">
+
+        <!-- Common Metadata Strip (Grade, Subject, Topic) -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; background: #f8fafc; padding: 12px 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 4px;">Khối Lớp mặc định:</label>
+            <select id="ai-import-default-grade" class="form-control" style="font-size: 12.5px; height: 32px; padding: 4px 8px;">
+              <option value="1">Lớp 1</option>
+              <option value="2">Lớp 2</option>
+              <option value="3">Lớp 3</option>
+              <option value="4">Lớp 4</option>
+              <option value="5" selected>Lớp 5</option>
+              <option value="6">Lớp 6</option>
+              <option value="7">Lớp 7</option>
+              <option value="8">Lớp 8</option>
+              <option value="9">Lớp 9</option>
+              <option value="10">Lớp 10</option>
+              <option value="11">Lớp 11</option>
+              <option value="12">Lớp 12</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 4px;">Bộ Môn mặc định:</label>
+            <select id="ai-import-default-subject" class="form-control" style="font-size: 12.5px; height: 32px; padding: 4px 8px;">
+              <option value="math" selected>Toán học</option>
+              <option value="vietnamese">Tiếng Việt</option>
+              <option value="english">Tiếng Anh</option>
+              <option value="science">Khoa học & TNXH</option>
+              <option value="informatics">Tin học</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 4px;">Chuyên đề / Nguồn nhập:</label>
+            <input type="text" id="ai-import-default-topic" class="form-control" placeholder="vd: Đề khảo sát AI Agent" value="Đề thi AI Agent" style="font-size: 12.5px; height: 32px; padding: 4px 8px;" />
+          </div>
+        </div>
+
+        <!-- TAB 1: PASTE CONTENT -->
+        <div id="ai-tab-content-paste" style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="font-size: 12.5px; font-weight: 700; color: #1e293b;">
+              Dán nội dung JSON hoặc văn bản đề thi từ AI Agent vào đây:
+            </label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="loadSampleAiJson()" style="font-size: 11px; padding: 3px 8px;">
+                Mẫu JSON
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="loadSampleAiText()" style="font-size: 11px; padding: 3px 8px;">
+                Mẫu Văn bản
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="clearAiImportText()" style="font-size: 11px; padding: 3px 8px;">
+                Xóa sạch
+              </button>
+            </div>
+          </div>
+          <textarea id="ai-import-raw-text" rows="9" class="form-control" style="font-family: Consolas, monospace; font-size: 12px; line-height: 1.5; resize: vertical;" placeholder="Dán chuỗi JSON mảng câu hỏi [...] hoặc văn bản đề thi do AI sinh ra (Câu 1: ..., A. ..., B. ..., Đáp án: A, Lời giải: ...)..."></textarea>
+          
+          <div style="display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-preview" onclick="executeAiImport(false)" style="font-weight: 700; display: inline-flex; align-items: center; gap: 5px;">
+              <span>🔍</span> Kiểm tra & Xem trước
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-load-editor" onclick="loadAiQuestionsToEditor()" style="font-weight: 700; color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; display: inline-flex; align-items: center; gap: 5px;">
+              <span>📝</span> Nạp vào Trình Soạn thảo đối soát
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-ai-save-direct" onclick="executeAiImport(true)" style="font-weight: 700; background: #4f46e5; border-color: #4f46e5; display: inline-flex; align-items: center; gap: 5px;">
+              <span>💾</span> Lưu thẳng vào Ngân hàng CSDL
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 2: FILE UPLOAD -->
+        <div id="ai-tab-content-file" style="display: none; flex-direction: column; gap: 12px;">
+          <div id="ai-file-dropzone" style="border: 2px dashed #cbd5e1; border-radius: 8px; padding: 10px 14px; min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 10px; background: #f8fafc; cursor: pointer; transition: all 0.2s;" onclick="document.getElementById('ai-file-input').click()">
+            <input type="file" id="ai-file-input" accept=".json,.docx,.txt,.md" style="display: none;" onchange="handleAiFileSelect(event)" />
+            <span style="font-size: 20px; line-height: 1;">📁</span>
+            <span style="font-size: 13px; font-weight: 600; color: #334155;">Kéo thả hoặc Bấm chọn tệp (.json, .docx, .txt, .md)</span>
+          </div>
+          <div id="ai-selected-file-badge" style="display: none; padding: 8px 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 12.5px; color: #1e40af; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>📎</span>
+              <span id="ai-selected-file-name" style="font-weight: 600;">ten_file.docx</span>
+              <span id="ai-selected-file-size" style="color: #64748b; font-size: 11.5px;">(120 KB)</span>
+            </div>
+            <button type="button" onclick="clearSelectedAiFile()" style="background: none; border: none; color: #ef4444; font-weight: 700; cursor: pointer;">✕</button>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="executeAiFileImport(false)" style="font-weight: 700; display: inline-flex; align-items: center; gap: 5px;">
+              <span>🔍</span> Kiểm tra & Xem trước tệp
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="loadAiFileQuestionsToEditor()" style="font-weight: 700; color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; display: inline-flex; align-items: center; gap: 5px;">
+              <span>📝</span> Nạp vào Trình Soạn thảo đối soát
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="executeAiFileImport(true)" style="font-weight: 700; background: #4f46e5; border-color: #4f46e5; display: inline-flex; align-items: center; gap: 5px;">
+              <span>💾</span> Lưu tệp thẳng vào Ngân hàng CSDL
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 3: PROMPT TEMPLATE & INSTRUCTIONS -->
+        <div id="ai-tab-content-prompt" style="display: none; flex-direction: column; gap: 14px;">
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; font-size: 12.5px; color: #166534;">
+            <strong style="display: block; font-size: 13px; margin-bottom: 4px;">🎯 Hướng dẫn sử dụng cho Giáo viên & Người dùng:</strong>
+            Khi bạn sử dụng ChatGPT, Claude, Gemini hoặc DeepSeek để giải đề và bóc tách câu hỏi từ ảnh chụp, chỉ cần <strong>Sao chép System Prompt</strong> dưới đây và dán vào AI cùng với ảnh đề thi. AI sẽ xuất ra dữ liệu chuẩn để nạp vào hệ thống 100% chính xác!
+          </div>
+
+          <!-- Required Fields Explanation -->
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+            <strong style="font-size: 12.5px; color: #1e293b; display: block; margin-bottom: 6px;">📌 6 Trường Bắt Buộc Cần Có Trong Mỗi Câu Hỏi:</strong>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; font-size: 12px;">
+              <div><strong>1. Câu hỏi (question):</strong> Nội dung đề bài & dữ kiện</div>
+              <div><strong>2. Các lựa chọn ABCD (options):</strong> 4 phương án tách bạch</div>
+              <div><strong>3. Đáp án đúng (correct_answer):</strong> Ký tự A, B, C, hoặc D</div>
+              <div><strong>4. Khối lớp (grade):</strong> Số nguyên từ 1 đến 12</div>
+              <div><strong>5. Lời giải (explanation):</strong> Hướng dẫn giải chi tiết</div>
+              <div><strong>6. Mức độ khó (difficulty):</strong> Dễ, Vừa, Khó, Nâng cao</div>
+            </div>
+          </div>
+
+          <!-- Copyable Prompt Box -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="font-size: 12.5px; color: #334155;">📋 System Prompt Chuẩn (Dán vào ChatGPT / Claude / Gemini):</strong>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="copyAiSystemPrompt()" style="font-size: 11.5px; padding: 3px 10px; font-weight: 700; color: #4f46e5; background: #eef2ff; border-color: #c7d2fe;">
+                  <span>📋</span> Sao chép Prompt
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="downloadSampleAiJson()" style="font-size: 11.5px; padding: 3px 10px;">
+                  <span>📥</span> Tải file JSON mẫu
+                </button>
+              </div>
+            </div>
+            <textarea id="ai-system-prompt-text" rows="9" readonly class="form-control" style="font-family: Consolas, monospace; font-size: 11.5px; background: #f8fafc; line-height: 1.5; color: #334155;"></textarea>
+          </div>
+        </div>
+
+        <!-- PREVIEW SECTION (Always at bottom when parsed) -->
+        <div id="ai-preview-container" style="display: none; border-top: 1px solid #e2e8f0; padding-top: 14px; flex-direction: column; gap: 10px; flex: 1;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="ai-preview-count-badge" class="tag-badge" style="background: #ecfdf5; color: #047857; font-weight: 700; font-size: 12px; padding: 4px 10px;">
+                ✨ Đã bóc tách: 0 câu hỏi
+              </span>
+              <span id="ai-preview-warn-badge" class="tag-badge" style="display: none; background: #fffbeb; color: #b45309; font-size: 11px; padding: 3px 8px;"></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="loadAiQuestionsToEditor()" style="font-weight: 700; color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe;">
+                <span>📝</span> Nạp vào Trình Soạn thảo đối soát
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="confirmSaveAiQuestions()" style="font-weight: 700; background: #059669; border-color: #059669;">
+                <span>💾</span> Xác nhận Lưu vào Ngân hàng CSDL
+              </button>
+            </div>
+          </div>
+          <div id="ai-preview-list" style="max-height: 55vh; flex: 1; min-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f8fafc;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div style="padding: 10px 22px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b;">
+        <span>💡 Tự động phát hiện phương án ABCD, đáp án đúng, lời giải và phân loại khối lớp</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeAiAgentImportModal()">Đóng</button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -2124,16 +2410,18 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.42"></script>
-  <script src="js/bank.js?v=1.0.42"></script>
-  <script src="js/exam_builder.js?v=1.0.42"></script>
-  <script src="js/collector.js?v=1.0.42"></script>
-  <script src="js/practice.js?v=1.0.42"></script>
+  <script src="js/app.js?v=1.0.47"></script>
+  <script src="js/bank.js?v=1.0.47"></script>
+  <script src="js/exam_builder.js?v=1.0.47"></script>
+  <script src="js/collector.js?v=1.0.47"></script>
+  <script src="js/practice.js?v=1.0.47"></script>
+  <script src="js/ai_agent_importer.js?v=1.0.47"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>
     // ===================== Manual Question Image Management =====================
-    let manualImageUrls = []; // Array of uploaded image URLs for current question
+    window.manualImageUrls = window.manualImageUrls || [];
+    var manualImageUrls = window.manualImageUrls;
 
     /** Upload a single image file to the server and return the URL */
     async function uploadImageToServer(file) {
@@ -2158,6 +2446,7 @@
         return null;
       }
     }
+    window.uploadImageToServer = uploadImageToServer;
 
     /** Process multiple image files (from input, paste, or drag) */
     async function processManualImageFiles(files) {
@@ -2175,13 +2464,48 @@
         showToast(`📤 Đang tải lên "${file.name}"...`, "info");
         const url = await uploadImageToServer(file);
         if (url) {
-          manualImageUrls.push(url);
+          if (!window.manualImageUrls) window.manualImageUrls = [];
+          window.manualImageUrls.push(url);
+          manualImageUrls = window.manualImageUrls;
           showToast(`✅ Đã chèn ảnh "${file.name}" thành công`, "success");
         }
       }
       renderManualImageGallery();
       updateManualPreviewWithImages();
     }
+    window.processManualImageFiles = processManualImageFiles;
+
+    /** Open Cropper Studio directly on source exam image (for cropping question diagrams) */
+    function openCropperForSourceImage() {
+      let srcUrl = null;
+      if (window.State && window.State.ocrBatch) {
+        srcUrl = window.State.ocrBatch.sourceImageUrl ||
+                 (window.State.ocrBatch.images && window.State.ocrBatch.images[0]) ||
+                 (window.State.ocrBatch.items && window.State.ocrBatch.items[window.State.ocrBatch.currentIndex]?.source_image_url) ||
+                 (window.State.ocrBatch.items && window.State.ocrBatch.items[window.State.ocrBatch.currentIndex]?.images?.[0]);
+      }
+      if (!srcUrl) {
+        const thumb = document.getElementById("ocr-source-image-thumb");
+        if (thumb && thumb.src && !thumb.src.endsWith("#") && thumb.src !== window.location.href) {
+          srcUrl = thumb.src;
+        }
+      }
+      if (!srcUrl && window.manualImageUrls && window.manualImageUrls.length > 0) {
+        srcUrl = window.manualImageUrls[0];
+      }
+      if (!srcUrl && typeof selectedOcrFiles !== "undefined" && selectedOcrFiles && selectedOcrFiles.length > 0) {
+        const f = selectedOcrFiles[0];
+        if (f && f.type && f.type.startsWith("image/")) {
+          try { srcUrl = URL.createObjectURL(f); } catch (e) {}
+        }
+      }
+      if (!srcUrl) {
+        showToast("Chưa có ảnh đề thi gốc. Bạn có thể bấm '✂️ Cắt ảnh từ máy' để chọn ảnh từ máy tính.", "warning");
+        return;
+      }
+      setupCropperWithImageSource(srcUrl, null);
+    }
+    window.openCropperForSourceImage = openCropperForSourceImage;
 
     /** Render the image gallery below the content textarea */
     function renderManualImageGallery() {
@@ -2190,38 +2514,46 @@
       const countEl = document.getElementById("m-img-count");
       if (!gallery || !grid) return;
 
-      if (manualImageUrls.length === 0) {
+      const imgs = window.manualImageUrls || manualImageUrls || [];
+      if (imgs.length === 0) {
         gallery.style.display = "none";
         return;
       }
 
       gallery.style.display = "block";
-      if (countEl) countEl.textContent = manualImageUrls.length;
+      if (countEl) countEl.textContent = imgs.length;
 
-      grid.innerHTML = manualImageUrls.map((url, i) => `
+      grid.innerHTML = imgs.map((url, i) => `
         <div class="m-img-thumb-wrapper" title="${url}">
-          <img src="${url}" alt="Ảnh đính kèm ${i + 1}" onclick="window.open('${url}', '_blank')" />
+          <img src="${url}" alt="Ảnh đính kèm ${i + 1}" onclick="openCurrentQuestionImageZoom()" style="cursor: pointer;" title="Nhấp để phóng to / soi chi tiết" />
           <button type="button" class="m-img-crop-btn" onclick="openCropperForExistingImage(${i})" title="Cắt / Crop lại ảnh này">✂️</button>
           <button type="button" class="m-img-remove-btn" onclick="removeManualImage(${i})" title="Xóa ảnh này">✕</button>
         </div>
       `).join("");
     }
+    window.renderManualImageGallery = renderManualImageGallery;
 
     /** Remove a specific image from the gallery */
     function removeManualImage(index) {
-      manualImageUrls.splice(index, 1);
+      if (!window.manualImageUrls) window.manualImageUrls = [];
+      window.manualImageUrls.splice(index, 1);
+      manualImageUrls = window.manualImageUrls;
       renderManualImageGallery();
       updateManualPreviewWithImages();
     }
+    window.removeManualImage = removeManualImage;
 
     /** Clear all attached images */
     function clearAllManualImages() {
-      if (manualImageUrls.length === 0) return;
-      manualImageUrls = [];
+      const imgs = window.manualImageUrls || manualImageUrls || [];
+      if (imgs.length === 0) return;
+      window.manualImageUrls = [];
+      manualImageUrls = window.manualImageUrls;
       renderManualImageGallery();
       updateManualPreviewWithImages();
       showToast("Đã xóa tất cả ảnh đính kèm", "info");
     }
+    window.clearAllManualImages = clearAllManualImages;
 
     /** Update the live preview to include attached images */
     function updateManualPreviewWithImages() {
@@ -2236,10 +2568,11 @@
         html += `<div style="font-size: 14.5px; line-height: 1.6;">${val.replace(/\n/g, '<br/>')}</div>`;
       }
 
-      if (manualImageUrls.length > 0) {
+      const imgs = window.manualImageUrls || manualImageUrls || [];
+      if (imgs.length > 0) {
         html += `<div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">`;
-        manualImageUrls.forEach((url, i) => {
-          html += `<img src="${url}" alt="Ảnh ${i + 1}" style="max-height: 160px; max-width: 100%; border-radius: 6px; border: 1px solid #e2e8f0; object-fit: contain; cursor: pointer;" onclick="window.open('${url}', '_blank')" />`;
+        imgs.forEach((url, i) => {
+          html += `<img src="${url}" alt="Ảnh ${i + 1}" style="max-height: 160px; max-width: 100%; border-radius: 6px; border: 1px solid #e2e8f0; object-fit: contain; cursor: pointer;" onclick="openCurrentQuestionImageZoom()" title="Nhấp để phóng to / soi ảnh chi tiết" />`;
         });
         html += `</div>`;
       }
@@ -2251,6 +2584,7 @@
         if (typeof renderMath === "function") renderMath(mPreviewEl);
       }
     }
+    window.updateManualPreviewWithImages = updateManualPreviewWithImages;
 
     // ===================== Event Bindings =====================
     const mContent = document.getElementById("m-content");
@@ -2438,6 +2772,7 @@
       };
       img.src = src;
     }
+    window.setupCropperWithImageSource = setupCropperWithImageSource;
 
     function recalcCropperDimensions() {
       if (!Cropper.img || !Cropper.canvas) return;
@@ -2783,12 +3118,22 @@
         const uploadedUrl = await uploadImageToServer(file);
 
         if (uploadedUrl) {
-          if (replaceOriginal && typeof Cropper.existingIndex === "number" && Cropper.existingIndex < manualImageUrls.length) {
-            manualImageUrls[Cropper.existingIndex] = uploadedUrl;
+          if (!window.manualImageUrls) window.manualImageUrls = [];
+          if (replaceOriginal && typeof Cropper.existingIndex === "number" && Cropper.existingIndex < window.manualImageUrls.length) {
+            window.manualImageUrls[Cropper.existingIndex] = uploadedUrl;
+            manualImageUrls = window.manualImageUrls;
             showToast("✅ Đã cắt và thay thế ảnh gốc thành công!", "success");
           } else {
-            manualImageUrls.push(uploadedUrl);
+            window.manualImageUrls.push(uploadedUrl);
+            manualImageUrls = window.manualImageUrls;
             showToast("✅ Đã cắt và chèn ảnh mới vào câu hỏi!", "success");
+          }
+          // Sync with active OCR question item if in batch review
+          if (window.State && window.State.ocrBatch && window.State.ocrBatch.items) {
+            const curQ = window.State.ocrBatch.items[window.State.ocrBatch.currentIndex];
+            if (curQ) {
+              curQ.images = [...window.manualImageUrls];
+            }
           }
           renderManualImageGallery();
           updateManualPreviewWithImages();
@@ -2857,7 +3202,8 @@
       document.getElementById("m-diff").value = "medium";
       document.getElementById("m-explanation").value = "";
       // Clear attached images
-      manualImageUrls = [];
+      window.manualImageUrls = [];
+      manualImageUrls = window.manualImageUrls;
       renderManualImageGallery();
       if (mPreview) {
         mPreview.innerHTML = `<p style="color: #94a3b8; font-style: italic;">Nội dung câu hỏi và công thức toán sẽ hiển thị thử tại đây khi bạn nhập...</p>`;
@@ -2901,9 +3247,10 @@
       }
 
       // Build content_html with embedded images
+      const currentImgs = window.manualImageUrls || manualImageUrls || [];
       let contentHtml = `<p>${content}</p>`;
-      if (manualImageUrls.length > 0) {
-        contentHtml += `<div class="question-images">` + manualImageUrls.map(url =>
+      if (currentImgs.length > 0) {
+        contentHtml += `<div class="question-images">` + currentImgs.map(url =>
           `<img src="${url}" alt="Hình ảnh câu hỏi" style="max-height: 200px; max-width: 100%; border-radius: 6px;" />`
         ).join("") + `</div>`;
       }
@@ -2917,7 +3264,7 @@
         content_html: contentHtml,
         content_text: content,
         raw_ocr_content: rawOcrText,
-        images: [...manualImageUrls],
+        images: [...currentImgs],
         options: options,
         correct_answer: document.getElementById("m-correct").value,
         difficulty: document.getElementById("m-diff").value,

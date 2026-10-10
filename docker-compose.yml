@@ -8,7 +8,8 @@ services:
 
     # ── Ports ───────────────────────────────────
     ports:
-      - "8000:8000"          # Web Dashboard + API
+      - "8000:8000"          # Web Dashboard + API (http://localhost:8000)
+      - "80:8000"            # Truy cập trực tiếp cổng 80 (http://localhost)
 
     # ── Volumes (dữ liệu bền vững) ──────────────
     # Tất cả dữ liệu lưu trong ./data/ trên máy host
@@ -25,6 +26,14 @@ services:
     environment:
       - PYTHONUNBUFFERED=1   # Log hiện ngay, không buffer
       - PYTHONDONTWRITEBYTECODE=1
+      - TZ=Asia/Ho_Chi_Minh  # Đồng bộ múi giờ Việt Nam (UTC+7)
+      - CUSTOM_VISION_URL=http://host.docker.internal:20129/v1 # Kết nối trực tiếp 9Router trên Windows
+      - DOCKER_CONTAINER=1
+
+    # ── Host network bridge ─────────────────────
+    # Cho phép container Docker kết nối ra các dịch vụ chạy trên Windows Host (9Router port 20129)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     # ── Resource limits (tùy chỉnh nếu cần) ────
     # Giới hạn RAM để không ảnh hưởng các ứng dụng khác trên máy chủ

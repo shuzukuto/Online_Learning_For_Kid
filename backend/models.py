@@ -8,7 +8,10 @@ class OptionItem(BaseModel):
     content: str
     is_correct: bool = False
 
-class QuestionCreate(BaseModel):
+class QuestionBase(BaseModel):
+    has_handwriting: Optional[bool] = False
+
+class QuestionCreate(QuestionBase):
     id: Optional[str] = None
     q_number: Optional[int] = None
     source_platform: str = "manual"  # vioedu, tnmath, timo, hkimo, asmo, manual
@@ -28,9 +31,10 @@ class QuestionCreate(BaseModel):
     correct_answer: Optional[str] = None
     explanation: Optional[str] = None
     difficulty: Optional[str] = "medium"  # easy, medium, hard, olympiad
+    has_handwriting: Optional[bool] = False
     created_at: Optional[str] = None
 
-class QuestionUpdate(BaseModel):
+class QuestionUpdate(QuestionBase):
     q_number: Optional[int] = None
     source_platform: Optional[str] = None
     source_detail: Optional[str] = None
@@ -49,6 +53,7 @@ class QuestionUpdate(BaseModel):
     correct_answer: Optional[str] = None
     explanation: Optional[str] = None
     difficulty: Optional[str] = None
+    has_handwriting: Optional[bool] = False
 
 class QuestionResponse(QuestionCreate):
     id: str
@@ -66,6 +71,7 @@ class ExamCreate(BaseModel):
     duration_minutes: int = 45
     header_info: Optional[str] = "BỘ GIÁO DỤC VÀ ĐÀO TẠO - ĐỀ THI KHẢO SÁT CHẤT LƯỢNG"
     notes: Optional[str] = "Học sinh không được sử dụng máy tính bỏ túi."
+    exam_code: Optional[str] = "101"
     question_ids: List[str] = Field(default_factory=list)
 
 class ExamResponse(BaseModel):
@@ -97,6 +103,25 @@ class AutoExamGenerateRequest(BaseModel):
     hard_count: int = 4
     topic: Optional[str] = None
     title: Optional[str] = None
+
+class ExamDiversityRequest(BaseModel):
+    question_ids: List[str]
+
+class ExamDiversifyRequest(BaseModel):
+    question_ids: List[str]
+    subject: Optional[str] = "math"
+    grade: Optional[int] = 5
+
+class ExamSwapRequest(BaseModel):
+    target_id: str
+    question_ids: List[str]
+    subject: Optional[str] = "math"
+    grade: Optional[int] = 5
+
+class ExamShuffleRequest(BaseModel):
+    question_ids: List[str]
+    shuffle_order: bool = True
+    shuffle_options: bool = True
 
 class CleanDuplicatesRequest(BaseModel):
     action: str = "keep_oldest"  # "keep_oldest", "keep_newest", "delete_ids"

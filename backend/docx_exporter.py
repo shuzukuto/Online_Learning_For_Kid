@@ -90,7 +90,8 @@ def generate_exam_docx(exam_data: Dict[str, Any], questions: List[Dict[str, Any]
     
     p_left2 = cell_left.add_paragraph()
     p_left2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_code = p_left2.add_run("MÃ ĐỀ THI: 101")
+    exam_code = exam_data.get("exam_code") or "101"
+    r_code = p_left2.add_run(f"MÃ ĐỀ THI: {exam_code}")
     r_code.font.bold = True
     r_code.font.size = Pt(11)
     

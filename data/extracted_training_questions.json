@@ -1,0 +1,231 @@
+[
+  {
+    "question_number": 1,
+    "content_text": "Peter was 6 years old 3 years ago. How old will Peter be in 4 years?\nPeter đã 6 tuổi vào 3 năm trước. Hỏi sau 4 năm nữa Peter bao nhiêu tuổi?",
+    "content_html": "<p>Peter was 6 years old 3 years ago. How old will Peter be in 4 years?\nPeter đã 6 tuổi vào 3 năm trước. Hỏi sau 4 năm nữa Peter bao nhiêu tuổi?</p>",
+    "options": [
+      {
+        "id": "A",
+        "content": "11",
+        "is_correct": false
+      },
+      {
+        "id": "B",
+        "content": "12",
+        "is_correct": false
+      },
+      {
+        "id": "C",
+        "content": "13",
+        "is_correct": true
+      },
+      {
+        "id": "D",
+        "content": "14",
+        "is_correct": false
+      }
+    ],
+    "correct_answer": "C",
+    "explanation": "Bước 1: Tìm tuổi hiện tại của Peter.\nPeter 6 tuổi vào 3 năm trước. Vậy tuổi hiện tại của Peter là: 6 + 3 = 9 (tuổi).\nBước 2: Tìm tuổi của Peter sau 4 năm nữa.\nHiện tại Peter 9 tuổi. Sau 4 năm nữa, tuổi của Peter sẽ là: 9 + 4 = 13 (tuổi).\nVậy, Peter sẽ 13 tuổi sau 4 năm nữa.",
+    "topic": "Bóc tách AI Vision (Toán)",
+    "grade": 2,
+    "difficulty": "easy",
+    "subject": "math",
+    "source_platform": "ai_vision",
+    "source_file_name": "FB_IMG_1791115073510.jpg",
+    "ocr_engine_used": "9Router:gemini/gemini-2.5-flash",
+    "images": [],
+    "diagram_bbox": null,
+    "source_image_url": "/media/source_18033de6ee.jpg",
+    "id": "train_601faff089",
+    "created_at": "2026-10-08T23:07:25.105708+07:00",
+    "exam_name": "Đề thi Thầy Đặng Việt Hùng - Khối 2",
+    "source_detail": "Đề thi thử Toán tư duy"
+  },
+  {
+    "question_number": 2,
+    "content_text": "According to the pattern shown below, how many apples are there in the next group?\nDựa vào quy luật dưới đây, có bao nhiêu quả táo trong nhóm tiếp theo?",
+    "content_html": "<p>According to the pattern shown below, how many apples are there in the next group?\nDựa vào quy luật dưới đây, có bao nhiêu quả táo trong nhóm tiếp theo?</p>",
+    "options": [
+      {
+        "id": "A",
+        "content": "0",
+        "is_correct": true
+      },
+      {
+        "id": "B",
+        "content": "1",
+        "is_correct": false
+      },
+      {
+        "id": "C",
+        "content": "2",
+        "is_correct": false
+      },
+      {
+        "id": "D",
+        "content": "3",
+        "is_correct": false
+      }
+    ],
+    "correct_answer": "A",
+    "explanation": "Bước 1: Đếm số quả táo trong mỗi nhóm.\nNhóm 1 có 9 quả táo (3 hàng x 3 cột).\nNhóm 2 có 6 quả táo (3 hàng x 2 cột).\nNhóm 3 có 3 quả táo (3 hàng x 1 cột).\nBước 2: Tìm quy luật của dãy số.\nSố quả táo giảm dần theo quy luật: 9 → 6 → 3.\nHiệu giữa các số liên tiếp là: 9 - 6 = 3 và 6 - 3 = 3.\nVậy, mỗi nhóm tiếp theo có ít hơn nhóm trước 3 quả táo.\nBước 3: Xác định số quả táo trong nhóm tiếp theo.\nNhóm tiếp theo sẽ có số quả táo là: 3 - 3 = 0 (quả).\nVậy, nhóm tiếp theo có 0 quả táo.",
+    "topic": "Bóc tách AI Vision (Toán)",
+    "grade": 2,
+    "difficulty": "medium",
+    "subject": "math",
+    "source_platform": "ai_vision",
+    "source_file_name": "FB_IMG_1791115073510.jpg",
+    "ocr_engine_used": "9Router:gemini/gemini-2.5-flash",
+    "images": [
+      "/media/crop_diag_q2_85d53376491c.png"
+    ],
+    "diagram_bbox": [
+      325,
+      290,
+      479,
+      907
+    ],
+    "source_image_url": "/media/source_18033de6ee.jpg",
+    "id": "train_96a1c0d02d",
+    "created_at": "2026-10-08T23:07:25.105758+07:00",
+    "exam_name": "Đề thi Thầy Đặng Việt Hùng - Khối 2",
+    "source_detail": "Đề thi thử Toán tư duy"
+  },
+  {
+    "question_number": 3,
+    "content_text": "At first, Tom had 32 books on his bookshelf. He gave 12 books to his friend. How many books does Tom have on his bookshelf now?\nBan đầu, Tom có 32 cuốn sách trên giá sách của mình. Cậu ấy đã tặng 12 cuốn sách cho bạn của mình. Hỏi bây giờ Tom còn lại bao nhiêu cuốn sách trên giá sách?",
+    "content_html": "<p>At first, Tom had 32 books on his bookshelf. He gave 12 books to his friend. How many books does Tom have on his bookshelf now?\nBan đầu, Tom có 32 cuốn sách trên giá sách của mình. Cậu ấy đã tặng 12 cuốn sách cho bạn của mình. Hỏi bây giờ Tom còn lại bao nhiêu cuốn sách trên giá sách?</p>",
+    "options": [
+      {
+        "id": "A",
+        "content": "18",
+        "is_correct": false
+      },
+      {
+        "id": "B",
+        "content": "20",
+        "is_correct": true
+      },
+      {
+        "id": "C",
+        "content": "22",
+        "is_correct": false
+      },
+      {
+        "id": "D",
+        "content": "24",
+        "is_correct": false
+      }
+    ],
+    "correct_answer": "B",
+    "explanation": "Bước 1: Xác định số sách ban đầu của Tom.\nTom có 32 cuốn sách.\nBước 2: Xác định số sách Tom đã tặng.\nTom tặng 12 cuốn sách cho bạn.\nBước 3: Tính số sách còn lại của Tom.\nĐể tìm số sách còn lại, ta lấy số sách ban đầu trừ đi số sách đã tặng: 32 - 12 = 20 (cuốn sách).\nVậy, Tom còn lại 20 cuốn sách trên giá sách.",
+    "topic": "Bóc tách AI Vision (Toán)",
+    "grade": 2,
+    "difficulty": "easy",
+    "subject": "math",
+    "source_platform": "ai_vision",
+    "source_file_name": "FB_IMG_1791115073510.jpg",
+    "ocr_engine_used": "9Router:gemini/gemini-2.5-flash",
+    "images": [],
+    "diagram_bbox": null,
+    "source_image_url": "/media/source_18033de6ee.jpg",
+    "id": "train_16c6fd09f6",
+    "created_at": "2026-10-08T23:07:25.105771+07:00",
+    "exam_name": "Đề thi Thầy Đặng Việt Hùng - Khối 2",
+    "source_detail": "Đề thi thử Toán tư duy"
+  },
+  {
+    "question_number": 1,
+    "content_text": "Given that 3 days after tomorrow will be Sunday, which day of the week was it 2 days before yesterday?\nCho biết 3 ngày sau ngày mai sẽ là Chủ Nhật. Hỏi 2 ngày trước ngày hôm qua là thứ mấy?",
+    "content_html": "<p>Given that 3 days after tomorrow will be Sunday, which day of the week was it 2 days before yesterday?\nCho biết 3 ngày sau ngày mai sẽ là Chủ Nhật. Hỏi 2 ngày trước ngày hôm qua là thứ mấy?</p>",
+    "options": [
+      {
+        "id": "A",
+        "content": "Thứ Sáu (Friday)",
+        "is_correct": false
+      },
+      {
+        "id": "B",
+        "content": "Thứ Bảy (Saturday)",
+        "is_correct": false
+      },
+      {
+        "id": "C",
+        "content": "Chủ Nhật (Sunday)",
+        "is_correct": true
+      },
+      {
+        "id": "D",
+        "content": "Thứ Hai (Monday)",
+        "is_correct": false
+      }
+    ],
+    "correct_answer": "C",
+    "explanation": "1. Xác định ngày mai:\n   - 3 ngày sau ngày mai là Chủ Nhật.\n   - Vậy, ngày mai là Chủ Nhật - 3 ngày = Thứ Năm.\n2. Xác định hôm nay:\n   - Hôm nay là ngày mai - 1 ngày = Thứ Năm - 1 ngày = Thứ Tư.\n3. Xác định ngày hôm qua:\n   - Ngày hôm qua là hôm nay - 1 ngày = Thứ Tư - 1 ngày = Thứ Ba.\n4. Xác định ngày cần tìm:\n   - 2 ngày trước ngày hôm qua là Thứ Ba - 2 ngày = Chủ Nhật.",
+    "topic": "Bóc tách AI Vision (Toán)",
+    "grade": 2,
+    "difficulty": "medium",
+    "subject": "math",
+    "source_platform": "ai_vision",
+    "source_file_name": "FB_IMG_1791115075593.jpg",
+    "ocr_engine_used": "9Router:gemini/gemini-2.5-flash",
+    "images": [],
+    "diagram_bbox": null,
+    "source_image_url": "/media/source_d73258d84b.jpg",
+    "id": "train_2e7dd22d80",
+    "created_at": "2026-10-08T23:07:38.812843+07:00",
+    "exam_name": "Đề thi Thầy Đặng Việt Hùng - Khối 2",
+    "source_detail": "Đề thi thử Toán tư duy"
+  },
+  {
+    "question_number": 2,
+    "content_text": "According to the pattern below, find the missing number.\nDựa vào quy luật dưới đây, tìm số còn thiếu",
+    "content_html": "<p>According to the pattern below, find the missing number.\nDựa vào quy luật dưới đây, tìm số còn thiếu</p>",
+    "options": [
+      {
+        "id": "A",
+        "content": "24",
+        "is_correct": false
+      },
+      {
+        "id": "B",
+        "content": "23",
+        "is_correct": false
+      },
+      {
+        "id": "C",
+        "content": "22",
+        "is_correct": true
+      },
+      {
+        "id": "D",
+        "content": "21",
+        "is_correct": false
+      }
+    ],
+    "correct_answer": "C",
+    "explanation": "1. Quan sát dãy số: 47, 40, 34, 29, 25, ?, 20.\n2. Tìm quy luật giảm giữa các số liên tiếp:\n   - 47 - 40 = 7\n   - 40 - 34 = 6\n   - 34 - 29 = 5\n   - 29 - 25 = 4\n3. Nhận thấy quy luật: Hiệu giữa hai số liên tiếp giảm dần 1 đơn vị (7, 6, 5, 4).\n4. Áp dụng quy luật để tìm số tiếp theo:\n   - Hiệu tiếp theo phải là 3.\n   - Số cần tìm là 25 - 3 = 22.\n5. Kiểm tra lại với số cuối cùng:\n   - Hiệu tiếp theo phải là 2.\n   - 22 - 2 = 20. (Phù hợp với số cuối cùng trong dãy).\nVậy, số còn thiếu là 22.",
+    "topic": "Bóc tách AI Vision (Toán)",
+    "grade": 2,
+    "difficulty": "medium",
+    "subject": "math",
+    "source_platform": "ai_vision",
+    "source_file_name": "FB_IMG_1791115075593.jpg",
+    "ocr_engine_used": "9Router:gemini/gemini-2.5-flash",
+    "images": [
+      "/media/crop_diag_q2_b06f56fb649c.png"
+    ],
+    "diagram_bbox": [
+      338,
+      121,
+      440,
+      944
+    ],
+    "source_image_url": "/media/source_d73258d84b.jpg",
+    "id": "train_1ca7833345",
+    "created_at": "2026-10-08T23:07:38.812896+07:00",
+    "exam_name": "Đề thi Thầy Đặng Việt Hùng - Khối 2",
+    "source_detail": "Đề thi thử Toán tư duy"
+  }
+]

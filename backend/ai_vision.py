@@ -16,8 +16,13 @@ from typing import List, Dict, Any, Optional, Tuple
 from PIL import Image
 
 import httpx
-
 from backend.database import get_system_config, set_system_config
+from backend.ai_agent_importer import (
+    normalize_options_list,
+    normalize_grade,
+    normalize_difficulty,
+    normalize_subject,
+)
 
 # Default Vision models with high accuracy on Vietnamese exams
 OPENROUTER_FREE_MODELS = [
@@ -284,21 +289,69 @@ def _prepare_image_payload(image_bytes: bytes) -> str:
         return f"data:image/jpeg;base64,{encoded}"
 
 
+def clean_question_stem(text: str) -> str:
+    """Removes question numbering prefixes and header/watermark noise from question stem."""
+    if not text:
+        return ""
+    t = text.strip()
+    # Remove leading question numbers like 'WKC 1.', '[ĐVH] 1.', 'Câu 1.', 'Question 1.', '1.'
+    t = re.sub(r'^(?:\[?(?:WKC|ĐVH|DVH|TIMO)\]?\s*)?(?:Câu|Question|Problem|Bài|Q)?\s*\d{1,3}\s*[\.:\)\-]\s*', '', t, flags=re.IGNORECASE).strip()
+    # Remove any stray header / watermark lines
+    lines = [ln for ln in t.splitlines() if not any(w in ln.lower() for w in [
+        "tài liệu & lớp học", "wkc mock test", "trẻ thông thái", "0909.698.169", "0985.074.831",
+        "thầy đặng việt hùng", "ba mẹ nhắn cô hằng", "nhận video hướng dẫn"
+    ])]
+    return "\n".join(lines).strip()
+
+
 def _build_vision_prompt() -> str:
     return (
-        "Bóc tách toàn bộ các câu hỏi và phương án trắc nghiệm A, B, C, D trong ảnh đề thi thành mảng JSON:\n"
+        "Bạn là Chuyên gia Khảo thí và AI Giảng dạy hàng đầu Việt Nam. "
+        "Hãy đọc toàn bộ ảnh đề thi, nhận diện từng câu hỏi, TỰ ĐỘNG GIẢI BÀI TOÁN để xác định đáp án đúng và viết lời giải chi tiết sư phạm.\n\n"
+        "Xuất kết quả dưới dạng mảng JSON thuần túy:\n"
         "[\n"
         "  {\n"
         "    \"question_number\": 1,\n"
-        "    \"question_text\": \"Nội dung câu hỏi...\",\n"
-        "    \"options\": [\"A. ...\", \"B. ...\", \"C. ...\", \"D. ...\"],\n"
-        "    \"correct_answer\": \"\"\n"
+        "    \"question_text\": \"Nội dung câu hỏi đầy đủ, bao gồm dữ kiện, câu hỏi (giữ nguyên công thức toán, bảo toàn cả tiếng Anh và tiếng Việt nếu là đề song ngữ, không chứa phương án A,B,C,D vào đây)...\",\n"
+        "    \"diagram_bbox\": [ymin, xmin, ymax, xmax],\n"
+        "    \"options\": [\n"
+        "      {\"id\": \"A\", \"content\": \"Nội dung phương án A (không ghi lại chữ 'A.' ở đầu)\"},\n"
+        "      {\"id\": \"B\", \"content\": \"Nội dung phương án B (không ghi lại chữ 'B.' ở đầu)\"},\n"
+        "      {\"id\": \"C\", \"content\": \"Nội dung phương án C (không ghi lại chữ 'C.' ở đầu)\"},\n"
+        "      {\"id\": \"D\", \"content\": \"Nội dung phương án D (không ghi lại chữ 'D.' ở đầu)\"}\n"
+        "    ],\n"
+        "    \"correct_answer\": \"A\",\n"
+        "    \"explanation\": \"Hướng dẫn giải chi tiết từng bước, phù hợp phương pháp sư phạm của khối lớp tương ứng...\",\n"
+        "    \"grade\": 2,\n"
+        "    \"difficulty\": \"medium\",\n"
+        "    \"subject\": \"Toán\",\n"
+        "    \"has_handwriting\": false\n"
         "  }\n"
-        "]\n"
-        "QUY TẮC BẮT BUỘC:\n"
-        "1. Bạn là công cụ OCR đọc chữ. TUYỆT ĐỐI KHÔNG GIẢI TOÁN, KHÔNG TÍNH TOÁN KẾT QUẢ ĐÁP ÁN.\n"
-        "2. Để trống correct_answer: \"\" nếu trên ảnh không có dấu tích/khoanh tròn đáp án.\n"
-        "3. Xuất ngay mảng JSON bắt đầu bằng [ và kết thúc bằng ]. Giữ nguyên tiếng Việt có dấu."
+        "]\n\n"
+        "QUY TẮC BẮT BUỘC VỀ BÓC TÁCH VÀ CROP HÌNH ẢNH:\n"
+        "1. ĐỐI VỚI CÂU HỎI THUẦN CHỮ (Không có hình vẽ/sơ đồ/tranh minh họa, ví dụ bài toán đố tính tuổi, phép tính số học thuần túy):\n"
+        "   - BẮT BUỘC gán `diagram_bbox: null`. TUYỆT ĐỐI KHÔNG gán tọa độ toàn bộ trang giấy hay bất kỳ phần chữ nào.\n"
+        "2. ĐỐI VỚI CÂU HỎI CÓ HÌNH ẢNH/SƠ ĐỒ MINH HỌA (bắt buộc phải nhìn hình mới làm được bài, như bảng lưới táo, que tính, khối lập phương, đĩa cân, đồng hồ, hình học, đồ thị...):\n"
+        "   - Hãy trả về tọa độ hộp bao `diagram_bbox`: [ymin, xmin, ymax, xmax] theo tỷ lệ từ 0 đến 1000 của toàn trang ảnh.\n"
+        "   - CẠNH TRÊN (ymin): BẮT BUỘC NẰM NGAY DƯỚI DÒNG CHỮ CÂU HỎI. TUYỆT ĐỐI KHÔNG chứa dòng chữ câu hỏi (cả tiếng Anh lẫn tiếng Việt).\n"
+        "   - CẠNH DƯỚI (ymax): PHẢI KÉO DÀI BAO TRÙM HẾT MỌI CHI TIẾT CỦA HÌNH VẼ VÀ TẤT CẢ CÁC NHÃN/CHÚ THÍCH CỦA HÌNH (như dòng nhãn 'Group 1 / Nhóm 1', 'Group 2 / Nhóm 2', 'Group 3 / Nhóm 3' bên dưới mỗi ô hình, hoặc 'Hình 1', 'Hình 2', 'Đĩa A', 'Đĩa B'...). TUYỆT ĐỐI KHÔNG cắt cụt chân hình hoặc bỏ sót nhãn hình vẽ. TUYỆT ĐỐI KHÔNG chạm vào các phương án A, B, C, D bên dưới.\n"
+        "   - CẠNH TRÁI (xmin) và CẠNH PHẢI (xmax): Bao trọn vẹn toàn bộ bề ngang của cụm hình minh họa (bao gồm tất cả các nhóm/hình thành phần).\n"
+        "3. BÓC TÁCH PHƯƠNG ÁN RÕ RÀNG: Tách rời 4 lựa chọn A, B, C, D vào mảng `options` với `id` và `content`. Nội dung `content` không chứa tiền tố 'A. ', 'B. '.\n"
+        "4. GIẢI TOÁN & CHỌN ĐÁP ÁN: Vận dụng tư duy logic để giải ra kết quả chính xác. Gán `correct_answer` là chữ cái đáp án đúng ('A', 'B', 'C', hoặc 'D'). Nếu trên ảnh có khoanh tròn hoặc dấu tích đáp án thì tham khảo, nhưng hãy tự giải để kiểm chứng tính chuẩn xác.\n"
+        "5. LỜI GIẢI SƯ PHẠM (explanation): Viết lời giải sư phạm từng bước dễ hiểu theo khối lớp:\n"
+        "   - Khối Mầm non (grade: 0) / Lớp 1 (grade: 1): Diễn đạt trực quan, so sánh, đếm đồ vật/hình ảnh cụ thể.\n"
+        "   - Khối 2 - 3 (grade: 2, 3): Phân tích quy luật, lập luận logic, các phép tính rõ ràng.\n"
+        "6. KHỐI LỚP (grade) & ĐỘ KHÓ (difficulty):\n"
+        "   - Gán `grade: 0` nếu là đề Mầm non / Tiền tiểu học; 1 đến 12 cho các lớp tương ứng (LEVEL 1 = 1, LEVEL 2 = 2...).\n"
+        "   - `difficulty`: 'easy' (Dễ), 'medium' (Trung bình), 'hard' (Khó), 'olympiad' (Toán tư duy/Olympic TIMO).\n"
+        "7. NHẬN DIỆN CHỮ VIẾT TAY (has_handwriting):\n"
+        "   - Gán `has_handwriting: true` nếu đề thi có vết chữ viết tay, chữ nháp của học sinh hoặc lời giải viết tay của giáo viên; gán `false` nếu là văn bản in/đánh máy hoàn toàn.\n"
+        "   - TUYỆT ĐỐI KHÔNG để chữ nháp hoặc phép tính viết tay của học sinh lọt vào nội dung câu hỏi `question_text`.\n"
+        "   - Nếu có lời giải hoặc nhận xét của giáo viên được viết tay, hãy tham khảo chuyển tải tinh thần đó vào trường `explanation`.\n"
+        "8. LỌC NHIỄU & CÔNG THỨC TOÁN:\n"
+        "   - Bỏ qua watermark, hotline, số điện thoại trung tâm ở đầu/chân trang.\n"
+        "   - Sử dụng chuẩn KaTeX cho công thức toán (\\frac{a}{b}, x^2, \\sqrt{x}). Giữ nguyên ký hiệu tiền tệ ($3, $20) không biến thành khối toán.\n"
+        "9. ĐỊNH DẠNG ĐẦU RA: Chỉ trả về một JSON array bắt đầu bằng `[` và kết thúc bằng `]`. Giữ nguyên tiếng Việt có dấu đầy đủ."
     )
 
 
@@ -406,21 +459,28 @@ def _resolve_docker_host_url(url: str) -> str:
 
 def _normalize_9router_model_name(model: str) -> str:
     """
-    Ensures model name sent to 9Router has proper provider prefix.
-    9Router requires 'openrouter/' prefix for models routed to OpenRouter.
-    If '9router' or 'smart-route' is passed, redirects to 'openrouter/dots-studio/dots-3-note-preview:free'
-    because 9router default alias forwards to deprecated minimax-m3 (HTTP 410 Gone).
+    Normalizes model names for 9Router local gateway.
+    - If empty or generic '9router' / 'smart-route', defaults to 'gemini/gemini-3.7-flash'.
+    - If model is a native provider route in 9Router (e.g. starts with 'gemini/', 'ds/', 'nvidia/', 'openai/'):
+      kept AS IS without adding 'openrouter/' prefix, so 9Router routes to its native provider.
+    - If model already starts with 'openrouter/': kept AS IS.
+    - If model starts with an openrouter author (e.g. 'dots-studio/', 'google/gemma', 'thinkingmachines/'):
+      prepends 'openrouter/' only if not already prefixed.
     """
     m = (model or "").strip()
     if not m or m in ("9router", "smart-route"):
-        return "openrouter/dots-studio/dots-3-note-preview:free"
+        return "gemini/gemini-3.7-flash"
     if m.startswith("openrouter/"):
+        return m
+    if m.startswith("gemini/") or m.startswith("ds/") or m.startswith("openai/"):
+        return m
+    if m.startswith("nvidia/") and not m.startswith("nvidia/nemotron-3-nano") and not m.startswith("nvidia/nemotron-3.5"):
         return m
     if m.startswith("nvidia/nemotron"):
         return f"openrouter/{m}"
-    if m.startswith("nvidia/"):
-        return m
-    return f"openrouter/{m}"
+    if any(m.startswith(prefix) for prefix in ["dots-studio/", "google/gemma", "thinkingmachines/", "apodex/", "inclusionai/", "poolside/", "cohere/"]):
+        return f"openrouter/{m}"
+    return m
 
 
 async def call_openai_compatible_vision(
@@ -429,7 +489,9 @@ async def call_openai_compatible_vision(
     model: str,
     image_data_uri: str,
     extra_headers: Optional[Dict[str, str]] = None,
-    timeout: float = 65.0
+    timeout: float = 65.0,
+    log_collector: Optional[List[str]] = None,
+    provider_name: str = "AI Vision"
 ) -> Optional[List[Dict[str, Any]]]:
     """Generic OpenAI-compatible vision completion caller via httpx."""
     # Normalize model for 9Router if target is 9Router / custom
@@ -481,6 +543,10 @@ async def call_openai_compatible_vision(
         async with httpx.AsyncClient(timeout=timeout) as client:
             return await asyncio.wait_for(client.post(url_to_call, headers=headers, json=p), timeout=timeout)
 
+    def _append_log(msg: str):
+        if log_collector is not None:
+            log_collector.append(msg)
+
     resp = None
     try:
         resp = await _post_req(endpoint, norm_model)
@@ -491,14 +557,23 @@ async def call_openai_compatible_vision(
             resp = await _post_req(alt_endpoint, norm_model)
         except Exception as alt_e:
             print(f"[call_openai_compatible_vision] Request failed to {endpoint} and {alt_endpoint}: {alt_e}")
+            _append_log(f"❌ [{provider_name}] Lỗi kết nối tới {endpoint} và {alt_endpoint}: {str(alt_e)[:100]}")
             return None
     except Exception as e:
         print(f"[call_openai_compatible_vision] Request failed to {endpoint} ({norm_model}): {e}")
+        _append_log(f"❌ [{provider_name}] Lỗi gửi yêu cầu tới {endpoint} ({norm_model}): {str(e)[:100]}")
         return None
 
     # Handle 410 Gone (model expired upstream on 9Router)
     if resp and resp.status_code == 410:
         print(f"[call_openai_compatible_vision] ⚠️ Model '{norm_model}' trả về HTTP 410 Gone (mô hình đã hết hạn upstream trên 9Router). Bỏ qua ngay.")
+        _append_log(f"⚠️ [{provider_name}] Model '{norm_model}' trả về HTTP 410 (Mô hình đã hết hạn hỗ trợ trên nhà cung cấp).")
+        return None
+
+    # Handle 429 or 503 rate-limit
+    if resp and (resp.status_code == 429 or (resp.status_code == 503 and any(k in resp.text.lower() for k in ["429", "rate limit", "free-models-per-day", "exceeded"]))):
+        print(f"[call_openai_compatible_vision] ⚠️ Rate limit 429/503 from {endpoint} ({norm_model}): {resp.text[:160]}")
+        _append_log(f"⚠️ [{provider_name}] Model '{norm_model}' bị từ chối (HTTP {resp.status_code}): Đã hết hạn mức yêu cầu miễn phí trong ngày (50/50 requests/ngày).")
         return None
 
     # Handle 404 (missing provider credentials) -> auto-retry with openrouter/ prefix if not prefixed
@@ -557,6 +632,7 @@ async def call_openai_compatible_vision(
 
         if not result_json:
             print(f"[call_openai_compatible_vision] Không thể parse JSON từ {endpoint} ({norm_model}): {raw_body[:160]}")
+            _append_log(f"⚠️ [{provider_name}] Phản hồi từ '{norm_model}' không thể đọc cấu trúc JSON.")
             return None
 
         # Check if provider returned 200 with an error object inside
@@ -564,6 +640,7 @@ async def call_openai_compatible_vision(
             err_info = result_json.get("error", {})
             err_msg = err_info.get("message", str(err_info)) if isinstance(err_info, dict) else str(err_info)
             print(f"[call_openai_compatible_vision] Upstream error from {endpoint} ({norm_model}): {err_msg}")
+            _append_log(f"❌ [{provider_name}] Lỗi upstream từ '{norm_model}': {err_msg[:120]}")
             return None
 
         choices = result_json.get("choices", [])
@@ -582,9 +659,19 @@ async def call_openai_compatible_vision(
                 parsed = _clean_json_response(f"{content}\n{reasoning}")
 
             if parsed:
+                _append_log(f"✅ [{provider_name}] Model '{norm_model}' trích xuất thành công {len(parsed)} câu hỏi!")
                 return parsed
+            else:
+                _append_log(f"⚠️ [{provider_name}] Model '{norm_model}' phản hồi nhưng nội dung không chứa câu hỏi hợp lệ.")
     elif resp:
-        print(f"[call_openai_compatible_vision] Error {resp.status_code} from {endpoint} ({norm_model}): {resp.text[:200]}")
+        err_snippet = resp.text[:140].replace('\n', ' ')
+        print(f"[call_openai_compatible_vision] Error {resp.status_code} from {endpoint} ({norm_model}): {err_snippet}")
+        if resp.status_code in (401, 403):
+            _append_log(f"❌ [{provider_name}] Lỗi xác thực HTTP {resp.status_code} với '{norm_model}'. Vui lòng kiểm tra lại API Key.")
+        elif resp.status_code == 404:
+            _append_log(f"⚠️ [{provider_name}] Model '{norm_model}' không tìm thấy trên server (HTTP 404).")
+        else:
+            _append_log(f"❌ [{provider_name}] Model '{norm_model}' trả về HTTP {resp.status_code}: {err_snippet}")
 
     return None
 
@@ -618,12 +705,17 @@ async def test_ai_vision_connection(
                     free_quota = data.get("free_model_daily_requests", {})
                     rem = free_quota.get("remaining", "N/A")
                     limit = free_quota.get("limit", "N/A")
+                    used = free_quota.get("used", "N/A")
                     label = data.get("label", "Key hợp lệ")
+                    if isinstance(rem, (int, float)) and rem <= 0:
+                        msg = f"⚠️ Kết nối OpenRouter thành công ({latency}ms) nhưng ĐÃ HẾT HẠN MỨC MIỄN PHÍ TRONG NGÀY ({used}/{limit} lượt đã dùng, còn lại {rem})! Các model :free sẽ bị từ chối 429 cho đến 00:00 UTC."
+                    else:
+                        msg = f"Kết nối OpenRouter thành công ({latency}ms)! Hạn mức miễn phí: còn {rem}/{limit} requests/ngày (đã dùng {used})."
                     return {
                         "success": True,
                         "latency_ms": latency,
                         "status_code": 200,
-                        "message": f"Kết nối OpenRouter thành công ({latency}ms)! Hạn mức miễn phí: {rem}/{limit} requests/ngày.",
+                        "message": msg,
                         "details": data
                     }
                 else:
@@ -702,9 +794,11 @@ async def test_ai_vision_connection(
                 if res.status_code == 200:
                     return True, 200, f"Kết nối và gọi model '{target_model}' trên 9Router ({url_to_test}) thành công!", 1
                 elif res.status_code == 410:
-                    return False, 410, f"Model '{target_model}' trên 9Router báo 410 (Hết hạn upstream). Vui lòng chọn 'openrouter/dots-studio/dots-3-note-preview:free'.", 0
+                    return False, 410, f"Model '{target_model}' trên 9Router báo 410 (Hết hạn upstream). Vui lòng chọn model khác.", 0
                 elif res.status_code in (401, 403):
                     return False, res.status_code, f"9Router yêu cầu API Key chính xác (HTTP {res.status_code}).", 0
+                elif res.status_code == 503 and ("429" in res.text or "rate limit" in res.text.lower() or "free-models-per-day" in res.text.lower()):
+                    return False, 429, f"9Router kết nối tốt nhưng upstream OpenRouter hết hạn mức miễn phí trong ngày (429 Rate Limit 50/50 requests/ngày).", 0
                 else:
                     return False, res.status_code, f"9Router ({url_to_test}) trả về HTTP {res.status_code}: {res.text[:120]}", 0
 
@@ -746,7 +840,8 @@ async def test_ai_vision_connection(
 async def extract_questions_with_ai_vision(
     image_bytes: bytes,
     filename: str = "exam_image.png",
-    media_url: Optional[str] = None
+    media_url: Optional[str] = None,
+    log_collector: Optional[List[str]] = None
 ) -> Tuple[List[Dict[str, Any]], str]:
     """
     Main entry point: tries configured Vision providers with automated fallback.
@@ -755,7 +850,16 @@ async def extract_questions_with_ai_vision(
     # 1. Check Hash Cache
     img_hash = hashlib.sha256(image_bytes).hexdigest()
     if img_hash in _VISION_CACHE:
-        return _VISION_CACHE[img_hash], "ai_vision_cache"
+        if log_collector is not None:
+            log_collector.append("⚡ [AI Vision] Sử dụng kết quả bóc tách từ bộ nhớ đệm (Cache) cho ảnh này.")
+        cached_qs = _VISION_CACHE[img_hash]
+        result_qs = []
+        for q in cached_qs:
+            q_copy = dict(q)
+            if media_url:
+                q_copy["source_image_url"] = media_url
+            result_qs.append(q_copy)
+        return result_qs, "ai_vision_cache"
 
     cfg = get_ai_vision_settings()
     image_data_uri = _prepare_image_payload(image_bytes)
@@ -774,7 +878,6 @@ async def extract_questions_with_ai_vision(
             if any(bad in low for bad in ["content-safety", "safety", "guard", "moderation", "audio", "whisper", "asr"]):
                 continue
             clean.append(m_clean)
-        # Prioritize dedicated vision models first, with openrouter/free as a late fallback
         priority_order = [
             "dots-studio/dots-3-note-preview:free",
             "google/gemma-4-26b-a4b-it:free",
@@ -796,25 +899,34 @@ async def extract_questions_with_ai_vision(
     def _build_9router_attempts():
         custom_url = cfg.get("custom_vision_url", "").strip() or "http://127.0.0.1:20129/v1"
         c_models = cfg.get("custom_vision_models", [])
-        if not c_models:
-            c_models = [cfg["custom_vision_model"]] if cfg.get("custom_vision_model") else [
-                "openrouter/dots-studio/dots-3-note-preview:free",
-                "openrouter/google/gemma-4-26b-a4b-it:free",
-                "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
-            ]
+        
+        # Prioritize verified live high-performance vision models
+        verified_live = [
+            "gemini/gemini-3.8-flash",
+            "gemini/gemini-3.5-flash-lite",
+            "gemini/gemini-3.1-flash-lite-preview",
+            "gemini/gemini-3-flash-preview",
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-3.6-flash",
+            "nvidia/meta/llama-3.2-11b-vision-instruct"
+        ]
+        
+        all_candidates = list(verified_live)
+        if c_models:
+            for m in c_models:
+                norm_m = _normalize_9router_model_name(m)
+                if norm_m not in all_candidates:
+                    all_candidates.append(norm_m)
+
         built = []
-        for m in c_models:
-            actual_m = _normalize_9router_model_name(m)
+        for m in all_candidates:
             built.append((
                 "9Router",
                 custom_url,
                 cfg.get("custom_vision_key", "").strip(),
-                actual_m,
+                m,
                 None
             ))
-        # Ensure openrouter/dots-studio/dots-3-note-preview:free is present as a fallback for 9Router
-        if not any("dots-3-note-preview" in item[3] for item in built):
-            built.append(("9Router", custom_url, cfg.get("custom_vision_key", "").strip(), "openrouter/dots-studio/dots-3-note-preview:free", None))
         return built
 
     # Helper: Build OpenRouter attempts
@@ -871,18 +983,21 @@ async def extract_questions_with_ai_vision(
     elif active_provider == "opencode":
         attempts.extend(_build_opencode_attempts())
     else:
-        # Default "auto": If 9Router endpoint is configured, try 9Router first or fallback
-        # Given user's setup, if 9router is provided, prioritize 9router then openrouter
         attempts.extend(_build_9router_attempts())
         attempts.extend(_build_openrouter_attempts())
         attempts.extend(_build_opencode_attempts())
+
+    if log_collector is not None:
+        log_collector.append(f"🚀 [AI Vision] Bắt đầu chuỗi phân tích đa tầng (Thử tối đa {len(attempts)} model AI)...")
 
     # 3. Execute with automated multi-model fallback chain
     failed_models: List[str] = []
     for idx, (provider_name, base_url, key, model_name, extra_headers) in enumerate(attempts):
         try:
             print(f"[AI Vision] [Model {idx + 1}/{len(attempts)}] Đang thử {provider_name} :: {model_name}...")
-            # Local 9Router models (especially reasoning models) need up to 75s to complete
+            if log_collector is not None:
+                log_collector.append(f"⏳ [AI Vision] [{idx + 1}/{len(attempts)}] Đang gửi tới {provider_name} ({model_name})...")
+
             per_model_timeout = 75.0 if ("20129" in base_url or "9router" in provider_name.lower()) else 32.0
             extracted = await call_openai_compatible_vision(
                 base_url=base_url,
@@ -890,7 +1005,9 @@ async def extract_questions_with_ai_vision(
                 model=model_name,
                 image_data_uri=image_data_uri,
                 extra_headers=extra_headers,
-                timeout=per_model_timeout
+                timeout=per_model_timeout,
+                log_collector=log_collector,
+                provider_name=provider_name
             )
             if extracted:
                 normalized_questions = []
@@ -903,43 +1020,85 @@ async def extract_questions_with_ai_vision(
                         item.get("content") or
                         item.get("text") or ""
                     ).strip()
-                    options = item.get("options", [])
-                    if not isinstance(options, list):
-                        options = []
-                    options = [str(opt).strip() for opt in options if str(opt).strip()]
+                    raw_opts = item.get("options", [])
 
                     # If options were embedded in raw_text, separate them
-                    if not options and "\n" in q_text:
+                    if (not raw_opts or len(raw_opts) < 2) and "\n" in q_text:
                         lines = q_text.split("\n")
                         cand_opts = []
                         main_lines = []
                         for ln in lines:
                             ln_s = ln.strip()
-                            if re.match(r"^[A-D]\s*[\.\:\)]\s*", ln_s):
+                            if re.match(r"^\(?[A-D]\)?[\.\:\)\-]\s*", ln_s):
                                 cand_opts.append(ln_s)
                             else:
                                 main_lines.append(ln)
                         if cand_opts:
-                            options = cand_opts
+                            raw_opts = cand_opts
                             q_text = "\n".join(main_lines).strip()
 
-                    corr = str(item.get("correct_answer", "")).strip()
-                    expl = str(item.get("explanation", "")).strip()
+                    clean_text = clean_question_stem(q_text)
+                    if clean_text:
+                        q_text = clean_text
+
+                    corr = str(item.get("correct_answer", "")).strip().upper()
+                    m_corr = re.search(r'\b([A-D])\b', corr)
+                    if m_corr:
+                        corr = m_corr.group(1)
+
+                    norm_opts = normalize_options_list(raw_opts, corr)
+                    if not corr and norm_opts:
+                        for opt in norm_opts:
+                            if opt.get("is_correct"):
+                                corr = opt["id"]
+                                break
+                    if not corr and norm_opts:
+                        corr = "A"
+
+                    for opt in norm_opts:
+                        opt["is_correct"] = (opt["id"] == corr)
+
+                    expl = str(item.get("explanation") or item.get("solution") or item.get("loi_giai") or "").strip()
                     subj = str(item.get("subject", "Toán")).strip()
+                    norm_subj = normalize_subject(subj, "math")
+                    grade = normalize_grade(item.get("grade"), 5)
+                    diff = normalize_difficulty(item.get("difficulty"))
+
+                    diagram_bbox = item.get("diagram_bbox")
+                    q_images = []
+                    if diagram_bbox and isinstance(diagram_bbox, (list, tuple)) and len(diagram_bbox) == 4:
+                        try:
+                            from backend.image_cropper import crop_image_bbox
+                            cropped_diag = crop_image_bbox(
+                                image_bytes,
+                                diagram_bbox,
+                                padding_pct=0.01,
+                                output_prefix=f"crop_diag_q{q_num}",
+                                auto_refine=True
+                            )
+                            if cropped_diag:
+                                q_images.append(cropped_diag)
+                        except Exception as e:
+                            print(f"[AI Vision] Lỗi cắt ảnh minh họa: {e}")
 
                     q_obj = {
                         "question_number": q_num,
                         "content_text": q_text,
-                        "options": options,
+                        "content_html": f"<p>{q_text}</p>",
+                        "options": norm_opts,
                         "correct_answer": corr,
                         "explanation": expl,
                         "topic": f"Bóc tách AI Vision ({subj})" if subj else "Bóc tách AI Vision",
-                        "grade": 1,
-                        "difficulty": "medium",
+                        "grade": grade,
+                        "difficulty": diff,
+                        "subject": norm_subj,
                         "source_platform": "ai_vision",
                         "source_file_name": filename,
                         "ocr_engine_used": f"{provider_name}:{model_name}",
-                        "images": [media_url] if media_url else []
+                        "has_handwriting": bool(item.get("has_handwriting", False)),
+                        "images": q_images,
+                        "diagram_bbox": diagram_bbox if isinstance(diagram_bbox, (list, tuple)) and len(diagram_bbox) == 4 else None,
+                        "source_image_url": media_url or ""
                     }
                     normalized_questions.append(q_obj)
 
@@ -954,14 +1113,22 @@ async def extract_questions_with_ai_vision(
                     engine_label = f"{provider_name}:{model_name}"
 
                 print(f"[AI Vision] ✅ Thành công với {engine_label}!")
+                if log_collector is not None:
+                    log_collector.append(f"✨ [AI Vision] Bóc tách hoàn tất ({len(normalized_questions)} câu hỏi) bằng {engine_label}!")
                 return normalized_questions, engine_label
             else:
                 failed_models.append(f"{model_name}")
                 print(f"[AI Vision] ⚠️ Model {provider_name}:{model_name} không trả về kết quả hợp lệ. Tự động chuyển model dự phòng...")
+                if log_collector is not None and idx < len(attempts) - 1:
+                    log_collector.append(f"🔄 [AI Vision] Chuyển tiếp sang model dự phòng [{idx + 2}/{len(attempts)}]...")
         except Exception as e:
             failed_models.append(f"{model_name}")
             print(f"[AI Vision] ⚠️ Fallback từ {provider_name} ({model_name}) do: {e}")
+            if log_collector is not None:
+                log_collector.append(f"❌ [AI Vision] Ngoại lệ khi gọi {provider_name} ({model_name}): {str(e)[:100]}")
             continue
 
+    if log_collector is not None:
+        log_collector.append(f"⚠️ [AI Vision] Toàn bộ {len(attempts)} model AI đều không khả dụng. Tự động chuyển giao sang RapidOCR cục bộ...")
     fail_info = f"ai_vision_failed (đã thử qua {len(attempts)} model)"
     return [], fail_info

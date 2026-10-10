@@ -7,8 +7,10 @@ import random
 import uuid
 import hashlib
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Tuple
+
+VN_TZ = timezone(timedelta(hours=7))
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "questions.db")
 
@@ -38,7 +40,10 @@ def get_connection():
     return conn
 
 def resequence_question_numbers(cursor=None):
-    """Ensures all questions in the bank have strict sequential numbers 1 to N without gaps."""
+    """Ensures all questions in the bank have strict sequential numbers 1 to N without gaps.
+    Uses indexed UPDATE ... FROM with WHERE questions.q_number IS NOT numbered.rn to avoid O(N^2) scans
+    and avoid triggering FTS updates on unchanged rows.
+    """
     own_conn = False
     if cursor is None:
         conn = get_connection()
@@ -51,7 +56,9 @@ def resequence_question_numbers(cursor=None):
             FROM questions
         )
         UPDATE questions
-        SET q_number = (SELECT rn FROM numbered WHERE numbered.id = questions.id);
+        SET q_number = numbered.rn
+        FROM numbered
+        WHERE questions.id = numbered.id AND questions.q_number IS NOT numbered.rn;
     """)
     
     if own_conn:
@@ -83,6 +90,7 @@ def init_db():
         correct_answer TEXT,
         explanation TEXT,
         difficulty TEXT DEFAULT 'medium',
+        has_handwriting INTEGER DEFAULT 0,
         content_hash TEXT,
         created_at TEXT,
         updated_at TEXT
@@ -98,6 +106,8 @@ def init_db():
         cursor.execute("ALTER TABLE questions ADD COLUMN source_detail TEXT;")
     if "content_hash" not in existing_cols:
         cursor.execute("ALTER TABLE questions ADD COLUMN content_hash TEXT;")
+    if "has_handwriting" not in existing_cols:
+        cursor.execute("ALTER TABLE questions ADD COLUMN has_handwriting INTEGER DEFAULT 0;")
         
     # Indexes for fast querying & filtering
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_q_number ON questions (q_number);")
@@ -108,6 +118,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_q_diff ON questions (difficulty);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_q_created ON questions (created_at DESC);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_q_content_hash ON questions (content_hash);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_q_has_handwriting ON questions (has_handwriting);")
     
     # 2. Exams Table (Biên soạn đề thi)
     cursor.execute("""
@@ -250,6 +261,10 @@ def compute_source_detail(q: Dict[str, Any]) -> str:
     explicit = (q.get("source_detail") or "").strip()
     plat = (q.get("source_platform") or "").strip().lower()
 
+    # AI Agent Import
+    if plat == "ai_agent_import" or explicit.lower() in ("ai_agent_import", "ai agent import"):
+        return "AI Agent Import"
+
     # If explicitly given and valid (not empty or raw platform name)
     if explicit and explicit.lower() not in ("internet_hunter", "internet hunter", "null", "none"):
         return explicit
@@ -388,6 +403,7 @@ def row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
 
     # Dynamic fallback for source_detail to guarantee accurate, descriptive label
     d["source_detail"] = compute_source_detail(d)
+    d["has_handwriting"] = bool(d.get("has_handwriting", 0))
 
     return d
 
@@ -400,10 +416,12 @@ def get_questions(
     difficulty: Optional[str] = None,
     search: Optional[str] = None,
     source_detail: Optional[str] = None,
+    created_date: Optional[str] = None,
     only_duplicates: bool = False,
     sort_by: str = "q_number_asc",
     page: int = 1,
-    page_size: int = 20
+    page_size: int = 20,
+    has_handwriting: Optional[bool] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
     conn = get_connection()
     cursor = conn.cursor()
@@ -418,9 +436,9 @@ def get_questions(
             conditions.append("source_platform = ?")
             params.append(platform)
         
-    if grade and grade > 0:
+    if grade is not None and str(grade).strip() != "" and int(grade) >= 0:
         conditions.append("grade = ?")
-        params.append(grade)
+        params.append(int(grade))
 
     if subject and subject != "all":
         conditions.append("subject = ?")
@@ -440,7 +458,9 @@ def get_questions(
         
     if source_detail and source_detail != "all":
         sd = source_detail.lower().strip()
-        if sd == "codemath":
+        if sd in ("ai_agent_import", "ai agent import"):
+            conditions.append("LOWER(source_platform) = 'ai_agent_import'")
+        elif sd == "codemath":
             conditions.append("(source_detail LIKE '%codemath%' OR source_url LIKE '%codemath%' OR topic LIKE '%codemath%' OR exam_name LIKE '%codemath%' OR exam_name LIKE '%timo%' OR exam_name LIKE '%sasmo%' OR exam_name LIKE '%hkimo%' OR exam_name LIKE '%ikmc%')")
         elif sd in ("hanhtrangso", "hành trang số"):
             conditions.append("(source_detail LIKE '%hành trang số%' OR source_detail LIKE '%sgk%' OR source_platform = 'hanhtrangso' OR source_url LIKE '%hanhtrangso%')")
@@ -459,6 +479,14 @@ def get_questions(
         else:
             conditions.append("source_detail LIKE ?")
             params.append(f"%{source_detail}%")
+
+    if created_date and str(created_date).strip() != "":
+        conditions.append("DATE(created_at) = DATE(?)")
+        params.append(str(created_date).strip())
+
+    if has_handwriting is not None:
+        conditions.append("has_handwriting = ?")
+        params.append(1 if has_handwriting else 0)
 
     if only_duplicates:
         conditions.append("""
@@ -573,7 +601,7 @@ def insert_or_update_question(q: Dict[str, Any], allow_duplicate: bool = False) 
     conn = get_connection()
     cursor = conn.cursor()
     
-    now = datetime.now().isoformat()
+    now = datetime.now(VN_TZ).isoformat()
     q_id = q.get("id") or str(uuid.uuid4())[:12]
     resolved_source_detail = compute_source_detail(q)
     
@@ -609,6 +637,7 @@ def insert_or_update_question(q: Dict[str, Any], allow_duplicate: bool = False) 
                 correct_answer = ?,
                 explanation = ?,
                 difficulty = ?,
+                has_handwriting = ?,
                 content_hash = ?,
                 updated_at = ?
             WHERE id = ?
@@ -630,6 +659,7 @@ def insert_or_update_question(q: Dict[str, Any], allow_duplicate: bool = False) 
             q.get("correct_answer"),
             q.get("explanation"),
             q.get("difficulty", "medium"),
+            1 if q.get("has_handwriting") else 0,
             compute_content_hash(q.get("content_text", "")),
             now,
             q_id
@@ -656,8 +686,8 @@ def insert_or_update_question(q: Dict[str, Any], allow_duplicate: bool = False) 
             id, q_number, source_platform, source_detail, source_url, exam_name, year, grade,
             subject, topic, question_type, content_html, content_text,
             images, options, correct_answer, explanation, difficulty,
-            content_hash, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            has_handwriting, content_hash, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         q_id,
         next_q_num,
@@ -677,6 +707,7 @@ def insert_or_update_question(q: Dict[str, Any], allow_duplicate: bool = False) 
         q.get("correct_answer"),
         q.get("explanation"),
         q.get("difficulty", "medium"),
+        1 if q.get("has_handwriting") else 0,
         compute_content_hash(q.get("content_text", "")),
         now,
         now
@@ -708,7 +739,7 @@ def bulk_insert_questions(questions: List[Dict[str, Any]], skip_duplicates: bool
                         continue
                 
                 # Direct insert using current cursor (same connection/transaction)
-                now = datetime.now().isoformat()
+                now = datetime.now(VN_TZ).isoformat()
                 q_id = q.get("id") or str(uuid.uuid4())[:12]
                 resolved_detail = compute_source_detail(q)
                 cursor.execute("SELECT COALESCE(MAX(q_number), 0) + 1 FROM questions")
@@ -719,8 +750,8 @@ def bulk_insert_questions(questions: List[Dict[str, Any]], skip_duplicates: bool
                         id, q_number, source_platform, source_detail, source_url, exam_name, year, grade,
                         subject, topic, question_type, content_html, content_text,
                         images, options, correct_answer, explanation, difficulty,
-                        content_hash, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        has_handwriting, content_hash, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     q_id, next_q_num,
                     q.get("source_platform", "manual"), resolved_detail,
@@ -732,6 +763,7 @@ def bulk_insert_questions(questions: List[Dict[str, Any]], skip_duplicates: bool
                     json.dumps(q.get("options", []), ensure_ascii=False),
                     q.get("correct_answer"), q.get("explanation"),
                     q.get("difficulty", "medium"),
+                    1 if q.get("has_handwriting") else 0,
                     compute_content_hash(content_text),
                     now, now
                 ))
@@ -1027,72 +1059,82 @@ def auto_generate_exam_questions(
     """
     Auto-generates questions for an exam based on a difficulty matrix:
     easy, medium, hard, subject, and grade.
+    Guarantees:
+    - Zero isomorphic duplicate questions (different templates, numbers, methods).
+    - Diverse archetypes across mathematical and linguistic concepts.
     """
+    from backend.exam_smart_mixer import (
+        select_diverse_exam_questions,
+        analyze_exam_diversity,
+        extract_template_signature,
+        classify_problem_archetype
+    )
+    from backend.normalizer import is_valid_question_payload
+
     conn = get_connection()
     cursor = conn.cursor()
     
-    selected_ids = []
-    
-    def fetch_by_diff(diff_values: List[str], needed: int, exclude: List[str]) -> List[Dict[str, Any]]:
-        if needed <= 0:
-            return []
+    def fetch_candidates(diff_values: List[str], target_grade: int, target_topic: Optional[str]) -> List[Dict[str, Any]]:
         placeholders = ",".join(["?"] * len(diff_values))
-        ex_placeholders = ",".join(["?"] * len(exclude)) if exclude else "''"
-        
-        # Exact subject and grade
+        params = [subject] + diff_values
+        topic_clause = ""
+        if target_topic and target_topic.strip():
+            topic_clause = " AND (topic LIKE ? OR content_text LIKE ?) "
+            params.extend([f"%{target_topic.strip()}%", f"%{target_topic.strip()}%"])
+            
+        # Priority: target grade first, then other grades in same subject
         query = f"""
             SELECT * FROM questions
-            WHERE subject = ? AND grade = ? AND difficulty IN ({placeholders})
-            AND id NOT IN ({ex_placeholders})
-            ORDER BY RANDOM()
-            LIMIT ?
+            WHERE subject = ? AND difficulty IN ({placeholders})
+            {topic_clause}
+            ORDER BY CASE WHEN grade = {target_grade} THEN 0 ELSE 1 END, RANDOM()
         """
-        params = [subject, grade] + diff_values + exclude + [needed]
         cursor.execute(query, params)
-        rows = [row_to_dict(r) for r in cursor.fetchall()]
+        raw_rows = [row_to_dict(r) for r in cursor.fetchall()]
         
-        # Fallback 1: Exact subject, any grade
-        if len(rows) < needed:
-            remaining = needed - len(rows)
-            current_exclude = exclude + [r["id"] for r in rows]
-            ex_p = ",".join(["?"] * len(current_exclude))
-            fb_query = f"""
-                SELECT * FROM questions
-                WHERE subject = ? AND difficulty IN ({placeholders})
-                AND id NOT IN ({ex_p})
-                ORDER BY RANDOM()
-                LIMIT ?
-            """
-            cursor.execute(fb_query, [subject] + diff_values + current_exclude + [remaining])
-            rows.extend([row_to_dict(r) for r in cursor.fetchall()])
-            
-        return rows
-        
-    easy_questions = fetch_by_diff(["easy"], easy_count, selected_ids)
-    selected_ids.extend([q["id"] for q in easy_questions])
-    
-    medium_questions = fetch_by_diff(["medium"], medium_count, selected_ids)
-    selected_ids.extend([q["id"] for q in medium_questions])
-    
-    hard_questions = fetch_by_diff(["hard", "olympiad"], hard_count, selected_ids)
-    selected_ids.extend([q["id"] for q in hard_questions])
-    
-    all_selected = easy_questions + medium_questions + hard_questions
-    if len(all_selected) < total_questions:
-        shortfall = total_questions - len(all_selected)
-        cur_ids = [q["id"] for q in all_selected]
-        ex_p = ",".join(["?"] * len(cur_ids)) if cur_ids else "''"
-        cursor.execute(f"""
-            SELECT * FROM questions
-            WHERE subject = ? AND id NOT IN ({ex_p})
-            ORDER BY RANDOM()
-            LIMIT ?
-        """, [subject] + cur_ids + [shortfall])
-        extra = [row_to_dict(r) for r in cursor.fetchall()]
-        all_selected.extend(extra)
-        
+        # Keep only educational questions (filter web noise)
+        valid_candidates = []
+        for r in raw_rows:
+            is_valid, _ = is_valid_question_payload(r)
+            if is_valid:
+                valid_candidates.append(r)
+        return valid_candidates
+
+    # Fetch candidate pools
+    easy_cands = fetch_candidates(["easy"], grade, topic)
+    med_cands = fetch_candidates(["medium"], grade, topic)
+    hard_cands = fetch_candidates(["hard", "olympiad"], grade, topic)
     conn.close()
-    
+
+    all_selected: List[Dict[str, Any]] = []
+
+    # 1. Easy Questions
+    selected_easy = select_diverse_exam_questions(
+        candidates=easy_cands,
+        count=easy_count,
+        already_selected=all_selected
+    )
+    all_selected.extend(selected_easy)
+
+    # 2. Medium Questions
+    selected_med = select_diverse_exam_questions(
+        candidates=med_cands,
+        count=medium_count,
+        already_selected=all_selected
+    )
+    all_selected.extend(selected_med)
+
+    # 3. Hard Questions
+    selected_hard = select_diverse_exam_questions(
+        candidates=hard_cands,
+        count=hard_count,
+        already_selected=all_selected
+    )
+    all_selected.extend(selected_hard)
+
+    # Diversity analysis
+    diversity_report = analyze_exam_diversity(all_selected)
+
     return {
         "success": True,
         "count": len(all_selected),
@@ -1100,12 +1142,61 @@ def auto_generate_exam_questions(
         "grade": grade,
         "total_requested": total_questions,
         "total_found": len(all_selected),
-        "easy_count": len(easy_questions),
-        "medium_count": len(medium_questions),
-        "hard_count": len(hard_questions),
+        "easy_count": len(selected_easy),
+        "medium_count": len(selected_med),
+        "hard_count": len(selected_hard),
         "questions": all_selected,
-        "question_ids": [q["id"] for q in all_selected]
+        "question_ids": [q["id"] for q in all_selected],
+        "diversity_score": diversity_report["diversity_score"],
+        "diversity_status": diversity_report["status"],
+        "diversity_message": diversity_report["message"],
+        "archetypes": diversity_report["archetypes"]
     }
+
+def fetch_diverse_replacement_question(
+    subject: str = "math",
+    grade: int = 5,
+    difficulty: str = "medium",
+    exclude_templates: Optional[Set[str]] = None,
+    exclude_ids: Optional[Set[str]] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Finds a single replacement question matching difficulty/subject whose
+    template is not in exclude_templates and id is not in exclude_ids.
+    """
+    from backend.exam_smart_mixer import extract_template_signature
+    from backend.normalizer import is_valid_question_payload
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    diff_values = ["hard", "olympiad"] if difficulty in ["hard", "olympiad"] else [difficulty]
+    placeholders = ",".join(["?"] * len(diff_values))
+    
+    query = f"""
+        SELECT * FROM questions
+        WHERE subject = ? AND difficulty IN ({placeholders})
+        ORDER BY CASE WHEN grade = ? THEN 0 ELSE 1 END, RANDOM()
+        LIMIT 60
+    """
+    cursor.execute(query, [subject] + diff_values + [grade])
+    rows = [row_to_dict(r) for r in cursor.fetchall()]
+    conn.close()
+    
+    ex_tpls = exclude_templates or set()
+    ex_ids = exclude_ids or set()
+    
+    for r in rows:
+        if r["id"] in ex_ids:
+            continue
+        is_valid, _ = is_valid_question_payload(r)
+        if not is_valid:
+            continue
+        sig = extract_template_signature(r.get("content_text") or "")
+        if sig not in ex_tpls:
+            return r
+            
+    return None
 
 def delete_question(question_id: str) -> bool:
     conn = get_connection()
@@ -1182,7 +1273,7 @@ def bulk_update_questions_grade(question_ids: List[str], grade: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()
     total_updated = 0
-    now = datetime.now().isoformat()
+    now = datetime.now(VN_TZ).isoformat()
 
     try:
         batch_size = 500
@@ -1293,7 +1384,7 @@ def create_exam(exam: Dict[str, Any]) -> str:
     conn = get_connection()
     cursor = conn.cursor()
     exam_id = exam.get("id") or str(uuid.uuid4())[:8]
-    now = datetime.now().isoformat()
+    now = datetime.now(VN_TZ).isoformat()
     q_ids_str = json.dumps(exam.get("question_ids", []), ensure_ascii=False)
     
     cursor.execute("""
@@ -1358,7 +1449,7 @@ def delete_exam(exam_id: str) -> bool:
 def log_collector_event(platform: str, status: str, message: str, count: int = 0):
     conn = get_connection()
     cursor = conn.cursor()
-    now = datetime.now().isoformat()
+    now = datetime.now(VN_TZ).isoformat()
     cursor.execute("""
         INSERT INTO collector_logs (platform, status, message, items_count, created_at)
         VALUES (?, ?, ?, ?, ?)
@@ -1389,7 +1480,7 @@ def save_practice_history(record: Dict[str, Any]) -> str:
     conn = get_connection()
     cursor = conn.cursor()
     p_id = record.get("id") or str(uuid.uuid4())[:12]
-    now = record.get("created_at") or datetime.now().isoformat()
+    now = record.get("created_at") or datetime.now(VN_TZ).isoformat()
     
     answers_detail_str = None
     if "answers_detail" in record and record["answers_detail"] is not None:
@@ -1434,9 +1525,9 @@ def get_practice_history(limit: int = 50, subject: Optional[str] = None, grade: 
     if subject and subject != "all":
         conditions.append("subject = ?")
         params.append(subject)
-    if grade and grade > 0:
+    if grade is not None and str(grade).strip() != "" and int(grade) >= 0:
         conditions.append("grade = ?")
-        params.append(grade)
+        params.append(int(grade))
         
     where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     cursor.execute(f"""
@@ -1578,9 +1669,9 @@ def get_practice_analytics(subject: Optional[str] = None, grade: Optional[int] =
     if subject and subject != "all":
         conditions.append("subject = ?")
         params.append(subject)
-    if grade and grade > 0:
+    if grade is not None and str(grade).strip() != "" and int(grade) >= 0:
         conditions.append("grade = ?")
-        params.append(grade)
+        params.append(int(grade))
         
     where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     
@@ -1730,7 +1821,7 @@ def record_ocr_learning_diff(raw_text: str, corrected_text: str, source: str = "
     matcher = difflib.SequenceMatcher(None, raw_tokens, corr_tokens)
     learned = []
 
-    now_iso = datetime.now().isoformat()
+    now_iso = datetime.now(VN_TZ).isoformat()
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -1834,7 +1925,7 @@ def add_manual_ocr_correction(wrong_text: str, correct_text: str, source: str = 
     c = correct_text.strip()
     if not w or not c:
         raise ValueError("Từ sai và từ sửa đổi không được để trống")
-    now_iso = datetime.now().isoformat()
+    now_iso = datetime.now(VN_TZ).isoformat()
     conn = get_connection()
     cursor = conn.cursor()
     try:

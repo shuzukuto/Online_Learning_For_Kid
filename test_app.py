@@ -9,7 +9,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-from backend.database import init_db, get_stats, get_questions, insert_or_update_question, get_question_by_id
+from backend.database import init_db, get_stats, get_questions, insert_or_update_question, get_question_by_id, compute_source_detail
 from backend.normalizer import clean_html_and_math
 from backend.classifier import classify_subject
 from backend.docx_exporter import generate_exam_docx
@@ -303,16 +303,16 @@ def test_full_pipeline():
         assert any(v in content for v in ["1.3.18", "1.3.17", "1.3.16", "1.3.15"]), f"Tệp {ef} thiếu phiên bản v1.3.18 hoặc v1.3.17!"
         for obsolete in ["1.3.0", "1.3.11", "1.3.12", "1.3.14"]:
             assert obsolete not in content, f"Tệp {ef} còn sót phiên bản cũ {obsolete}!"
-    print("   => Tiện ích Extension đồng bộ v1.3.17/v1.3.18 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
+    print("   => Tiện ích Extension đồng bộ v1.3.18 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
 
     with open("frontend/index.html", "r", encoding="utf-8") as f:
         index_html = f.read()
     with open("frontend/js/app.js", "r", encoding="utf-8") as f:
         app_js = f.read()
-    assert any(v in index_html for v in ["1.0.38", "1.0.37", "1.0.36", "1.0.35"]), "frontend/index.html thiếu phiên bản Web App!"
-    assert any(v in app_js for v in ["1.0.38", "1.0.37", "1.0.36", "1.0.35"]), "frontend/js/app.js thiếu phiên bản Web App!"
-    assert any(v in index_html for v in ["?v=1.0.42", "?v=1.0.41", "?v=1.0.40", "?v=1.0.39"]), "frontend/index.html thiếu Cache Buster!"
-    print("   => Web App đồng bộ v1.0.38 và Cache Buster chính xác!")
+    assert any(v in index_html for v in ["1.0.42", "1.0.41", "1.0.40"]), "frontend/index.html thiếu phiên bản Web App!"
+    assert any(v in app_js for v in ["1.0.42", "1.0.41", "1.0.40"]), "frontend/js/app.js thiếu phiên bản Web App!"
+    assert any(v in index_html for v in ["?v=1.0.47", "?v=1.0.46", "?v=1.0.45"]), "frontend/index.html thiếu Cache Buster!"
+    print("   => Web App đồng bộ v1.0.42 và Cache Buster ?v=1.0.47 chính xác!")
 
     print("\n17. Kiểm tra Bộ Thẩm định Normalizer & Phân biệt Dấu thanh 'Khoa học' vs 'Khóa học'...")
     # 17.1 Science questions with "khoa học" / "truyện khoa học" must be accepted
@@ -868,10 +868,372 @@ def test_full_pipeline():
     assert len(s_multi["custom_vision_models"]) == 2
     print("   => Cấu hình Chuỗi Multi-Model Fallback lưu trữ và truy xuất thành công 100%!")
 
+    # 26. Kiểm tra AI Vision Prompt Sư phạm & Phân hệ Nhập Ngân hàng từ AI Agent (JSON, DOCX, Text)
+    print("\n26. Kiểm tra AI Vision Prompt Sư phạm & Phân hệ Nhập Ngân hàng từ AI Agent (JSON, DOCX, Text)...")
+    
+    # 26.1 Kiểm tra AI Vision prompt chứa yêu cầu giải toán, chọn đáp án đúng & lời giải
+    from backend.ai_vision import _build_vision_prompt
+    v_prompt = _build_vision_prompt()
+    assert "TỰ ĐỘNG GIẢI BÀI TOÁN" in v_prompt
+    assert "correct_answer" in v_prompt
+    assert "explanation" in v_prompt
+    assert "options" in v_prompt
+    print("   => AI Vision System Prompt đã nâng cấp: Tự giải toán, chọn đáp án đúng, viết lời giải sư phạm & phân loại khối lớp!")
+
+    # 26.2 Kiểm tra Template API
+    resp_tmpl = client.get("/api/import/ai-agent-template")
+    assert resp_tmpl.status_code == 200
+    tmpl_data = resp_tmpl.json()
+    assert tmpl_data["success"] is True
+    assert "system_prompt" in tmpl_data["template"]
+    assert len(tmpl_data["template"]["sample_json"]) >= 2
+    print("   => API GET /api/import/ai-agent-template sẵn sàng cung cấp System Prompt chuẩn cho giáo viên!")
+
+    # 26.3 Kiểm tra Parse JSON từ AI Agent
+    resp_ai_json = client.post("/api/import/ai-agent-data", json={
+        "raw_text": tmpl_data["template"]["sample_json_str"],
+        "save_to_bank": False
+    })
+    assert resp_ai_json.status_code == 200
+    ai_json_data = resp_ai_json.json()
+    assert ai_json_data["success"] is True
+    assert ai_json_data["total_parsed"] == 2
+    q1 = ai_json_data["questions"][0]
+    assert q1["correct_answer"] == "A"
+    assert len(q1["options"]) == 4
+    assert q1["options"][0]["id"] == "A"
+    assert "84 cm²" in q1["options"][0]["content"]
+    assert q1["options"][0]["is_correct"] is True
+    assert "S = 12 x 7" in q1["explanation"]
+    assert q1["grade"] == 4
+    assert q1["difficulty"] == "easy"
+    print("   => Bóc tách dữ liệu JSON từ AI Agent chuẩn xác 100%: Options A/B/C/D, Đáp án đúng, Lời giải, Khối lớp & Độ khó!")
+
+    # 26.4 Kiểm tra Parse Văn bản / Markdown từ AI Agent
+    resp_ai_txt = client.post("/api/import/ai-agent-data", json={
+        "raw_text": tmpl_data["template"]["sample_text"],
+        "save_to_bank": False
+    })
+    assert resp_ai_txt.status_code == 200
+    ai_txt_data = resp_ai_txt.json()
+    assert ai_txt_data["success"] is True
+    assert ai_txt_data["total_parsed"] == 2
+    q_txt = ai_txt_data["questions"][0]
+    assert q_txt["correct_answer"] == "A"
+    assert len(q_txt["options"]) == 4
+    assert "84 cm²" in q_txt["options"][0]["content"]
+    assert "S = 12 x 7" in q_txt["explanation"]
+    print("   => Bóc tách văn bản / Markdown từ AI Agent thành công 100%: Tách bạch đề bài, 4 phương án, Đáp án và Lời giải!")
+
+    # 26.5 Kiểm tra Parse tệp Word (.docx) từ AI Agent
+    import docx
+    doc_test = docx.Document()
+    doc_test.add_paragraph("Câu 1: Số nào sau đây chia hết cho cả 2 và 5?")
+    doc_test.add_paragraph("A. 15")
+    doc_test.add_paragraph("B. 20")
+    doc_test.add_paragraph("C. 24")
+    doc_test.add_paragraph("D. 31")
+    doc_test.add_paragraph("Đáp án: B")
+    doc_test.add_paragraph("Lời giải: Số chia hết cho cả 2 và 5 có chữ số tận cùng là 0. Do đó chọn 20.")
+    doc_test.add_paragraph("Khối lớp: 4")
+    doc_test.add_paragraph("Mức độ: Dễ")
+    docx_buf = io.BytesIO()
+    doc_test.save(docx_buf)
+
+    resp_docx = client.post(
+        "/api/import/ai-agent-data",
+        files={"file": ("de_thi_ai.docx", docx_buf.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        data={"save_to_bank": "false"}
+    )
+    assert resp_docx.status_code == 200
+    docx_res = resp_docx.json()
+    assert docx_res["success"] is True
+    assert docx_res["total_parsed"] == 1
+    q_docx = docx_res["questions"][0]
+    assert q_docx["correct_answer"] == "B"
+    assert q_docx["options"][1]["content"] == "20"
+    assert q_docx["options"][1]["is_correct"] is True
+    assert "tận cùng là 0" in q_docx["explanation"]
+    print("   => Bóc tách tệp Microsoft Word (.docx) từ AI Agent hoàn hảo 100%!")
+
+    # 26.6 Kiểm tra giao diện Frontend
+    with open("frontend/index.html", "r", encoding="utf-8") as f:
+        html_content = f.read()
+    assert "modal-ai-agent-import" in html_content
+    assert "openAiAgentImportModal" in html_content
+    assert "js/ai_agent_importer.js" in html_content
+    assert "id=\"ai-file-dropzone\"" in html_content
+    assert "min-height: 46px" in html_content
+    assert "padding: 10px 14px" in html_content
+    assert "max-height: 55vh" in html_content
+    assert "Kéo thả hoặc Bấm chọn tệp" in html_content
+    with open("frontend/js/collector.js", "r", encoding="utf-8") as f:
+        col_content = f.read()
+    assert "getCleanOptContent" in col_content
+    assert "findOptionMatch" in col_content
+    print("   => Giao diện Web, Modal 3 tab, Thanh kéo thả gọn gàng và bộ ánh xạ Form A/B/C/D đã liên kết hoàn chỉnh 100%!")
+
+    # 26.7 Kiểm tra bảo toàn môn Toán học cho bài toán có lời văn từ AI Agent vào CSDL
+    word_math_stem = "Bác An có 35 quả cam, chia đều vào 5 túi nhỏ mang đi biếu họ hàng. Hỏi mỗi túi có bao nhiêu quả cam?"
+    old_qs, _ = get_questions(page_size=20, search="35 quả cam")
+    for oq in old_qs:
+        client.delete(f"/api/questions/{oq['id']}")
+
+    resp_ai_save = client.post("/api/import/ai-agent-data", json={
+        "raw_text": f"Câu 1: {word_math_stem}\nA. 5 quả\nB. 7 quả\nC. 6 quả\nD. 8 quả\nĐáp án: B\nLời giải: Mỗi túi có 35 : 5 = 7 quả cam.",
+        "save_to_bank": True,
+        "default_subject": "math",
+        "default_grade": 3,
+        "default_topic": "Bài toán chia đều"
+    })
+    assert resp_ai_save.status_code == 200
+    ai_saved_data = resp_ai_save.json()
+    assert ai_saved_data["success"] is True
+    assert ai_saved_data["saved_count"] >= 1
+    # Kiểm tra trong CSDL xem câu hỏi này được lưu với subject='math' chứ không bị gán nhầm sang 'vietnamese'
+    db_math_qs, _ = get_questions(page_size=20, subject="math", search="35 quả cam")
+    assert len(db_math_qs) >= 1, "Câu toán chữ phải được lưu vào CSDL với môn học 'math'!"
+    assert db_math_qs[0]["subject"] == "math"
+    # Dọn dẹp câu test khỏi DB
+    for mq in db_math_qs:
+        client.delete(f"/api/questions/{mq['id']}")
+    print("   => Bảo toàn môn 'math' cho bài toán có lời văn từ AI Agent vào CSDL thành công 100%!")
+
+    # 27. Kiểm tra Task 2: Ngân hàng câu hỏi nâng cao (AI Agent filter, created_date, Contribute API, Currency protection)
+    print("\n27. Kiểm tra Task 2: Bộ lọc AI Agent, Lọc ngày created_date, API Đóng góp & Ký hiệu tiền tệ KaTeX...")
+    
+    # 27.1 Kiểm tra API Đóng góp đề thi (POST /api/contribute/upload)
+    test_pdf_data = b"%PDF-1.4 Mock exam contribute content"
+    resp_contribute = client.post(
+        "/api/contribute/upload",
+        files={"file": ("de_toan_lop5.pdf", test_pdf_data, "application/pdf")},
+        data={"contributor_name": "Thầy Nguyễn Văn A", "notes": "Đề thi thử học kỳ 2"}
+    )
+    assert resp_contribute.status_code == 200, f"Upload thất bại: {resp_contribute.text}"
+    contribute_res = resp_contribute.json()
+    assert contribute_res["success"] is True
+    assert "de_toan_lop5_" in contribute_res["filename"]
+    assert "_contribute.pdf" in contribute_res["filename"]
+    assert os.path.exists(contribute_res["saved_path"]), "Tệp đóng góp phải tồn tại trong thư mục training!"
+    # Dọn dẹp file test
+    if os.path.exists(contribute_res["saved_path"]):
+        os.remove(contribute_res["saved_path"])
+    print("   => API POST /api/contribute/upload lưu tệp chuẩn hậu tố _contribute và ghi log thành công!")
+
+    # Kiểm tra từ chối định dạng tệp không hợp lệ (.exe)
+    resp_bad = client.post(
+        "/api/contribute/upload",
+        files={"file": ("malicious.exe", b"binary", "application/x-msdownload")}
+    )
+    assert resp_bad.status_code == 400
+
+    # 27.2 Kiểm tra bộ lọc ngày thêm dữ liệu (created_date)
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    resp_today = client.get(f"/api/questions?created_date={today_str}")
+    assert resp_today.status_code == 200
+    today_data = resp_today.json()
+    assert today_data["total"] >= 1, f"Phải tìm thấy câu hỏi được tạo hôm nay ({today_str})!"
+    for item in today_data["items"][:5]:
+        assert item["created_at"].startswith(today_str), f"created_at {item['created_at']} không khớp với {today_str}"
+
+    resp_past = client.get("/api/questions?created_date=1999-01-01")
+    assert resp_past.status_code == 200
+    assert resp_past.json()["total"] == 0, "Ngày 1999-01-01 không được có dữ liệu!"
+    print(f"   => Bộ lọc created_date ({today_str}) hoạt động chính xác 100% ({today_data['total']} câu)!")
+
+    # 27.3 Kiểm tra nguồn AI_AGENT_IMPORT trong database & API
+    assert compute_source_detail({"source_platform": "ai_agent_import"}) == "AI Agent Import"
+    assert compute_source_detail({"source_detail": "ai_agent_import"}) == "AI Agent Import"
+    assert compute_source_detail({"source_detail": "AI Agent Import"}) == "AI Agent Import"
+
+    # Nạp câu hỏi mẫu với platform=ai_agent_import
+    mock_ai_id = f"test_ai_agent_q_{int(datetime.now().timestamp())}"
+    unique_token = f"Tok_{mock_ai_id}"
+    insert_or_update_question({
+        "id": mock_ai_id,
+        "content_text": f"Tìm x đặc thù {unique_token} biết x + 15 = 30",
+        "content_html": f"<p>Tìm x đặc thù {unique_token} biết x + 15 = 30</p>",
+        "subject": "math",
+        "grade": 3,
+        "source_platform": "ai_agent_import",
+        "source_detail": "AI Agent Import"
+    })
+
+    # Lọc theo source_detail=ai_agent_import
+    resp_ai_sd = client.get("/api/questions?source_detail=ai_agent_import")
+    assert resp_ai_sd.status_code == 200
+    ai_data = resp_ai_sd.json()
+    assert ai_data["total"] >= 1
+    for item in ai_data["items"][:10]:
+        assert item["source_platform"].lower() == "ai_agent_import"
+
+    # Lọc theo tên hiển thị source_detail="AI Agent Import"
+    resp_ai_exact = client.get("/api/questions?source_detail=AI Agent Import")
+    assert resp_ai_exact.status_code == 200
+    assert resp_ai_exact.json()["total"] == ai_data["total"]
+
+    # Lọc theo chip platform=ai_agent_import
+    resp_ai_plat = client.get("/api/questions?platform=ai_agent_import")
+    assert resp_ai_plat.status_code == 200
+    assert resp_ai_plat.json()["total"] >= 1
+
+    # Kiểm tra tìm thấy câu hỏi mock qua search và source_detail
+    resp_mock = client.get(f"/api/questions?source_detail=ai_agent_import&search={unique_token}")
+    assert resp_mock.status_code == 200
+    assert any(it["id"] == mock_ai_id for it in resp_mock.json()["items"])
+
+    # Dọn dẹp câu mock
+    client.delete(f"/api/questions/{mock_ai_id}")
+    print("   => Bộ lọc nguồn AI Agent (chip & dropdown source_detail) đồng bộ chính xác 100%!")
+
+    # 27.4 Kiểm tra thuật toán bảo vệ ký hiệu tiền tệ KaTeX ($3, $20)
+    import subprocess
+    js_test_code = """
+const fs = require('fs');
+const appJs = fs.readFileSync('frontend/js/app.js', 'utf8');
+global.window = {};
+global.document = { querySelector: () => null, addEventListener: () => null };
+eval(appJs);
+
+const testText = 'Nam mua 4 hộp bút, mỗi hộp có giá $3. Hỏi Nam còn lại bao nhiêu tiền nếu anh ấy có $20 ban đầu?';
+const res = window.formatMathSymbols(testText);
+console.log(JSON.stringify({
+  result: res,
+  hasDollar3: res.includes('$3') || res.includes('>$</span>3'),
+  hasDollar20: res.includes('$20') || res.includes('>$</span>20'),
+  mathIntact: !res.includes('___MATH_BLOCK_') && !res.includes('Nammua4hộp')
+}));
+"""
+    with open("temp_currency_test.js", "w", encoding="utf-8") as f:
+        f.write(js_test_code)
+    node_run = subprocess.run(["node", "temp_currency_test.js"], capture_output=True, text=True, encoding="utf-8")
+    if os.path.exists("temp_currency_test.js"):
+        os.remove("temp_currency_test.js")
+    assert node_run.returncode == 0, f"Node chạy lỗi: {node_run.stderr}"
+    import json
+    parsed_math_res = json.loads(node_run.stdout.strip())
+    assert parsed_math_res["hasDollar3"] is True
+    assert parsed_math_res["hasDollar20"] is True
+    assert parsed_math_res["mathIntact"] is True
+    print("   => Cơ chế bảo vệ ký hiệu tiền tệ ($3, $20) hoạt động hoàn hảo, không bị biến dạng KaTeX!")
+
+    # 27.5 Kiểm tra các thành phần giao diện Frontend (HTML & JS)
+    with open("frontend/index.html", "r", encoding="utf-8") as f:
+        html_content = f.read()
+    assert 'value="ai_agent_import"' in html_content
+    assert 'data-platform="ai_agent_import"' in html_content
+    assert 'id="filter-created-date"' in html_content
+    assert 'id="btn-open-contribute-modal"' in html_content
+    assert 'id="modal-contribute-questions"' in html_content
+
+    with open("frontend/js/bank.js", "r", encoding="utf-8") as f:
+        bank_content = f.read()
+    assert 'ai_agent_import: "AI Agent Import"' in bank_content
+    assert 'State.filters.created_date' in bank_content
+    assert 'openContributeModal' in bank_content
+    assert 'submitContributeFile' in bank_content
+    print("   => Toàn bộ Modal Đóng góp, nút bấm, date picker và chip AI Agent trên Frontend đồng bộ 100%!")
+
+    print("\n28. Kiểm tra Task 3 Phần 1: Trường dữ liệu has_handwriting cho câu hỏi có chữ viết tay...")
+    # 28.1 Kiểm tra Models
+    from backend.models import QuestionBase, QuestionCreate, QuestionUpdate
+    assert hasattr(QuestionBase, "model_fields") and "has_handwriting" in QuestionBase.model_fields
+    assert "has_handwriting" in QuestionCreate.model_fields
+    assert "has_handwriting" in QuestionUpdate.model_fields
+    q_create = QuestionCreate(content_html="<p>Test</p>", has_handwriting=True)
+    assert q_create.has_handwriting is True
+    print("   => Mô hình Pydantic QuestionBase, QuestionCreate, QuestionUpdate hỗ trợ has_handwriting 100%!")
+
+    # 28.2 Kiểm tra SQLite & Database functions
+    from backend.database import get_connection
+    init_db()
+    conn_chk = get_connection()
+    c_chk = conn_chk.cursor()
+    c_chk.execute("PRAGMA table_info(questions)")
+    col_names = [r[1] for r in c_chk.fetchall()]
+    assert "has_handwriting" in col_names
+    conn_chk.close()
+    
+    # Insert question with handwriting = True
+    test_q_hw_id = insert_or_update_question({
+        "content_text": "Tìm số tự nhiên viết tay test hw 998877",
+        "content_html": "<p>Tìm số tự nhiên viết tay test hw 998877</p>",
+        "has_handwriting": True,
+        "difficulty": "medium",
+        "grade": 5
+    }, allow_duplicate=True)
+    
+    # Retrieve and check row_to_dict
+    q_fetched = get_question_by_id(test_q_hw_id)
+    assert q_fetched is not None
+    assert q_fetched["has_handwriting"] is True
+    
+    # Check filtering by has_handwriting in get_questions
+    hw_qs, hw_total = get_questions(has_handwriting=True)
+    assert any(q["id"] == test_q_hw_id for q in hw_qs)
+    
+    nohw_qs, _ = get_questions(has_handwriting=False)
+    assert all(q["id"] != test_q_hw_id for q in nohw_qs)
+    print("   => SQLite CSDL lưu trữ, chuyển đổi kiểu bool và lọc has_handwriting thành công 100%!")
+
+    # 28.3 Kiểm tra API Endpoint GET /api/questions?has_handwriting=true
+    resp_hw_api = client.get("/api/questions?has_handwriting=true")
+    assert resp_hw_api.status_code == 200
+    hw_items = resp_hw_api.json()["items"]
+    assert any(q["id"] == test_q_hw_id for q in hw_items)
+    
+    resp_nohw_api = client.get("/api/questions?has_handwriting=false")
+    assert resp_nohw_api.status_code == 200
+    nohw_items = resp_nohw_api.json()["items"]
+    assert all(q["id"] != test_q_hw_id for q in nohw_items)
+    print("   => API Endpoint GET /api/questions?has_handwriting=true/false hoạt động chính xác 100%!")
+
+    # Cleanup test question
+    conn_del = get_connection()
+    conn_del.execute("DELETE FROM questions WHERE id = ?", (test_q_hw_id,))
+    conn_del.commit()
+    conn_del.close()
+
+    # 28.4 Kiểm tra AI Vision & AI Agent Importer
+    from backend.ai_agent_importer import parse_json_questions, parse_ai_agent_payload, get_ai_agent_template_info
+    from backend.ai_vision import _build_vision_prompt
+    
+    vision_prompt = _build_vision_prompt()
+    assert "has_handwriting" in vision_prompt
+    
+    tmpl_info = get_ai_agent_template_info()
+    assert "has_handwriting" in tmpl_info["system_prompt"]
+    assert "has_handwriting" in json.dumps(tmpl_info["sample_json"])
+    
+    parsed_hw = parse_json_questions([
+        {"question": "Câu hỏi chữ viết tay từ AI", "options": ["A. 1", "B. 2"], "has_handwriting": True}
+    ])
+    assert parsed_hw[0]["has_handwriting"] is True
+    
+    payload_hw_raw = json.dumps([
+        {"question": "Câu hỏi chữ viết tay từ payload", "options": ["A. 1", "B. 2"], "has_handwriting": True}
+    ])
+    payload_qs, _ = parse_ai_agent_payload(payload_hw_raw)
+    assert payload_qs[0]["has_handwriting"] is True
+    print("   => AI Vision System Prompt & AI Agent Importer Parser trích xuất has_handwriting hoàn hảo!")
+
+    # 28.5 Kiểm tra Frontend Badges trong bank.js và ai_agent_importer.js
+    with open("frontend/js/bank.js", "r", encoding="utf-8") as f:
+        bank_js = f.read()
+    assert "has_handwriting" in bank_js
+    assert "✍️ Có chữ viết tay" in bank_js
+
+    with open("frontend/js/ai_agent_importer.js", "r", encoding="utf-8") as f:
+        importer_js = f.read()
+    assert "has_handwriting" in importer_js
+    assert "✍️ Chữ viết tay" in importer_js
+    print("   => Giao diện Frontend hiển thị huy hiệu chữ viết tay đẹp mắt trên Ngân hàng câu hỏi và Preview Importer!")
+
     print("\n" + "="*60)
-    print(">>> TẤT CẢ 25 BƯỚC KIỂM THỬ ĐÃ VƯỢT QUA XUẤT SẮC 100%! <<<")
+    print(">>> TẤT CẢ 28 BƯỚC KIỂM THỬ ĐÃ VƯỢT QUA XUẤT SẮC 100%! <<<")
     print("="*60)
 
 if __name__ == "__main__":
     test_full_pipeline()
+
 

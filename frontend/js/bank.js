@@ -26,6 +26,7 @@ async function loadQuestions() {
   if (State.filters.difficulty && State.filters.difficulty !== "all") params.append("difficulty", State.filters.difficulty);
   if (State.filters.search) params.append("search", State.filters.search);
   if (State.filters.source_detail && State.filters.source_detail !== "all") params.append("source_detail", State.filters.source_detail);
+  if (State.filters.created_date) params.append("created_date", State.filters.created_date);
   if (State.filters.only_duplicates) params.append("only_duplicates", "true");
   if (State.filters.sort_by) params.append("sort_by", State.filters.sort_by);
   params.append("page", State.filters.page);
@@ -47,11 +48,14 @@ async function loadQuestions() {
         activeFilterDetails.push(`Lớp ${State.filters.grade}`);
       }
       if (State.filters.platform && State.filters.platform !== "all") {
-        const platNames = { internet_hunter: "Săn Internet", hanhtrangso: "Hành Trang Số", vioedu: "VioEdu", tnmath: "Trạng Nguyên", olympiad: "Olympic", manual: "Tự biên soạn" };
+        const platNames = { ai_agent_import: "AI Agent Import", internet_hunter: "Săn Internet", hanhtrangso: "Hành Trang Số", vioedu: "VioEdu", tnmath: "Trạng Nguyên", olympiad: "Olympic", manual: "Tự biên soạn" };
         activeFilterDetails.push(platNames[State.filters.platform] || State.filters.platform.toUpperCase());
       }
       if (State.filters.source_detail && State.filters.source_detail !== "all") {
         activeFilterDetails.push(State.filters.source_detail);
+      }
+      if (State.filters.created_date) {
+        activeFilterDetails.push(`📅 Ngày: ${State.filters.created_date}`);
       }
       if (State.filters.search) {
         activeFilterDetails.push(`"${State.filters.search}"`);
@@ -233,6 +237,7 @@ function renderQuestionCard(q, idx) {
           <span class="tag-badge subject-${q.subject || 'math'}">${subMap[q.subject] || q.subject || '📐 Toán'}</span>
           <span class="tag-badge platform-${q.source_platform}">${platBadgeText}</span>
           ${sourceDetailHtml}
+          ${q.has_handwriting ? `<span class="tag-badge" style="background: #fef3c7; color: #92400e; font-size: 11px; padding: 2px 7px; border: 1px solid #fde68a;" title="Câu hỏi có dấu vết chữ viết tay / chữ nháp học sinh">✍️ Có chữ viết tay</span>` : ''}
           <span class="tag-grade">Lớp ${q.grade || 5}</span>
           <span class="tag-grade">${typeMap[q.question_type] || q.question_type}</span>
           <span class="tag-grade" style="background: #f1f5f9; color: #475569;">${diffMap[q.difficulty] || q.difficulty}</span>
@@ -459,6 +464,7 @@ function resetFilters() {
     difficulty: "all",
     search: "",
     source_detail: "all",
+    created_date: "",
     only_duplicates: false,
     sort_by: "q_number_asc",
     page: 1,
@@ -478,6 +484,8 @@ function resetFilters() {
   if (filterDiff) filterDiff.value = "all";
   const filterSrc = document.getElementById("filter-source-detail");
   if (filterSrc) filterSrc.value = "all";
+  const filterCreatedDate = document.getElementById("filter-created-date");
+  if (filterCreatedDate) filterCreatedDate.value = "";
   const dupeChk = document.getElementById("filter-only-dupes");
   if (dupeChk) dupeChk.checked = false;
   const sortSel = document.getElementById("filter-sort");
@@ -1161,3 +1169,128 @@ async function executeBulkUpdateGrade() {
     showToast(`Lỗi kết nối khi đổi khối lớp: ${err.message}`, "error");
   }
 }
+
+// ==============================================================================
+// Phân hệ Đóng góp Ngân hàng Câu hỏi (Upload File Contribute)
+// ==============================================================================
+let selectedContributeFile = null;
+
+function openContributeModal() {
+  const modal = document.getElementById("modal-contribute-questions");
+  if (!modal) return;
+  selectedContributeFile = null;
+  const fileInput = document.getElementById("contribute-file-input");
+  if (fileInput) fileInput.value = "";
+  const infoEl = document.getElementById("contribute-file-info");
+  if (infoEl) {
+    infoEl.style.display = "none";
+    infoEl.innerHTML = "";
+  }
+  const authorInput = document.getElementById("contribute-author-input");
+  if (authorInput) authorInput.value = "";
+  const notesInput = document.getElementById("contribute-notes-input");
+  if (notesInput) notesInput.value = "";
+  modal.style.display = "flex";
+
+  // Setup drag and drop once
+  const dropZone = document.getElementById("contribute-drop-zone");
+  if (dropZone && !dropZone._dragInit) {
+    dropZone._dragInit = true;
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = '#059669';
+        dropZone.style.background = '#dcfce7';
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = '#10b981';
+        dropZone.style.background = '#f0fdf4';
+      }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        handleContributeFileSelect(dt.files);
+      }
+    }, false);
+  }
+}
+
+function closeContributeModal() {
+  const modal = document.getElementById("modal-contribute-questions");
+  if (modal) modal.style.display = "none";
+  selectedContributeFile = null;
+}
+
+function handleContributeFileSelect(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  selectedContributeFile = file;
+  const infoEl = document.getElementById("contribute-file-info");
+  if (infoEl) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+    infoEl.style.display = "block";
+    infoEl.innerHTML = `📄 <strong>${file.name}</strong> (${sizeMb} MB)`;
+  }
+}
+
+async function submitContributeFile() {
+  if (!selectedContributeFile) {
+    const fileInput = document.getElementById("contribute-file-input");
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      selectedContributeFile = fileInput.files[0];
+    }
+  }
+
+  if (!selectedContributeFile) {
+    showToast("Vui lòng chọn hoặc kéo thả tệp đề thi muốn đóng góp!", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("btn-submit-contribute");
+  const origBtnText = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> Đang gửi tệp...`;
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append("file", selectedContributeFile);
+    const author = document.getElementById("contribute-author-input")?.value?.trim() || "";
+    const notes = document.getElementById("contribute-notes-input")?.value?.trim() || "";
+    if (author) formData.append("contributor_name", author);
+    if (notes) formData.append("notes", notes);
+
+    const res = await fetch(`${API_BASE}/contribute/upload`, {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      showToast(data.message || "Đóng góp đề thi thành công! Tệp đã được lưu vào hệ thống.", "success");
+      closeContributeModal();
+    } else {
+      showToast(data.detail || data.message || "Có lỗi xảy ra khi đóng góp đề thi.", "error");
+    }
+  } catch (err) {
+    showToast(`Lỗi kết nối khi gửi đóng góp: ${err.message}`, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+  }
+}
+
+window.openContributeModal = openContributeModal;
+window.closeContributeModal = closeContributeModal;
+window.handleContributeFileSelect = handleContributeFileSelect;
+window.submitContributeFile = submitContributeFile;
+

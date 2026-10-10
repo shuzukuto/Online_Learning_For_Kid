@@ -85,7 +85,8 @@ async function autoGenerateExamByMatrix() {
     State.selectedQuestionIds = new Set(data.question_ids);
     updateSelectedBadge();
 
-    showToast(`Đã tự động tạo đề thi với ${data.count} câu hỏi theo ma trận!`);
+    const divScore = data.diversity_score !== undefined ? `${data.diversity_score}%` : "100%";
+    showToast(`✓ Đã tự động tạo đề thi đa dạng (${data.count} câu, độ đa dạng ${divScore} - không trùng dạng bài)!`, "success");
     renderExamBuilderView();
 
   } catch (err) {
@@ -101,7 +102,9 @@ async function autoGenerateExamByMatrix() {
 // ==========================================
 // Exam Builder View Rendering & Management
 // ==========================================
-async function renderExamBuilderView() {
+let currentExamDiversity = null;
+
+async function renderExamBuilderView(skipFetch = false) {
   const container = document.getElementById("exam-builder-content");
   if (!container) return;
 
@@ -123,74 +126,173 @@ async function renderExamBuilderView() {
     return;
   }
 
-  container.innerHTML = `
-    <div style="text-align: center; padding: 40px; color: #64748b;">
-      <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
-      <p>Đang chuẩn bị đề thi...</p>
-    </div>
-  `;
-
-  try {
-    const qIds = Array.from(State.selectedQuestionIds);
-    const fetchPromises = qIds.map(id => fetch(`${API_BASE}/questions/${id}`).then(r => r.json()));
-    examQuestionsList = await Promise.all(fetchPromises);
-
+  if (!skipFetch) {
     container.innerHTML = `
-      <div class="exam-builder-layout">
-        <!-- Left: Configuration Form -->
-        <div class="exam-sidebar-card">
-          <h3 style="font-size: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">
-            Cấu hình Đề thi Mẫu In
-          </h3>
+      <div style="text-align: center; padding: 40px; color: #64748b;">
+        <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
+        <p>Đang chuẩn bị đề thi & kiểm tra độ đa dạng dạng bài...</p>
+      </div>
+    `;
 
+    try {
+      const qIds = Array.from(State.selectedQuestionIds);
+      const fetchPromises = qIds.map(id => fetch(`${API_BASE}/questions/${id}`).then(r => r.json()));
+      examQuestionsList = await Promise.all(fetchPromises);
+    } catch (err) {
+      console.error("Error preparing exam:", err);
+      container.innerHTML = `<div style="color: #ef4444; padding: 20px;">Lỗi tải chi tiết câu hỏi: ${err.message}</div>`;
+      return;
+    }
+  }
+
+  // Analyze diversity
+  let divData = { diversity_score: 100, duplicate_count: 0, duplicate_question_ids: [], archetypes: {} };
+  try {
+    const qIds = examQuestionsList.map(q => q.id);
+    const divRes = await fetch(`${API_BASE}/exams/analyze-diversity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question_ids: qIds })
+    });
+    if (divRes.ok) {
+      divData = await divRes.json();
+      currentExamDiversity = divData;
+    }
+  } catch (err) {
+    console.warn("Could not analyze exam diversity:", err);
+  }
+
+  const dupIdsSet = new Set(divData.duplicate_question_ids || []);
+  const duplicateCount = divData.duplicate_count || 0;
+  const diversityScore = divData.diversity_score !== undefined ? divData.diversity_score : 100;
+
+  const currentExamCode = document.getElementById("exam-code-input")?.value || "101";
+
+  container.innerHTML = `
+    <div class="exam-builder-layout">
+      <!-- Left: Configuration Form -->
+      <div class="exam-sidebar-card">
+        <h3 style="font-size: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">
+          Cấu hình Đề thi Mẫu In
+        </h3>
+
+        <div class="form-group">
+          <label class="form-label">Tiêu đề Kỳ thi / Bài kiểm tra</label>
+          <input type="text" id="exam-title-input" class="form-control" value="ĐỀ KHẢO SÁT CHẤT LƯỢNG MÔN TOÁN" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tên Trường / Đơn vị tổ chức</label>
+          <input type="text" id="exam-header-input" class="form-control" value="PHÒNG GIÁO DỤC VÀ ĐÀO TẠO - TRƯỜNG CLC" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <div class="form-group">
-            <label class="form-label">Tiêu đề Kỳ thi / Bài kiểm tra</label>
-            <input type="text" id="exam-title-input" class="form-control" value="ĐỀ KHẢO SÁT CHẤT LƯỢNG MÔN TOÁN" />
+            <label class="form-label">Khối lớp</label>
+            <select id="exam-grade-input" class="form-control">
+              ${[1,2,3,4,5,6,7,8,9,10,11,12].map(g => `<option value="${g}" ${g === 5 ? 'selected' : ''}>Khối ${g}</option>`).join("")}
+            </select>
           </div>
-
           <div class="form-group">
-            <label class="form-label">Tên Trường / Đơn vị tổ chức</label>
-            <input type="text" id="exam-header-input" class="form-control" value="PHÒNG GIÁO DỤC VÀ ĐÀO TẠO - TRƯỜNG CLC" />
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group">
-              <label class="form-label">Khối lớp</label>
-              <select id="exam-grade-input" class="form-control">
-                ${[1,2,3,4,5,6,7,8,9,10,11,12].map(g => `<option value="${g}" ${g === 5 ? 'selected' : ''}>Khối ${g}</option>`).join("")}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Thời gian (phút)</label>
-              <input type="number" id="exam-duration-input" class="form-control" value="45" />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Ghi chú đề thi</label>
-            <input type="text" id="exam-notes-input" class="form-control" value="Cán bộ coi thi không giải thích gì thêm." />
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
-            <button class="btn btn-success" onclick="exportExamPDF()" id="btn-export-pdf" style="font-weight: 700; background: #059669; border-color: #059669; color: white;">
-              📑 Xuất Đề thi PDF
-            </button>
-            <button class="btn btn-primary" onclick="exportExamWordDocx()" id="btn-export-docx" style="font-weight: 700;">
-              📄 Xuất file Word (.docx)
-            </button>
-            <button class="btn btn-secondary" onclick="shuffleExamQuestions()">
-              🔀 Trộn ngẫu nhiên thứ tự câu hỏi
-            </button>
-            <button class="btn btn-secondary" style="color: #ef4444;" onclick="clearExamSelection()">
-              ✕ Xóa tất cả (${count} câu)
-            </button>
+            <label class="form-label">Thời gian (phút)</label>
+            <input type="number" id="exam-duration-input" class="form-control" value="45" />
           </div>
         </div>
 
-        <!-- Right: Ordered Questions Preview List -->
-        <div style="display: flex; flex-direction: column; gap: 14px;" id="exam-preview-container">
-          ${examQuestionsList.map((q, idx) => `
-            <div class="question-card" style="margin-bottom: 0;">
+        <div class="form-group">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Mã đề thi</span>
+            <span style="font-size: 11px; color: #64748b;">(Dùng khi trộn đề)</span>
+          </label>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <input type="text" id="exam-code-input" class="form-control" value="${currentExamCode}" style="font-weight: 700; width: 85px;" />
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              ${['101', '102', '103', '104'].map(c => `
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setExamCodePreset('${c}')" style="padding: 2px 7px; font-size: 11px; font-weight: 600;">${c}</button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Ghi chú đề thi</label>
+          <input type="text" id="exam-notes-input" class="form-control" value="Cán bộ coi thi không giải thích gì thêm." />
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 10px;">
+          <button class="btn btn-success" onclick="exportExamPDF()" id="btn-export-pdf" style="font-weight: 700; background: #059669; border-color: #059669; color: white;">
+            📑 Xuất Đề thi PDF
+          </button>
+          <button class="btn btn-primary" onclick="exportExamWordDocx()" id="btn-export-docx" style="font-weight: 700;">
+            📄 Xuất file Word (.docx)
+          </button>
+
+          <div style="border-top: 1px dashed #cbd5e1; margin: 4px 0;"></div>
+          <div style="font-size: 11.5px; font-weight: 700; color: #334155; margin-bottom: 2px;">⚡ Công cụ Trộn đề & Đa dạng hóa:</div>
+
+          <button class="btn btn-secondary" onclick="shuffleExamQuestions()" title="Đảo ngẫu nhiên thứ tự các câu hỏi">
+            🔀 Đảo thứ tự câu hỏi
+          </button>
+          <button class="btn btn-secondary" onclick="shuffleExamOptions()" title="Đảo ngẫu nhiên vị trí các đáp án A, B, C, D và tự động đồng bộ đáp án đúng">
+            🎲 Đảo phương án A-B-C-D
+          </button>
+          <button class="btn btn-secondary" onclick="shuffleExamBoth()" style="background: #eff6ff; border-color: #93c5fd; color: #1e40af; font-weight: 700;" title="Đảo toàn diện cả câu hỏi lẫn đáp án">
+            🔀🎲 Trộn toàn diện (Đề & Đáp án)
+          </button>
+
+          ${duplicateCount > 0 ? `
+            <button class="btn btn-warning" onclick="autoDeduplicateAndDiversifyExam()" id="btn-sidebar-diversify" style="background: #f59e0b; color: white; border: none; font-weight: 700; padding: 8px 12px; border-radius: 8px;">
+              🛡️ Lọc sạch câu trùng dạng (${duplicateCount} câu)
+            </button>
+          ` : ''}
+
+          <button class="btn btn-secondary" style="color: #ef4444;" onclick="clearExamSelection()">
+            ✕ Xóa tất cả (${count} câu)
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Ordered Questions Preview List -->
+      <div style="display: flex; flex-direction: column; gap: 14px;" id="exam-preview-container">
+        
+        <!-- Exam Diversity / Health Banner -->
+        ${duplicateCount > 0 ? `
+          <div style="background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: 12px; padding: 14px 18px; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div style="font-weight: 800; color: #b45309; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+                  <span>⚠️</span> Phát hiện ${duplicateCount} câu hỏi trùng dạng bài / chỉ khác số liệu!
+                  <span style="font-size: 12px; background: #fef3c7; border: 1px solid #fcd34d; padding: 2px 8px; border-radius: 12px;">Độ đa dạng: ${diversityScore}%</span>
+                </div>
+                <div style="font-size: 12.5px; color: #78350f; margin-top: 4px;">
+                  Đề thi đang có nhiều câu hỏi cùng dạng bài toán chỉ khác số liệu (xem các câu viền vàng bên dưới). Hãy bấm nút bên phải để tự động thay thế bằng các câu hỏi hoàn toàn khác nhau về nội dung lẫn cách làm!
+                </div>
+              </div>
+              <button class="btn btn-warning" onclick="autoDeduplicateAndDiversifyExam()" id="btn-smart-diversify" style="background: #f59e0b; color: white; border: none; font-weight: 700; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3);">
+                <span>🛡️</span> 1-Click Thay thế Câu trùng dạng
+              </button>
+            </div>
+          </div>
+        ` : `
+          <div style="background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 12px 18px; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px; color: #065f46; font-size: 13.5px; font-weight: 700;">
+                <span>✨</span> Đề thi đạt chuẩn đa dạng ${diversityScore}%
+                <span style="font-size: 12px; font-weight: 500; color: #047857;">(Tất cả câu hỏi khác nhau về nội dung & cách giải)</span>
+              </div>
+              <div style="display: gap; gap: 6px; flex-wrap: wrap;">
+                <span class="tag-badge" style="background: #d1fae5; color: #065f46; font-size: 11px; font-weight: 700;">
+                  ✓ ${Object.keys(divData.archetypes || {}).length} dạng bài phong phú
+                </span>
+              </div>
+            </div>
+          </div>
+        `}
+
+        ${examQuestionsList.map((q, idx) => {
+          const isDup = dupIdsSet.has(q.id);
+          return `
+            <div class="question-card" style="margin-bottom: 0; ${isDup ? 'border: 1.5px solid #f59e0b; background: #fffdfa;' : ''}">
               <div class="card-header">
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <span class="q-number-pill">Câu ${idx + 1}</span>
@@ -200,10 +302,20 @@ async function renderExamBuilderView() {
                   <span class="tag-badge platform-${q.source_platform}">${q.source_platform}</span>
                   <span class="tag-grade">Lớp ${q.grade || 5}</span>
                   <span class="tag-grade" style="background: #f1f5f9; color: #475569;">${q.difficulty}</span>
+                  ${isDup ? `
+                    <span class="tag-badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 700;">
+                      ⚠️ Trùng mẫu câu (Chỉ khác số)
+                    </span>
+                  ` : ''}
                 </div>
-                <button class="btn btn-secondary btn-sm" style="color: #ef4444;" onclick="removeQuestionFromExam('${q.id}')">
-                  Xóa khỏi đề
-                </button>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button class="btn btn-secondary btn-sm" style="color: #0284c7; border-color: #bae6fd; font-weight: 600;" onclick="swapQuestionInExam('${q.id}')" title="Đổi ngay câu này sang một dạng bài khác">
+                    🔄 Đổi câu khác
+                  </button>
+                  <button class="btn btn-secondary btn-sm" style="color: #ef4444;" onclick="removeQuestionFromExam('${q.id}')">
+                    Xóa khỏi đề
+                  </button>
+                </div>
               </div>
 
               <div class="card-content" style="font-size: 14px; margin-bottom: 8px;">
@@ -218,16 +330,91 @@ async function renderExamBuilderView() {
                 </div>
               ` : ''}
             </div>
-          `).join("")}
-        </div>
+          `;
+        }).join("")}
       </div>
-    `;
+    </div>
+  `;
 
-    renderMath(document.getElementById("exam-preview-container"));
+  renderMath(document.getElementById("exam-preview-container"));
+}
 
+function setExamCodePreset(code) {
+  const el = document.getElementById("exam-code-input");
+  if (el) el.value = code;
+  showToast(`Đã chọn Mã đề thi: ${code}`, "info");
+}
+
+async function autoDeduplicateAndDiversifyExam() {
+  const btn = document.getElementById("btn-smart-diversify");
+  const sBtn = document.getElementById("btn-sidebar-diversify");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ Đang đổi câu trùng...";
+  }
+  if (sBtn) {
+    sBtn.disabled = true;
+    sBtn.innerText = "⏳ Đang đổi...";
+  }
+
+  const subject = document.getElementById("matrix-subject")?.value || "math";
+  const grade = parseInt(document.getElementById("exam-grade-input")?.value || document.getElementById("matrix-grade")?.value) || 5;
+  const qIds = Array.from(State.selectedQuestionIds);
+
+  try {
+    const res = await fetch(`${API_BASE}/exams/diversify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question_ids: qIds, subject, grade })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      showToast(data.message || "Không thể lọc câu trùng", "error");
+      return;
+    }
+
+    State.selectedQuestionIds = new Set(data.question_ids);
+    updateSelectedBadge();
+    showToast(`✓ Đã thay thế thành công ${data.replacements_count} câu trùng dạng bằng các câu hỏi mới đa dạng nội dung & cách giải!`, "success");
+    await renderExamBuilderView();
   } catch (err) {
-    console.error("Error preparing exam:", err);
-    container.innerHTML = `<div style="color: #ef4444; padding: 20px;">Lỗi tải chi tiết câu hỏi: ${err.message}</div>`;
+    showToast(`Lỗi: ${err.message}`, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "🛡️ 1-Click Thay thế Câu trùng dạng";
+    }
+    if (sBtn) {
+      sBtn.disabled = false;
+    }
+  }
+}
+
+async function swapQuestionInExam(qid) {
+  const subject = document.getElementById("matrix-subject")?.value || "math";
+  const grade = parseInt(document.getElementById("exam-grade-input")?.value || document.getElementById("matrix-grade")?.value) || 5;
+  const qIds = Array.from(State.selectedQuestionIds);
+
+  showToast("⏳ Đang tìm câu hỏi khác dạng bài...", "info");
+  try {
+    const res = await fetch(`${API_BASE}/exams/swap-question`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: qid, question_ids: qIds, subject, grade })
+    });
+    const data = await res.json();
+    if (!data.success || !data.new_id) {
+      showToast(data.detail || "Không tìm thấy câu hỏi thay thế phù hợp", "error");
+      return;
+    }
+
+    const newIds = qIds.map(id => id === qid ? data.new_id : id);
+    State.selectedQuestionIds = new Set(newIds);
+    updateSelectedBadge();
+    showToast("✓ Đã đổi sang câu hỏi mới khác hẳn dạng bài!", "success");
+    await renderExamBuilderView();
+  } catch (err) {
+    showToast(`Lỗi: ${err.message}`, "error");
   }
 }
 
@@ -251,8 +438,51 @@ function shuffleExamQuestions() {
     [examQuestionsList[i], examQuestionsList[j]] = [examQuestionsList[j], examQuestionsList[i]];
   }
   State.selectedQuestionIds = new Set(examQuestionsList.map(q => q.id));
-  showToast("Đã trộn ngẫu nhiên thứ tự các câu hỏi!");
-  renderExamBuilderView();
+  showToast("🔀 Đã trộn ngẫu nhiên thứ tự các câu hỏi!");
+  renderExamBuilderView(true);
+}
+
+async function shuffleExamOptions() {
+  const qIds = Array.from(State.selectedQuestionIds);
+  if (qIds.length === 0) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/exams/shuffle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question_ids: qIds, shuffle_order: false, shuffle_options: true })
+    });
+    const data = await res.json();
+    if (data.success && data.questions) {
+      examQuestionsList = data.questions;
+      showToast("🎲 Đã xáo trộn các đáp án A-B-C-D và tự động cập nhật đáp án đúng!", "success");
+      renderExamBuilderView(true);
+    }
+  } catch (err) {
+    showToast(`Lỗi xáo trộn đáp án: ${err.message}`, "error");
+  }
+}
+
+async function shuffleExamBoth() {
+  const qIds = Array.from(State.selectedQuestionIds);
+  if (qIds.length === 0) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/exams/shuffle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question_ids: qIds, shuffle_order: true, shuffle_options: true })
+    });
+    const data = await res.json();
+    if (data.success && data.questions) {
+      examQuestionsList = data.questions;
+      State.selectedQuestionIds = new Set(data.question_ids);
+      showToast("🔀🎲 Đã trộn ngẫu nhiên cả câu hỏi và phương án A-B-C-D!", "success");
+      renderExamBuilderView(true);
+    }
+  } catch (err) {
+    showToast(`Lỗi trộn toàn diện: ${err.message}`, "error");
+  }
 }
 
 async function exportExamWordDocx() {
@@ -266,6 +496,7 @@ async function exportExamWordDocx() {
     grade: parseInt(document.getElementById("exam-grade-input")?.value) || 5,
     duration_minutes: parseInt(document.getElementById("exam-duration-input")?.value) || 45,
     notes: document.getElementById("exam-notes-input")?.value || "Cán bộ coi thi không giải thích gì thêm.",
+    exam_code: document.getElementById("exam-code-input")?.value || "101",
     question_ids: examQuestionsList.map(q => q.id)
   };
 
@@ -285,7 +516,7 @@ async function exportExamWordDocx() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `De_thi_${payload.grade}_${payload.title.replace(/\s+/g, '_').substring(0, 25)}.docx`;
+    a.download = `De_thi_Lop${payload.grade}_Ma${payload.exam_code}_${payload.title.replace(/\s+/g, '_').substring(0, 20)}.docx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -379,6 +610,7 @@ async function exportExamPDF() {
     grade: parseInt(document.getElementById("exam-grade-input")?.value) || 5,
     duration_minutes: parseInt(document.getElementById("exam-duration-input")?.value) || 45,
     notes: document.getElementById("exam-notes-input")?.value || "Cán bộ coi thi không giải thích gì thêm.",
+    exam_code: document.getElementById("exam-code-input")?.value || "101",
     question_ids: examQuestionsList.map(q => q.id)
   };
 
@@ -394,7 +626,7 @@ async function exportExamPDF() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `De_thi_${payload.grade}_${payload.title.replace(/\s+/g, '_').substring(0, 25)}.pdf`;
+      a.download = `De_thi_Lop${payload.grade}_Ma${payload.exam_code}_${payload.title.replace(/\s+/g, '_').substring(0, 20)}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -428,6 +660,7 @@ function triggerClientPdfPrint(payload, questions) {
 
   const totalQ = questions.length;
   const pointsPerQ = (10.0 / (totalQ || 1)).toFixed(2);
+  const examCode = payload.exam_code || "101";
 
   const questionsHtml = questions.map((q, idx) => {
     const cleanStem = typeof formatMathSymbols === 'function' ? formatMathSymbols(q.content_text || q.content_html || "") : (q.content_text || q.content_html || "");
@@ -455,7 +688,7 @@ function triggerClientPdfPrint(payload, questions) {
         <tr>
           <td style="width: 45%; text-align: center; vertical-align: top;">
             <div style="font-size: 10.5pt; font-weight: bold; text-transform: uppercase;">${payload.header_info}</div>
-            <div style="font-weight: bold; font-size: 11pt; margin-top: 4pt;">MÃ ĐỀ THI: 101</div>
+            <div style="font-weight: bold; font-size: 11pt; margin-top: 4pt;">MÃ ĐỀ THI: ${examCode}</div>
           </td>
           <td style="width: 55%; text-align: center; vertical-align: top;">
             <div style="font-size: 12.5pt; font-weight: bold; text-transform: uppercase;">${payload.title}</div>
@@ -473,7 +706,7 @@ function triggerClientPdfPrint(payload, questions) {
       </div>
 
       <div class="exam-answer-page">
-        <h3 style="text-align: center; text-transform: uppercase; margin-bottom: 12pt;">ĐÁP ÁN VÀ THANG ĐIỂM CHI TIẾT (MÃ ĐỀ 101)</h3>
+        <h3 style="text-align: center; text-transform: uppercase; margin-bottom: 12pt;">ĐÁP ÁN VÀ THANG ĐIỂM CHI TIẾT (MÃ ĐỀ ${examCode})</h3>
         <table style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
           <thead>
             <tr style="background: #f1f5f9;">

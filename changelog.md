@@ -2,6 +2,56 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.0.42] - 2026-10-10 17:00:00
+
+### User Request [Q0004] & [Q0005]
+> 1. Nhập Ngân Hàng Câu Hỏi từ AI Agent:
+> - Ô kéo thả tệp chiếm quá nhiều diện tích => thu hẹp tối đa để nhường không gian cho phần preview câu hỏi
+> - Khi cài đặt import là Toán học nhưng khi ghi database lại là Tiếng Việt
+> 2. Ngân hàng Câu hỏi:
+> - AI_AGENT_IMPORT chưa có trong ô filter theo nguồn
+> - Thêm filter theo ngày thêm dữ liệu vào database
+> - Hiển thị sai nội dung, format KaTeX khi gặp ký hiệu tiền tệ $3...$20
+> - Thêm tính năng đóng góp ngân hàng câu hỏi: gửi ảnh, pdf, docx,... lưu về máy chủ: data\training với hậu tố "_date_time_contribute"
+> 3. Dữ liệu huấn luyện, xuất json:
+> - Thêm tính năng và trường dữ liệu để đánh dấu câu hỏi có chữ viết tay (has_handwriting)
+> - Viết file md riêng cho phần training cách làm, các lưu ý khi xuất json câu hỏi từ file ảnh, pdf làm cơ sở dữ liệu sau này mỗi khi cần xuất json
+> - Các file ảnh, pdf đã được xử lý cần đánh ký hiệu cùng với file json tương ứng để lần sau không bị xử lý lại tránh trùng lặp tốn thời gian, token
+> 4. Nâng số phiên bản toàn hệ thống (Web App v1.0.42, Cache Buster ?v=1.0.47)
+
+### Added
+- **Phân Hệ Nhập Ngân Hàng Câu Hỏi AI Agent**:
+  - Thu gọn thanh kéo thả `#ai-file-dropzone` thành thanh ngang flex nhỏ gọn (`min-height: 46px`, padding 10px 14px), mở rộng diện tích `#ai-preview-list` lên `max-height: 55vh` giúp duyệt trước câu hỏi trực quan.
+  - Sửa lỗi ghi đè môn: Bảo vệ tuyệt đối môn học người dùng đã chọn khi nạp qua `ai_agent_import` hoặc `manual`, khắc phục triệt để lỗi bài toán có lời văn bị phân loại nhầm thành Tiếng Việt.
+- **Tính Năng Ngân Hàng Câu Hỏi**:
+  - Bổ sung bộ lọc nguồn `AI_AGENT_IMPORT` (cả chip lọc và dropdown `source_detail`).
+  - Thêm bộ lọc `created_date` theo ngày thêm vào CSDL với input date picker và query `DATE(created_at) = DATE(?)`.
+  - Khắc phục lỗi KaTeX vỡ chữ: Cơ chế bảo vệ ký hiệu tiền tệ (`$3`, `$20`) tự động escape sang `\$` trước khi KaTeX quét DOM, chống biến dạng chữ in nghiêng và dính liền từ.
+  - Phân hệ "Đóng góp ngân hàng câu hỏi": Nút bấm `🎁 Đóng góp đề thi` và modal upload đa định dạng (.png, .jpg, .pdf, .docx, .txt), lưu trữ tại `data/training/<stem>_<YYYYMMDD_HHMMSS>_contribute.<ext>` qua endpoint `POST /api/contribute/upload`.
+- **Dữ Liệu Huấn Luyện & Xuất JSON**:
+  - Thêm trường `has_handwriting: bool` trong SQLite, Pydantic models, AI Vision prompt và hiển thị huy hiệu `✍️ Có chữ viết tay` trên giao diện.
+  - Tài liệu chuẩn hóa [docs/training_data_guide.md](docs/training_data_guide.md) hướng dẫn toàn diện 5 bước bóc tách từ Ảnh/PDF sang JSON, quy tắc Bounding Box cắt hình độc lập, chuẩn hóa KaTeX và 6 anti-patterns.
+  - Hệ thống Manifest Registry chống trùng lặp dữ liệu: [data/processed_manifest.json](data/processed_manifest.json) và module [backend/training_manifest.py](backend/training_manifest.py), tự động bỏ qua file đã xử lý theo mã băm SHA-256 giúp tiết kiệm 100% thời gian và token.
+- **Đồng Bộ Phiên Bản Toàn Hệ Thống**:
+  - Nâng phiên bản Web App lên `v1.0.42` trên toàn bộ Header, Sidebar, `frontend/js/app.js` và Cache Buster `?v=1.0.47`.
+
+## [v1.0.40] - 2026-10-08 00:20:00
+
+### User Request [Q0001]
+> /ui-ux-pro-max /frontend-design tạo cho web 1 favicon
+
+### Added
+- **Hệ Sinh Thái Favicon & Biểu Tượng Nhận Diện EduQuest Pro (Chuẩn W3C & PWA)**:
+  - Thiết kế biểu tượng thương hiệu "Mũ Cử Nhân Tri Thức & Ngôi Sao Quest Vàng" (The Quest Scholar Emblem) tuân thủ tiêu chuẩn chất lượng thị giác cao từ skill `ui-ux-pro-max` và `frontend-design`.
+  - `frontend/favicon.svg`: Định dạng vector SVG siêu nét, tích hợp media query CSS `@media (prefers-color-scheme: dark)` thích ứng thông minh trên cả thanh tab sáng và tab tối của trình duyệt.
+  - `frontend/favicon.ico`: Định dạng nhị phân đa kích thước (16x16, 32x32, 48x48) tương thích 100% các trình duyệt và root URL request.
+  - `frontend/favicon-32x32.png` & `frontend/favicon-16x16.png`: Bộ icon bitmap lấy mẫu mượt mà chống răng cưa (Lanczos resampling).
+  - `frontend/apple-touch-icon.png` (180x180): Biểu tượng màn hình chính cho thiết bị Apple iOS/iPadOS.
+  - `frontend/icon-192.png` & `frontend/icon-512.png`: Bộ biểu tượng kích thước lớn chuẩn PWA maskable.
+  - `frontend/site.webmanifest`: Tệp kê khai Web App Manifest chuẩn định dạng PWA.
+  - `frontend/index.html`: Cập nhật toàn bộ các liên kết favicon mới với cache buster `?v=1.0.44`, dọn sạch mã đè rỗng cũ.
+  - `rules.md`: Cập nhật đặc tả kiến trúc tab trình duyệt.
+
 ## [v1.0.39] - 2026-10-07 08:05:00
 
 ### User Request

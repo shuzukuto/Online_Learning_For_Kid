@@ -1,0 +1,940 @@
+{
+  "version": "1.0",
+  "description": "EduQuest Pro Training Extraction Manifest & Deduplication Registry",
+  "created_at": "2026-10-10T16:38:17.432664+07:00",
+  "updated_at": "2026-10-10T16:38:18.378948+07:00",
+  "total_processed_files": 56,
+  "total_extracted_questions": 257,
+  "handwriting_files_count": 0,
+  "files": {
+    "1ac12876e6e7d5248e40e9959e19523d0625d38b74e0d2ecc0ec4a7a4c0a6fe8": {
+      "source_hash": "1ac12876e6e7d5248e40e9959e19523d0625d38b74e0d2ecc0ec4a7a4c0a6fe8",
+      "filename": "FB_IMG_1791115073510.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115073510.jpg",
+      "file_size_bytes": 112203,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.439528+07:00",
+      "question_ids": [
+        "train_601faff089",
+        "train_96a1c0d02d",
+        "train_16c6fd09f6"
+      ]
+    },
+    "907321a164596b9836c9812b81e974670cb89c57ce0c72e18dfbc0fca287db7d": {
+      "source_hash": "907321a164596b9836c9812b81e974670cb89c57ce0c72e18dfbc0fca287db7d",
+      "filename": "FB_IMG_1791115075593.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115075593.jpg",
+      "file_size_bytes": 87094,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 2,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.452470+07:00",
+      "question_ids": [
+        "train_2e7dd22d80",
+        "train_1ca7833345"
+      ]
+    },
+    "8f39d3fa72666d174e74bb069043993404cd5c896f4b8ebe8d0c9876aff16453": {
+      "source_hash": "8f39d3fa72666d174e74bb069043993404cd5c896f4b8ebe8d0c9876aff16453",
+      "filename": "FB_IMG_1791115077908.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115077908.jpg",
+      "file_size_bytes": 105446,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 2,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.467170+07:00",
+      "question_ids": [
+        "train_b08f830616",
+        "train_95d8820211"
+      ]
+    },
+    "5534d6064bc90222037f4f9372f4cfe0fc40b215ce4b48f88ad0faaf1cdd70b8": {
+      "source_hash": "5534d6064bc90222037f4f9372f4cfe0fc40b215ce4b48f88ad0faaf1cdd70b8",
+      "filename": "FB_IMG_1791115080350.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115080350.jpg",
+      "file_size_bytes": 97048,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.481744+07:00",
+      "question_ids": [
+        "train_cf5c9151dd",
+        "train_c23c3c5ebc",
+        "train_885b19ebfe"
+      ]
+    },
+    "1eca3de686d216f39de946ab278bdf940a6831c792dd91ec2ad8c7506fa5c046": {
+      "source_hash": "1eca3de686d216f39de946ab278bdf940a6831c792dd91ec2ad8c7506fa5c046",
+      "filename": "FB_IMG_1791115082398.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115082398.jpg",
+      "file_size_bytes": 108710,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.494881+07:00",
+      "question_ids": [
+        "train_56fce3d03c",
+        "train_b5786de212",
+        "train_09857b209e"
+      ]
+    },
+    "48dc23613c20c3076566a4123e13a8e87e0a9d192337b7b67b5fc504c099780d": {
+      "source_hash": "48dc23613c20c3076566a4123e13a8e87e0a9d192337b7b67b5fc504c099780d",
+      "filename": "FB_IMG_1791115087966.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115087966.jpg",
+      "file_size_bytes": 84096,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 2,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.506920+07:00",
+      "question_ids": [
+        "train_49469d839e",
+        "train_b9c902d45f"
+      ]
+    },
+    "e8f57f4811c5c85a5cf74fc2511935f1c6de7240fc4f2f017b7f0c32438aee55": {
+      "source_hash": "e8f57f4811c5c85a5cf74fc2511935f1c6de7240fc4f2f017b7f0c32438aee55",
+      "filename": "FB_IMG_1791115095646.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115095646.jpg",
+      "file_size_bytes": 88210,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.520908+07:00",
+      "question_ids": [
+        "train_3413fd8451",
+        "train_782247a90b",
+        "train_606184d533",
+        "train_5a673c4ea2"
+      ]
+    },
+    "01c8a07e7d81e2ad017ddd846a71fcd89697e198252a3a5eb745f529e203db86": {
+      "source_hash": "01c8a07e7d81e2ad017ddd846a71fcd89697e198252a3a5eb745f529e203db86",
+      "filename": "FB_IMG_1791115099324.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115099324.jpg",
+      "file_size_bytes": 101904,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.534011+07:00",
+      "question_ids": [
+        "train_7e9f38125f",
+        "train_6190da6e8d",
+        "train_ae814201d6",
+        "train_f62cf8a401"
+      ]
+    },
+    "b6bb11e763f66fff25a8e8a412e12a96140a7afc0dea8ee1633ae544603c2af2": {
+      "source_hash": "b6bb11e763f66fff25a8e8a412e12a96140a7afc0dea8ee1633ae544603c2af2",
+      "filename": "FB_IMG_1791115101526.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115101526.jpg",
+      "file_size_bytes": 99787,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.547116+07:00",
+      "question_ids": [
+        "train_3e7d4956d9",
+        "train_172a3c7309",
+        "train_0930d83fc7",
+        "train_47185eabcb"
+      ]
+    },
+    "4fc5ff42bdc4508719280a66f814d613e8302226b414698c3ab7ba1961881146": {
+      "source_hash": "4fc5ff42bdc4508719280a66f814d613e8302226b414698c3ab7ba1961881146",
+      "filename": "FB_IMG_1791115103690.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115103690.jpg",
+      "file_size_bytes": 95631,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.559337+07:00",
+      "question_ids": [
+        "train_ec0d9e970f",
+        "train_2b9cdc2af6",
+        "train_ec1c12fdd1"
+      ]
+    },
+    "9f7cfa242e73c79f20e3c2a4d6a61f4eb5db1c2e042b2c69977f2dc2066fe00c": {
+      "source_hash": "9f7cfa242e73c79f20e3c2a4d6a61f4eb5db1c2e042b2c69977f2dc2066fe00c",
+      "filename": "FB_IMG_1791115107124.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791115107124.jpg",
+      "file_size_bytes": 111795,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.584162+07:00",
+      "question_ids": [
+        "train_485a1173a2",
+        "train_2038997286",
+        "train_7f9cea001d",
+        "train_b89b058368",
+        "train_ac232abc5f"
+      ]
+    },
+    "f3658e7059f11b16528889d4aa0215126865107aca1a5da8a40796bc9850dbbb": {
+      "source_hash": "f3658e7059f11b16528889d4aa0215126865107aca1a5da8a40796bc9850dbbb",
+      "filename": "FB_IMG_1791346516212.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791346516212.jpg",
+      "file_size_bytes": 113806,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.614388+07:00",
+      "question_ids": [
+        "train_f5ee895bc9",
+        "train_2ffa8ccc9c",
+        "train_ad22918f3d"
+      ]
+    },
+    "92895d45b252386ba91aa1beee09be14dda5997a32abc8bf3e217be4fedfa21e": {
+      "source_hash": "92895d45b252386ba91aa1beee09be14dda5997a32abc8bf3e217be4fedfa21e",
+      "filename": "FB_IMG_1791346523961.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791346523961.jpg",
+      "file_size_bytes": 108132,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 2,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.640302+07:00",
+      "question_ids": [
+        "train_e1303c20ce",
+        "train_85fab6c43a"
+      ]
+    },
+    "b37164bf1b3dc6fb70a569c06a06f4f7fbca94289fe2240ed5c97f593669c453": {
+      "source_hash": "b37164bf1b3dc6fb70a569c06a06f4f7fbca94289fe2240ed5c97f593669c453",
+      "filename": "FB_IMG_1791346527467.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791346527467.jpg",
+      "file_size_bytes": 109950,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.662759+07:00",
+      "question_ids": [
+        "train_fcf66e47a2",
+        "train_8b759b2a3b",
+        "train_8ef24a5f93"
+      ]
+    },
+    "baf48a1fdd6409bd6ac233b8a35afbb7bc63f8964cab3b0303d9c97269dbc1e4": {
+      "source_hash": "baf48a1fdd6409bd6ac233b8a35afbb7bc63f8964cab3b0303d9c97269dbc1e4",
+      "filename": "FB_IMG_1791346534482.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791346534482.jpg",
+      "file_size_bytes": 110423,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 2,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.686626+07:00",
+      "question_ids": [
+        "train_134cd52e6b",
+        "train_9a34359982"
+      ]
+    },
+    "0ac41c5fb36e41fe46f4230117fbef3ba9a0d217fafa0051ec12c4fb498f3356": {
+      "source_hash": "0ac41c5fb36e41fe46f4230117fbef3ba9a0d217fafa0051ec12c4fb498f3356",
+      "filename": "FB_IMG_1791458610972.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791458610972.jpg",
+      "file_size_bytes": 179132,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.702177+07:00",
+      "question_ids": [
+        "train_ca1076f2f1",
+        "train_0bc4cb1039",
+        "train_9777e0fc28",
+        "train_887d1e45d7",
+        "train_8943b01f30"
+      ]
+    },
+    "6b5b70db67bb66f1527ddca7150985e99fb0bc1b7fbe10155034b02f56b4e6d7": {
+      "source_hash": "6b5b70db67bb66f1527ddca7150985e99fb0bc1b7fbe10155034b02f56b4e6d7",
+      "filename": "FB_IMG_1791458687049.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791458687049.jpg",
+      "file_size_bytes": 145735,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.715500+07:00",
+      "question_ids": [
+        "train_30bc8a01e4",
+        "train_676d2d235d",
+        "train_b90b4783e6",
+        "train_37ff990b4b",
+        "train_c2172a82ca"
+      ]
+    },
+    "2f2d2f08801a18d128e96bc4503f5f4431a2a96e5766999c134307a6dfac37b8": {
+      "source_hash": "2f2d2f08801a18d128e96bc4503f5f4431a2a96e5766999c134307a6dfac37b8",
+      "filename": "FB_IMG_1791458690085.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791458690085.jpg",
+      "file_size_bytes": 94500,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.729858+07:00",
+      "question_ids": [
+        "train_ca5ea94158",
+        "train_c73e4cf46a",
+        "train_44e310405d",
+        "train_3ecf74de16",
+        "train_b0cfa6a311",
+        "train_b32a96664c"
+      ]
+    },
+    "b67d1d6e6381eb88608b95535c6e85da5bb3457302132e7bd2e131b38ea53024": {
+      "source_hash": "b67d1d6e6381eb88608b95535c6e85da5bb3457302132e7bd2e131b38ea53024",
+      "filename": "FB_IMG_1791458692557.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791458692557.jpg",
+      "file_size_bytes": 113285,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.744156+07:00",
+      "question_ids": [
+        "train_b66370f6df",
+        "train_c8d8dcc8df",
+        "train_f335f2aea3",
+        "train_324217ba3e",
+        "train_d6c4c3f5c5"
+      ]
+    },
+    "32421884d84eacc571bdcf3d904b0b08c6755945f532f1d48ab2f75c5f082c4f": {
+      "source_hash": "32421884d84eacc571bdcf3d904b0b08c6755945f532f1d48ab2f75c5f082c4f",
+      "filename": "FB_IMG_1791458694482.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791458694482.jpg",
+      "file_size_bytes": 80377,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.758678+07:00",
+      "question_ids": [
+        "train_3ed0889b5d",
+        "train_8fc2031b59",
+        "train_feea01b854"
+      ]
+    },
+    "70a4e7580b27ea291fe44ec4fd0cbe2f2ac975396b6f82435354807ad2b475dd": {
+      "source_hash": "70a4e7580b27ea291fe44ec4fd0cbe2f2ac975396b6f82435354807ad2b475dd",
+      "filename": "FB_IMG_1791458696733.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791458696733.jpg",
+      "file_size_bytes": 142461,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.786544+07:00",
+      "question_ids": [
+        "train_bb23efe24a",
+        "train_ef7a7eb7cc",
+        "train_844a2d9328",
+        "train_c6eb22a1f6",
+        "train_92e75828b5",
+        "train_d829d7941f"
+      ]
+    },
+    "fd1de6c8b4dcaf9376a96d5ed0f395683da536e1d066cc080dc5f837060b0b62": {
+      "source_hash": "fd1de6c8b4dcaf9376a96d5ed0f395683da536e1d066cc080dc5f837060b0b62",
+      "filename": "FB_IMG_1791460321701.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460321701.jpg",
+      "file_size_bytes": 128792,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.802223+07:00",
+      "question_ids": [
+        "train_a8b534ae8f",
+        "train_7380ebe777",
+        "train_a2742dd352",
+        "train_268981bc40"
+      ]
+    },
+    "4ba0a1ccfb0a053cf61f8d46052480089ceb002198e4a8a64ecdb2cb05502892": {
+      "source_hash": "4ba0a1ccfb0a053cf61f8d46052480089ceb002198e4a8a64ecdb2cb05502892",
+      "filename": "FB_IMG_1791460324006.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460324006.jpg",
+      "file_size_bytes": 118243,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 8,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.822171+07:00",
+      "question_ids": [
+        "train_c6ab9669ed",
+        "train_cc4e19afa0",
+        "train_91c212ef7f",
+        "train_3ddad7ea4f",
+        "train_f9abd8e176",
+        "train_565f2dad15",
+        "train_d9b3e7ae1d",
+        "train_ff5df975c7"
+      ]
+    },
+    "435ee20ac24282f5a774494d95715048887e0d0cbeb773ceebc098c0cb524510": {
+      "source_hash": "435ee20ac24282f5a774494d95715048887e0d0cbeb773ceebc098c0cb524510",
+      "filename": "FB_IMG_1791460327117.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460327117.jpg",
+      "file_size_bytes": 90841,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.837299+07:00",
+      "question_ids": [
+        "train_bbeb5d6daa",
+        "train_ea61789230",
+        "train_e87787683b",
+        "train_d89a0591d1"
+      ]
+    },
+    "0716cce85346bf5f28cca2f831327b3ed3b3195c1c846da6a2046ea6563b3d64": {
+      "source_hash": "0716cce85346bf5f28cca2f831327b3ed3b3195c1c846da6a2046ea6563b3d64",
+      "filename": "FB_IMG_1791460329952.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460329952.jpg",
+      "file_size_bytes": 80756,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.850654+07:00",
+      "question_ids": [
+        "train_ab4c609695",
+        "train_5da05f13aa",
+        "train_ed5a4d62bf"
+      ]
+    },
+    "350060dd47027eb979515af9193ba587c5c808ae1ef217a77be83f3f070e553a": {
+      "source_hash": "350060dd47027eb979515af9193ba587c5c808ae1ef217a77be83f3f070e553a",
+      "filename": "FB_IMG_1791460334988.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460334988.jpg",
+      "file_size_bytes": 135780,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.865421+07:00",
+      "question_ids": [
+        "train_ea5c966e31",
+        "train_07354ae0e3",
+        "train_29f2d1f473",
+        "train_97da47a813"
+      ]
+    },
+    "ad8753d74e0be4163bb39407c4f1af140df4284f4e136a395728c8b2b91786a9": {
+      "source_hash": "ad8753d74e0be4163bb39407c4f1af140df4284f4e136a395728c8b2b91786a9",
+      "filename": "FB_IMG_1791460605447.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460605447.jpg",
+      "file_size_bytes": 129401,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.886426+07:00",
+      "question_ids": [
+        "train_b669cd51db",
+        "train_54603d1600",
+        "train_859be4b538",
+        "train_c731e5a6cc",
+        "train_2581bbefed",
+        "train_7bd272c3d2"
+      ]
+    },
+    "6db8d5ea1dcecda061ff55ce5a17637fc4ac0cea6e4c591a3869c650b09a7172": {
+      "source_hash": "6db8d5ea1dcecda061ff55ce5a17637fc4ac0cea6e4c591a3869c650b09a7172",
+      "filename": "FB_IMG_1791461586981.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461586981.jpg",
+      "file_size_bytes": 134382,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.899932+07:00",
+      "question_ids": [
+        "train_9700450a84",
+        "train_5473e578ab",
+        "train_32c5c56185",
+        "train_b79983e055",
+        "train_2830642b57"
+      ]
+    },
+    "e0d9928e4d70420686a6fed14ce6cf30ea6ad4383ac2b9f8351dfd5f4fe25151": {
+      "source_hash": "e0d9928e4d70420686a6fed14ce6cf30ea6ad4383ac2b9f8351dfd5f4fe25151",
+      "filename": "FB_IMG_1791461597221.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461597221.jpg",
+      "file_size_bytes": 153667,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.914766+07:00",
+      "question_ids": [
+        "train_fb13d1383b",
+        "train_2bec51d9db",
+        "train_170b2fc2fb",
+        "train_857d23ed55",
+        "train_3850bcf2f1",
+        "train_9689826c23"
+      ]
+    },
+    "c327f84531df94b9a2b9f3d219fd0d6a419460cac2d1ef0a5cef5b6e154e49ba": {
+      "source_hash": "c327f84531df94b9a2b9f3d219fd0d6a419460cac2d1ef0a5cef5b6e154e49ba",
+      "filename": "FB_IMG_1791346519921.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791346519921.jpg",
+      "file_size_bytes": 120442,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.928955+07:00",
+      "question_ids": [
+        "train_30ced28063",
+        "train_f225719cec",
+        "train_4962c2e21f"
+      ]
+    },
+    "ad334f35355da7d1a8f9f4817230bb16c83a48ec2adbe1923318b47aa4fd89c6": {
+      "source_hash": "ad334f35355da7d1a8f9f4817230bb16c83a48ec2adbe1923318b47aa4fd89c6",
+      "filename": "FB_IMG_1791460332507.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460332507.jpg",
+      "file_size_bytes": 165334,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.948283+07:00",
+      "question_ids": [
+        "train_8e292c5a82",
+        "train_b8252eae75",
+        "train_7205003e8a",
+        "train_0b43838a87",
+        "train_ad9dcd2298",
+        "train_f3bd0fe695"
+      ]
+    },
+    "f59c3c8a5d7c1b04f366e70ce88d0bebe086067742227498afb1538f262b9266": {
+      "source_hash": "f59c3c8a5d7c1b04f366e70ce88d0bebe086067742227498afb1538f262b9266",
+      "filename": "FB_IMG_1791460337761.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460337761.jpg",
+      "file_size_bytes": 112887,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 7,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.976753+07:00",
+      "question_ids": [
+        "train_8a0470e493",
+        "train_f8f054b600",
+        "train_3d963908fe",
+        "train_54ae4f71a8",
+        "train_ec7088b887",
+        "train_d7d880cde3",
+        "train_3a62fa9987"
+      ]
+    },
+    "9ec42d33fae2822fc53c3de67861f456c7cc646a5cc2aa60e5f4abf99822b5a1": {
+      "source_hash": "9ec42d33fae2822fc53c3de67861f456c7cc646a5cc2aa60e5f4abf99822b5a1",
+      "filename": "FB_IMG_1791460341116.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460341116.jpg",
+      "file_size_bytes": 109894,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:17.989540+07:00",
+      "question_ids": [
+        "train_a8ad0a7e57",
+        "train_19e1d9472a",
+        "train_1089681c68",
+        "train_47aa9b0040",
+        "train_4749ef6cdf"
+      ]
+    },
+    "c56654a478fbe18235378651718f69954e5395e4b2bb5451cb72d82138259669": {
+      "source_hash": "c56654a478fbe18235378651718f69954e5395e4b2bb5451cb72d82138259669",
+      "filename": "FB_IMG_1791460343327.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460343327.jpg",
+      "file_size_bytes": 86372,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.016893+07:00",
+      "question_ids": [
+        "train_08bc1ce6c2",
+        "train_6c1808c627",
+        "train_2e35266f13"
+      ]
+    },
+    "7f861eb70f1cda5bcdaa0ee5d9b649cc2fcb5c873e48ae8be33aa96e31e90bd9": {
+      "source_hash": "7f861eb70f1cda5bcdaa0ee5d9b649cc2fcb5c873e48ae8be33aa96e31e90bd9",
+      "filename": "FB_IMG_1791460346376.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460346376.jpg",
+      "file_size_bytes": 122520,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.030987+07:00",
+      "question_ids": [
+        "train_0593a798d4",
+        "train_50b5029dc1",
+        "train_4149b37fcf",
+        "train_035ec434e8"
+      ]
+    },
+    "d466dd4f7a3cece971cf94475d10e7d28b2c115c7ff8fe173d164d6dcd45621f": {
+      "source_hash": "d466dd4f7a3cece971cf94475d10e7d28b2c115c7ff8fe173d164d6dcd45621f",
+      "filename": "FB_IMG_1791460595152.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460595152.jpg",
+      "file_size_bytes": 124266,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.045285+07:00",
+      "question_ids": [
+        "train_2993cd1c17",
+        "train_dae9fee726",
+        "train_d61348aa5a",
+        "train_26d0504f1a",
+        "train_5b135bda62",
+        "train_9b44b5e433"
+      ]
+    },
+    "e6f3710e8839df80ed8ffc920588d04d5d0ae5bc46e226f1c497cca0954e8d3c": {
+      "source_hash": "e6f3710e8839df80ed8ffc920588d04d5d0ae5bc46e226f1c497cca0954e8d3c",
+      "filename": "FB_IMG_1791460597493.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460597493.jpg",
+      "file_size_bytes": 98287,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 9,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.058904+07:00",
+      "question_ids": [
+        "train_446ba516d1",
+        "train_8d37ce69ca",
+        "train_7120c5f11c",
+        "train_5234eec9c0",
+        "train_392cbf4860",
+        "train_68f39699f6",
+        "train_3721fd6d18",
+        "train_03eba6eff1",
+        "train_2fc73dc89b"
+      ]
+    },
+    "4f0366cf840935966c6bba29a226d64805f81de7ed6f612d83adeaf526c59cf3": {
+      "source_hash": "4f0366cf840935966c6bba29a226d64805f81de7ed6f612d83adeaf526c59cf3",
+      "filename": "FB_IMG_1791460600220.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460600220.jpg",
+      "file_size_bytes": 86549,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.083734+07:00",
+      "question_ids": [
+        "train_bbe2e79783",
+        "train_9d2af3de1e",
+        "train_2f69522c1d",
+        "train_ff28bb103d",
+        "train_d08bbb36b3"
+      ]
+    },
+    "ff4276c22cce8eaa6239aa1257bda31a6df3d5101042d1653c8ba0b4fcaedf33": {
+      "source_hash": "ff4276c22cce8eaa6239aa1257bda31a6df3d5101042d1653c8ba0b4fcaedf33",
+      "filename": "FB_IMG_1791460602965.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791460602965.jpg",
+      "file_size_bytes": 118710,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.099774+07:00",
+      "question_ids": [
+        "train_6e9aad5c5b",
+        "train_60bb27a6d9",
+        "train_c99ad80da4",
+        "train_b3d40ff157",
+        "train_dd855bab98"
+      ]
+    },
+    "d5264895963c8bc7a2961116ac95e25a9747b0f1eb8926235ba2efcec50549ec": {
+      "source_hash": "d5264895963c8bc7a2961116ac95e25a9747b0f1eb8926235ba2efcec50549ec",
+      "filename": "FB_IMG_1791461589239.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461589239.jpg",
+      "file_size_bytes": 97375,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.113490+07:00",
+      "question_ids": [
+        "train_24f1895ab1",
+        "train_361483e1a1",
+        "train_3a7ff5902a",
+        "train_8a7ee29083",
+        "train_a39dfff4a1",
+        "train_1b7874800d"
+      ]
+    },
+    "ddc0326d7c395c3ba5483b57ae7700fbe34fb8a3fb1fcd4f0ba5aed65c4c0c35": {
+      "source_hash": "ddc0326d7c395c3ba5483b57ae7700fbe34fb8a3fb1fcd4f0ba5aed65c4c0c35",
+      "filename": "FB_IMG_1791461591867.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461591867.jpg",
+      "file_size_bytes": 94595,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.127720+07:00",
+      "question_ids": [
+        "train_768ccb90fd",
+        "train_3af63af289",
+        "train_ffa938c689",
+        "train_92d021ca7a",
+        "train_78c1b3f46b"
+      ]
+    },
+    "ee38354b7be61db2856487400de0515676810d9ce9f39ad5356c203f3ced422f": {
+      "source_hash": "ee38354b7be61db2856487400de0515676810d9ce9f39ad5356c203f3ced422f",
+      "filename": "FB_IMG_1791461594007.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461594007.jpg",
+      "file_size_bytes": 65380,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.139464+07:00",
+      "question_ids": [
+        "train_984c5356f9",
+        "train_6b1281a15f",
+        "train_075b71dd08"
+      ]
+    },
+    "be4b251ff27eccf89279358ce43a218f790b50578682ec186092e6314858d30d": {
+      "source_hash": "be4b251ff27eccf89279358ce43a218f790b50578682ec186092e6314858d30d",
+      "filename": "FB_IMG_1791461666738.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461666738.jpg",
+      "file_size_bytes": 110183,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.155987+07:00",
+      "question_ids": [
+        "train_8088524ea6",
+        "train_90b2d33aa9",
+        "train_b1025cfb46",
+        "train_f69a12c570"
+      ]
+    },
+    "7276620784e2144eb7b108f0a679442042ec48e9461ada8cbe021ce78312dbea": {
+      "source_hash": "7276620784e2144eb7b108f0a679442042ec48e9461ada8cbe021ce78312dbea",
+      "filename": "FB_IMG_1791461669456.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461669456.jpg",
+      "file_size_bytes": 84050,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.172442+07:00",
+      "question_ids": [
+        "train_efad67afad",
+        "train_6b5f66c3c0",
+        "train_4d7834a37a",
+        "train_099c4476e0",
+        "train_8d0e2b4545",
+        "train_8b65433143"
+      ]
+    },
+    "6a9e6cc1a16357bc728106276028617fff703d362c764ff051260a736812eccc": {
+      "source_hash": "6a9e6cc1a16357bc728106276028617fff703d362c764ff051260a736812eccc",
+      "filename": "FB_IMG_1791461673076.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461673076.jpg",
+      "file_size_bytes": 125425,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 5,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.187416+07:00",
+      "question_ids": [
+        "train_560ee83a0d",
+        "train_8aedb3bab5",
+        "train_e2f3353874",
+        "train_d6fe73950a",
+        "train_efab07972c"
+      ]
+    },
+    "f0f9f9b195b0ec9676e28cd7327afa7ee8b0446dc96a81c88bacfc0e67efe196": {
+      "source_hash": "f0f9f9b195b0ec9676e28cd7327afa7ee8b0446dc96a81c88bacfc0e67efe196",
+      "filename": "FB_IMG_1791461678650.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461678650.jpg",
+      "file_size_bytes": 77515,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.210408+07:00",
+      "question_ids": [
+        "train_9ad1fdf82c",
+        "train_649619cf8a",
+        "train_8006e8bcae"
+      ]
+    },
+    "f8150e6303b4ceb10fd03913cc73d2beb647865467c9ce34b5bcee76df4c1eb9": {
+      "source_hash": "f8150e6303b4ceb10fd03913cc73d2beb647865467c9ce34b5bcee76df4c1eb9",
+      "filename": "FB_IMG_1791461680907.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461680907.jpg",
+      "file_size_bytes": 94472,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 3,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.235810+07:00",
+      "question_ids": [
+        "train_c87f252981",
+        "train_2a28f73559",
+        "train_c56fb9ce8a"
+      ]
+    },
+    "e4f699d7627bb6290a50a1eaa3e9ef3d95712c7d720bdd3cc0a4fe0b07766fcf": {
+      "source_hash": "e4f699d7627bb6290a50a1eaa3e9ef3d95712c7d720bdd3cc0a4fe0b07766fcf",
+      "filename": "FB_IMG_1791461686256.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461686256.jpg",
+      "file_size_bytes": 125254,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.250079+07:00",
+      "question_ids": [
+        "train_2305ffd648",
+        "train_0ab89238c2",
+        "train_a39222eb82",
+        "train_4dd16df8cb"
+      ]
+    },
+    "df50497864b1db6b29eca4154e041bf5352107896c19ab115195a8af03adfa6d": {
+      "source_hash": "df50497864b1db6b29eca4154e041bf5352107896c19ab115195a8af03adfa6d",
+      "filename": "FB_IMG_1791461715383.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461715383.jpg",
+      "file_size_bytes": 121628,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 7,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.264761+07:00",
+      "question_ids": [
+        "train_ff474055d5",
+        "train_12717e2e27",
+        "train_5789b0894d",
+        "train_504f19d19c",
+        "train_c1666bdc7f",
+        "train_d07c43fb02",
+        "train_b372519393"
+      ]
+    },
+    "1637415134f9914c45a840b6ebb309a83f218c4f699a4919b7e759c9598f50f4": {
+      "source_hash": "1637415134f9914c45a840b6ebb309a83f218c4f699a4919b7e759c9598f50f4",
+      "filename": "FB_IMG_1791461717746.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461717746.jpg",
+      "file_size_bytes": 121324,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 8,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.279918+07:00",
+      "question_ids": [
+        "train_7b544d39a7",
+        "train_cac005fe81",
+        "train_08de8b9da3",
+        "train_52752b6a25",
+        "train_09f5b0a523",
+        "train_ffc7bbfcea",
+        "train_6279ee55c1",
+        "train_4a76116c41"
+      ]
+    },
+    "2cc7a90d69863a7022a85f890510058b996f8b3f5f9c5b293d62b3c21d23c549": {
+      "source_hash": "2cc7a90d69863a7022a85f890510058b996f8b3f5f9c5b293d62b3c21d23c549",
+      "filename": "FB_IMG_1791461720253.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461720253.jpg",
+      "file_size_bytes": 79455,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.295576+07:00",
+      "question_ids": [
+        "train_ee1d36ba1a",
+        "train_5436fa96f3",
+        "train_79b9ca54fe",
+        "train_db9b48f3f7"
+      ]
+    },
+    "3746f62aa6c1e5b5d540e1b06a44f7c85e63bcd3eeb55b82cf6b7653add21545": {
+      "source_hash": "3746f62aa6c1e5b5d540e1b06a44f7c85e63bcd3eeb55b82cf6b7653add21545",
+      "filename": "FB_IMG_1791461723143.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461723143.jpg",
+      "file_size_bytes": 132814,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.312265+07:00",
+      "question_ids": [
+        "train_4e5167e278",
+        "train_db1467f8ec",
+        "train_662811d927",
+        "train_a3af38c9c4",
+        "train_4557bf4dc7",
+        "train_5fe24dfe38"
+      ]
+    },
+    "108fd6b49755830b53faf7ec36b1845f0a850dbd6b694e4a496d4414a94a28e5": {
+      "source_hash": "108fd6b49755830b53faf7ec36b1845f0a850dbd6b694e4a496d4414a94a28e5",
+      "filename": "FB_IMG_1791461756105.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461756105.jpg",
+      "file_size_bytes": 143716,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 7,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.335411+07:00",
+      "question_ids": [
+        "train_66c6e6e2ea",
+        "train_8d2bef45ea",
+        "train_4ce8843f22",
+        "train_c294e0ab19",
+        "train_0b44b785f6",
+        "train_c13f1b05a6",
+        "train_4d4c4bb2aa"
+      ]
+    },
+    "30ac58b9d79a39625ff18e8325b231889f96b618c90291774e8ed43f591e343d": {
+      "source_hash": "30ac58b9d79a39625ff18e8325b231889f96b618c90291774e8ed43f591e343d",
+      "filename": "FB_IMG_1791461757929.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461757929.jpg",
+      "file_size_bytes": 143677,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 8,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.349886+07:00",
+      "question_ids": [
+        "train_bd242e409a",
+        "train_2e3ab446a0",
+        "train_072acecf57",
+        "train_0697de6233",
+        "train_fddb453202",
+        "train_865b66c9d1",
+        "train_8ed9901d18",
+        "train_d26f0490fa"
+      ]
+    },
+    "7b0a00283a9d4641ae2d2951040923986a1053d993ac06e989f1164f2d80439d": {
+      "source_hash": "7b0a00283a9d4641ae2d2951040923986a1053d993ac06e989f1164f2d80439d",
+      "filename": "FB_IMG_1791461759922.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461759922.jpg",
+      "file_size_bytes": 101472,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 4,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.364562+07:00",
+      "question_ids": [
+        "train_0f01537a79",
+        "train_7aee8fdd2b",
+        "train_0cf6fa51b6",
+        "train_096b64ae4f"
+      ]
+    },
+    "e8368ded5012afc4bc16b81eebf98e6ab6a56f8d56044e671e62cfc458cdb030": {
+      "source_hash": "e8368ded5012afc4bc16b81eebf98e6ab6a56f8d56044e671e62cfc458cdb030",
+      "filename": "FB_IMG_1791461762672.jpg",
+      "filepath": "F:\\Mina\\Online_Learning_For_Kid\\data\\training\\FB_IMG_1791461762672.jpg",
+      "file_size_bytes": 158971,
+      "output_json": "F:\\Mina\\Online_Learning_For_Kid\\data\\extracted_training_questions.json",
+      "question_count": 6,
+      "has_handwriting": false,
+      "processed_at": "2026-10-10T16:38:18.378915+07:00",
+      "question_ids": [
+        "train_4211cb8539",
+        "train_ffd2d60033",
+        "train_1b959279aa",
+        "train_91867ba583",
+        "train_445da3c88f",
+        "train_f7d8020f0a"
+      ]
+    }
+  }
+}

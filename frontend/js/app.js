@@ -1,5 +1,5 @@
 // EduQuest Pro - Core Application & Router
-const APP_VERSION = "v1.0.38";
+const APP_VERSION = "v1.0.42";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
@@ -23,6 +23,7 @@ const State = {
     difficulty: "all",
     search: "",
     source_detail: "all",
+    created_date: "",
     only_duplicates: false,
     sort_by: "q_number_asc",
     page: 1,
@@ -304,6 +305,15 @@ function formatMathSymbols(str) {
   let s = String(str);
 
   // ---------------------------------------------------------
+  // BƯỚC 0: Nhận diện và bảo vệ ký hiệu tiền tệ ($3, $20, $ 50, 3$, ...)
+  // Thay thế dấu $ tiền tệ thành <span class="currency-dollar">$</span> trước khi tìm khối toán học
+  // ---------------------------------------------------------
+  // 1. Dấu $ đứng trước số tiền: $3, $20, $ 50, $3.5, $100,000 (theo sau bởi dấu câu, khoảng trắng hoặc hết chuỗi, không phải biến số như $3x)
+  s = s.replace(/(^|[\s\(>«"“'])\$\s*(\d+(?:[.,]\d+)?)(?=[\s\.,;:!?\)<»"”']|$)/g, '$1<span class="currency-dollar">$</span>$2');
+  // 2. Dấu $ đứng sau số: 3$, 50 $, 100$ (không đứng sau toán tử toán học như = 0$, + 5$, v.v.)
+  s = s.replace(/(?<![=+\-*/\^<>~]\s*)\b(\d+(?:[.,]\d+)?)\s*\$(?=[\s\.,;:!?\)<»"”']|$)/g, '$1<span class="currency-dollar">$</span>');
+
+  // ---------------------------------------------------------
   // BƯỚC 1: Bảo vệ toàn bộ các khối toán học sẵn có
   // ---------------------------------------------------------
   const mathBlocks = [];
@@ -314,8 +324,21 @@ function formatMathSymbols(str) {
   };
 
   // Nhận diện: $$...$$, \[...\], \(...\), $...$ (nội dung không rỗng)
+  // Nếu nội dung bên trong $...$ chứa câu tiếng Việt (kết thúc câu . , ? , ! ) hoặc chữ tiếng Việt có dấu thanh
+  // thì KHÔNG coi đó là công thức toán học.
+  const vietnameseAccentRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/;
+  const sentenceEndRegex = /[\.?!]\s+/;
+
   const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$(?:\\\$|[^\$\n])+?\$)/g;
-  s = s.replace(mathBlockRegex, saveMath);
+  s = s.replace(mathBlockRegex, (match) => {
+    if (match.startsWith("$") && !match.startsWith("$$") && match.endsWith("$")) {
+      const inner = match.slice(1, -1);
+      if (sentenceEndRegex.test(inner) || vietnameseAccentRegex.test(inner)) {
+        return match;
+      }
+    }
+    return saveMath(match);
+  });
 
   // ---------------------------------------------------------
   // BƯỚC 2: Nhận diện biểu thức toán thô chưa bọc delimiter
@@ -399,7 +422,40 @@ window.formatMathSymbols = formatMathSymbols;
 
 // Render KaTeX formulas in an element
 function renderMath(container) {
-  if (window.renderMathInElement && container) {
+  if (!container || !window.renderMathInElement) return;
+
+  // 1. Quét các text nodes trong container, tự động escape các dấu $ tiền tệ đứng trước số ($(\d+)) thành \$1
+  // để KaTeX bỏ qua không bắt nhầm làm delimiter
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.includes('$')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        const parent = node.parentElement;
+        if (parent && (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.classList.contains('katex'))) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    },
+    false
+  );
+
+  const matchedNodes = [];
+  let current;
+  while ((current = walker.nextNode())) {
+    matchedNodes.push(current);
+  }
+
+  // Tự động escape dấu $ đứng trước số: $3 -> \$3, $ 50 -> \$ 50
+  matchedNodes.forEach(node => {
+    node.nodeValue = node.nodeValue.replace(/\$(\s*\d+)/g, (m, p1) => '\\$' + p1);
+  });
+
+  try {
     window.renderMathInElement(container, {
       delimiters: [
         { left: "$$", right: "$$", display: true },
@@ -409,6 +465,36 @@ function renderMath(container) {
       ],
       throwOnError: false
     });
+  } finally {
+    // 2. Unescape lại sau khi render hoàn tất
+    matchedNodes.forEach(node => {
+      if (node.nodeValue && node.nodeValue.includes('\\$')) {
+        node.nodeValue = node.nodeValue.replace(/\\\$(\s*\d+)/g, (m, p1) => '$' + p1);
+      }
+    });
+
+    // Quét bổ sung dọn dẹp phòng trường hợp KaTeX chia tách text nodes
+    const cleanupWalker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          if (node.nodeValue && node.nodeValue.includes('\\$')) {
+            const parent = node.parentElement;
+            if (parent && (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.classList.contains('katex'))) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          return NodeFilter.FILTER_REJECT;
+        }
+      },
+      false
+    );
+    let cNode;
+    while ((cNode = cleanupWalker.nextNode())) {
+      cNode.nodeValue = cNode.nodeValue.replace(/\\\$(\s*\d+)/g, (m, p1) => '$' + p1);
+    }
   }
 }
 

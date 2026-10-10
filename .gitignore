@@ -31,7 +31,17 @@ Desktop.ini
 # Runtime-generated media files
 # OCR temp files (uploaded images & preprocessed versions, auto-deleted after 15 days)
 data/media/ocr_*
+data/media/crop_diag_*
+data/media/source_*
+data/media/test_*
+data/media/verify_*
+data/media/*_sample.*
+data/media/*_cropped_*
+data/.batch_checkpoint.json
 # Localized question images downloaded from external platforms (VioEdu, etc.)
 # Keep img_* tracked so the question bank stays self-contained on other machines
 # Uncomment the line below if you prefer NOT to track them either:
 # data/media/img_*
+
+# Images for training AI to create quiz
+data/training/
