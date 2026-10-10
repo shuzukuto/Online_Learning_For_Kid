@@ -77,6 +77,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === "sync_log" && request.log) {
+    // Relay fire-and-forget tu content script (tranh CORS khi fetch truc tiep tu trang VioEdu)
+    postJson("/api/collect/logs/sync", request.log, () => {});
+    return false;
+  }
+
   if (request.action === "check_server") {
     getServerUrl().then((baseUrl) => {
       fetch(`${baseUrl}/api/stats`, { headers: COMMON_HEADERS })

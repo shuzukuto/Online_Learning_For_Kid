@@ -1,5 +1,7 @@
 // EduQuest Pro - Core Application & Router
-const APP_VERSION = "v1.0.42";
+// Version hien thi duoc cap nhat dong tu /api/version (backend/version.py la nguon duy nhat).
+// APP_VERSION giu lam gia tri fallback khi backend chua san sang.
+let APP_VERSION = "v1.0.43";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
@@ -120,6 +122,15 @@ function viewAllQuestionsInBank() {
 // Load Dashboard Data
 async function loadDashboardStats() {
   try {
+    // Giu badge version dong bo voi backend (nguon duy nhat backend/version.py)
+    fetch(`${API_BASE}/version`).then(r => r.ok ? r.json() : null).then(v => {
+      if (v && v.app_version) {
+        APP_VERSION = v.app_version;
+        document.querySelectorAll(".app-version-badge").forEach(el => el.textContent = APP_VERSION);
+        const sv = document.getElementById("sidebar-version-tag");
+        if (sv) sv.textContent = `Phiên bản: ${APP_VERSION}`;
+      }
+    }).catch(() => {});
     const res = await fetch(`${API_BASE}/stats`);
     const data = await res.json();
     State.stats = data;

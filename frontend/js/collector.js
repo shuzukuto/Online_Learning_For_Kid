@@ -2770,7 +2770,17 @@ async function loadAiVisionSettings() {
     if (providerSelect && s.provider) providerSelect.value = s.provider;
 
     const orKey = document.getElementById("ai-vision-openrouter-key");
-    if (orKey) orKey.value = s.openrouter_api_key || "";
+    if (orKey) {
+      const masked = s.openrouter_api_key || "";
+      // Backend tra ve key da mask (vd "sk-...abcd"): chi hien placeholder,
+      // khong dien vao value de tranh ghi de key that khi luu.
+      if (masked.includes("...") || masked === "***") {
+        orKey.value = "";
+        orKey.placeholder = `${masked} (đã lưu — nhập mới để thay đổi)`;
+      } else {
+        orKey.value = masked;
+      }
+    }
 
     if (Array.isArray(s.openrouter_models) && s.openrouter_models.length > 0) {
       currentOpenRouterModels = [...s.openrouter_models];
@@ -2785,7 +2795,15 @@ async function loadAiVisionSettings() {
     }
 
     const ocKey = document.getElementById("ai-vision-opencode-key");
-    if (ocKey) ocKey.value = s.opencode_api_key || "";
+    if (ocKey) {
+      const masked = s.opencode_api_key || "";
+      if (masked.includes("...") || masked === "***") {
+        ocKey.value = "";
+        ocKey.placeholder = `${masked} (đã lưu — nhập mới để thay đổi)`;
+      } else {
+        ocKey.value = masked;
+      }
+    }
 
     if (Array.isArray(s.opencode_models) && s.opencode_models.length > 0) {
       currentOpenCodeModels = [...s.opencode_models];
@@ -2799,7 +2817,15 @@ async function loadAiVisionSettings() {
     if (customUrl) customUrl.value = s.custom_vision_url || "http://127.0.0.1:20129/v1";
 
     const customKey = document.getElementById("ai-vision-custom-key");
-    if (customKey) customKey.value = s.custom_vision_key || "";
+    if (customKey) {
+      const masked = s.custom_vision_key || "";
+      if (masked.includes("...") || masked === "***") {
+        customKey.value = "";
+        customKey.placeholder = `${masked} (đã lưu — nhập mới để thay đổi)`;
+      } else {
+        customKey.value = masked;
+      }
+    }
 
     if (Array.isArray(s.custom_vision_models) && s.custom_vision_models.length > 0) {
       currentCustomModels = [...s.custom_vision_models];
@@ -2952,8 +2978,12 @@ async function scan9RouterModels() {
     const data = await res.json();
     if (!data.success) throw new Error(data.message);
 
-    // Fetch models via backend endpoint
-    const mRes = await fetch(`${API_BASE}/ai-vision/models?provider=custom&base_url=${encodeURIComponent(baseUrl)}&api_key=${encodeURIComponent(apiKey)}`);
+    // Fetch models via backend endpoint (POST body — khong de key lo tren URL/log)
+    const mRes = await fetch(`${API_BASE}/ai-vision/models`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "custom", base_url: baseUrl, api_key: apiKey })
+    });
     if (mRes.ok) {
       const mData = await mRes.json();
       const list = mData.models || [];
@@ -3007,7 +3037,12 @@ async function scanLiveVisionModels(provider = "openrouter") {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/ai-vision/models?provider=${encodeURIComponent(provider)}&api_key=${encodeURIComponent(apiKey)}`);
+    // POST body thay vi query-string de khong lo key trong URL/log server
+    const res = await fetch(`${API_BASE}/ai-vision/models`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, api_key: apiKey })
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 

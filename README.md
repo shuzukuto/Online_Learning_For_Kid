@@ -1,7 +1,7 @@
 # EduQuest Pro — Hệ Thống Thu Thập & Quản Lý Ngân Hàng Câu Hỏi Thi Trực Tuyến
 
-![Version](https://img.shields.io/badge/App-v1.0.24-blue)
-![Extension](https://img.shields.io/badge/Extension-v1.3.15-emerald)
+![Version](https://img.shields.io/badge/App-v1.0.43-blue)
+![Extension](https://img.shields.io/badge/Extension-v1.3.18-emerald)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Framework-teal)
 ![KaTeX](https://img.shields.io/badge/Math-KaTeX%20LaTeX-orange)
@@ -46,7 +46,7 @@ Online_Learning_For_Kid/
 │   ├── content.js             # Bắt câu hỏi DOM, Floating Widget & Zero-Click Auto-Sync
 │   ├── popup.html / popup.js  # Giao diện điều khiển popup & Monospace Debug Log
 │   └── styles.css
-├── frontend/                  # Web Dashboard UI/UX Pro Max (v1.0.24)
+├── frontend/                  # Web Dashboard UI/UX Pro Max (v1.0.43)
 │   ├── index.html             # Single Page Application
 │   ├── css/style.css          # Design system & KaTeX layout
 │   └── js/

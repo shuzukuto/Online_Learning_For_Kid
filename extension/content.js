@@ -200,11 +200,21 @@
         const toSend = pendingBackendLogs.slice(-1)[0];
         pendingBackendLogs = [];
         if (toSend) {
-          fetch("http://localhost:8000/api/collect/logs/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(toSend)
-          }).catch(() => {});
+          // Relay qua background service-worker (origin chrome-extension://, hop CORS)
+          // thay vi fetch truc tiep tu page VioEdu -> tranh loi preflight khi siet CORS.
+          try {
+            if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+              chrome.runtime.sendMessage({ action: "sync_log", log: toSend });
+            } else {
+              throw new Error("no-extension-runtime");
+            }
+          } catch (e) {
+            fetch("http://localhost:8000/api/collect/logs/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(toSend)
+            }).catch(() => {});
+          }
         }
       }, 800);
     }

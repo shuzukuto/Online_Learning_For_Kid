@@ -423,6 +423,16 @@ def get_questions(
     page_size: int = 20,
     has_handwriting: Optional[bool] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
+    # Hard cap: chan page_size khong lo de chua chay DoS du goi noi bo
+    MAX_DB_PAGE_SIZE = 200
+    try:
+        page = max(1, int(page))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = max(1, min(int(page_size), MAX_DB_PAGE_SIZE))
+    except (TypeError, ValueError):
+        page_size = 20
     conn = get_connection()
     cursor = conn.cursor()
     

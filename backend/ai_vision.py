@@ -60,8 +60,22 @@ def _parse_models_list(raw_val: str, default_list: List[str]) -> List[str]:
     return parts if parts else list(default_list)
 
 
-def get_ai_vision_settings() -> Dict[str, Any]:
-    """Retrieves current AI Vision settings from system_config and env."""
+def _mask_api_key(key) -> str:
+    """Masks an API key for safe API responses (e.g. 'sk-...abcd', '***', '')."""
+    k = (key or "").strip()
+    if not k:
+        return ""
+    if len(k) <= 8:
+        return "***"
+    return f"{k[:3]}...{k[-4:]}"
+
+
+def get_ai_vision_settings(include_secrets: bool = False) -> Dict[str, Any]:
+    """Retrieves current AI Vision settings from system_config and env.
+
+    include_secrets=False (default): API keys are masked ("sk-...abcd" / "***")
+    for safe API responses. Internal callers (vision pipeline) pass True.
+    """
     provider = get_system_config("ai_vision_provider", os.getenv("AI_VISION_PROVIDER", "9router_first"))
     openrouter_key = get_system_config("openrouter_api_key", os.getenv("OPENROUTER_API_KEY", ""))
     openrouter_model = get_system_config("openrouter_model", os.getenv("OPENROUTER_MODEL", OPENROUTER_FREE_MODELS[0]))
@@ -90,16 +104,16 @@ def get_ai_vision_settings() -> Dict[str, Any]:
 
     return {
         "provider": provider,
-        "openrouter_api_key": openrouter_key,
+        "openrouter_api_key": openrouter_key if include_secrets else _mask_api_key(openrouter_key),
         "openrouter_model": openrouter_model,
         "openrouter_models": openrouter_models,
         "openrouter_models_available": OPENROUTER_FREE_MODELS,
-        "opencode_api_key": opencode_key,
+        "opencode_api_key": opencode_key if include_secrets else _mask_api_key(opencode_key),
         "opencode_model": opencode_model,
         "opencode_models": opencode_models,
         "opencode_models_available": OPENCODE_MODELS,
         "custom_vision_url": custom_url,
-        "custom_vision_key": custom_key,
+        "custom_vision_key": custom_key if include_secrets else _mask_api_key(custom_key),
         "custom_vision_model": custom_model,
         "custom_vision_models": custom_vision_models,
         "has_openrouter": bool(openrouter_key.strip()),
@@ -112,7 +126,7 @@ async def fetch_live_vision_models(provider: str = "openrouter", api_key: str = 
     Scans and discovers currently live multimodal vision models from the provider (OpenRouter / OpenCode / 9Router / Custom).
     Returns list of model objects with id, name, pricing info (free/paid), and context length.
     """
-    cfg = get_ai_vision_settings()
+    cfg = get_ai_vision_settings(include_secrets=True)
     key = api_key.strip() or (
         cfg["openrouter_api_key"] if provider == "openrouter" else
         cfg["opencode_api_key"] if provider == "opencode" else
@@ -248,7 +262,14 @@ def save_ai_vision_settings(settings: Dict[str, Any]) -> None:
     ]
     for key, val in settings.items():
         if key in allowed_keys and val is not None:
-            if key in ("openrouter_models", "opencode_models", "custom_vision_models"):
+            if key in ("openrouter_api_key", "opencode_api_key", "custom_vision_key"):
+                # Ignore masked placeholders / empty submissions so the real stored
+                # key is never overwritten by "sk-...abcd" or "***" from the UI.
+                v = str(val).strip()
+                if not v or "..." in v or v == "***":
+                    continue
+                set_system_config(key, v)
+            elif key in ("openrouter_models", "opencode_models", "custom_vision_models"):
                 if isinstance(val, list):
                     clean_list = [str(x).strip() for x in val if str(x).strip()]
                     set_system_config(key, json.dumps(clean_list))
@@ -861,7 +882,7 @@ async def extract_questions_with_ai_vision(
             result_qs.append(q_copy)
         return result_qs, "ai_vision_cache"
 
-    cfg = get_ai_vision_settings()
+    cfg = get_ai_vision_settings(include_secrets=True)
     image_data_uri = _prepare_image_payload(image_bytes)
 
     active_provider = cfg.get("provider", "9router_first")

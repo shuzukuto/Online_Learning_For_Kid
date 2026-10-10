@@ -29,12 +29,36 @@ async function loadQuestions() {
   if (State.filters.created_date) params.append("created_date", State.filters.created_date);
   if (State.filters.only_duplicates) params.append("only_duplicates", "true");
   if (State.filters.sort_by) params.append("sort_by", State.filters.sort_by);
-  params.append("page", State.filters.page);
-  params.append("page_size", State.filters.page_size);
+  // "Xem tat ca" (page_size >= 9999): backend chan page_size <= 200 (MAX_PAGE_SIZE)
+  // nen tai theo chunk 200 cau/trang roi ghep lai, thay vi gui page_size=9999 (se bi 422).
+  const showAll = (State.filters.page_size || 50) >= 9999;
+  const FETCH_CHUNK = 200;
+  if (!showAll) {
+    params.append("page", State.filters.page);
+    params.append("page_size", State.filters.page_size);
+  }
 
   try {
-    const res = await fetch(`${API_BASE}/questions?${params.toString()}`);
-    const data = await res.json();
+    let data;
+    if (!showAll) {
+      const res = await fetch(`${API_BASE}/questions?${params.toString()}`);
+      data = await res.json();
+    } else {
+      params.append("page", 1);
+      params.append("page_size", FETCH_CHUNK);
+      const first = await (await fetch(`${API_BASE}/questions?${params.toString()}`)).json();
+      const total = first.total || 0;
+      const all = [...(first.items || [])];
+      const totalPages = Math.min(Math.ceil(total / FETCH_CHUNK), 50); // tran 10k cau
+      const progressEl = container.querySelector("p");
+      for (let p = 2; p <= totalPages; p++) {
+        if (progressEl) progressEl.textContent = `Đang tải toàn bộ... ${all.length}/${total} câu (trang ${p}/${totalPages})`;
+        params.set("page", p);
+        const r = await (await fetch(`${API_BASE}/questions?${params.toString()}`)).json();
+        all.push(...(r.items || []));
+      }
+      data = { items: all, total, page: 1, page_size: total || 1, total_pages: 1 };
+    }
     State.cachedQuestions = data.items || [];
 
     const totalCountEl = document.getElementById("bank-total-count");

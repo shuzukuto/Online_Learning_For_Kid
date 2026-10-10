@@ -1,21 +1,25 @@
 from __future__ import annotations
 import os
 import io
+import shutil
 import uuid
 import asyncio
 import logging
 import re
 import unicodedata
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
 VN_TZ = timezone(timedelta(hours=7))
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Response, Body, Request
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form, Response, Body, Request, Depends, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
 logger = logging.getLogger("eduquest")
+
+from backend.version import APP_VERSION, APP_VERSION_NUMBER, CACHE_BUSTER, EXT_VERSION
 
 from backend.database import (
     init_db, get_questions, get_question_by_id, insert_or_update_question,
@@ -58,22 +62,76 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 # Initialize database
 init_db()
 
-app = FastAPI(
-    title="EduQuest Pro API",
-    description="Hệ thống Thu thập & Quản lý Ngân hàng Câu hỏi Thi trực tuyến",
-    version="1.0.0"
-)
+# ---------------------------------------------------------------------------
+# Write protection (optional API token) + rate limiting for mutating endpoints
+# ---------------------------------------------------------------------------
+API_TOKEN = os.environ.get("API_TOKEN", "").strip()
+RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "60"))
+MAX_PAGE_SIZE = 200
+WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+_RATE_BUCKETS: dict[str, list[float]] = {}
 
-@app.on_event("startup")
-async def on_startup():
+
+def _check_rate_limit(client_ip: str) -> bool:
+    """Sliding-window limiter (per IP, 60s window). Returns True when allowed."""
+    import time
+    now = time.monotonic()
+    window_start = now - 60.0
+    bucket = _RATE_BUCKETS.get(client_ip)
+    if bucket is None:
+        bucket = []
+        _RATE_BUCKETS[client_ip] = bucket
+    while bucket and bucket[0] < window_start:
+        bucket.pop(0)
+    if len(bucket) >= RATE_LIMIT_PER_MINUTE:
+        return False
+    bucket.append(now)
+    if len(_RATE_BUCKETS) > 5000:
+        _RATE_BUCKETS.clear()
+    return True
+
+
+def require_api_token(request: Request):
+    """Enforces X-API-Token on destructive/admin endpoints — only when API_TOKEN env is set.
+    Local default (env empty) keeps current open behavior so the dashboard & extension keep working."""
+    if not API_TOKEN:
+        return None
+    if request.headers.get("X-API-Token", "") != API_TOKEN:
+        raise HTTPException(status_code=401, detail="Thiếu hoặc sai API token (header X-API-Token)")
+    return None
+
+
+async def _rate_limit_middleware(request: Request, call_next):
+    if request.url.path.startswith("/api") and request.method in WRITE_METHODS:
+        client_ip = request.client.host if request.client else "unknown"
+        if not _check_rate_limit(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"success": False, "detail": "Quá nhiều yêu cầu, vui lòng thử lại sau 1 phút."},
+                headers={"Retry-After": "60"},
+            )
+    return await call_next(request)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
     # Run lazy resequence in background thread if flagged, ensuring instant startup (<1s)
     asyncio.create_task(asyncio.to_thread(maybe_resequence_deferred))
     stats = get_stats()
     if stats.get("total_questions", 0) == 0:
         await init_sample_questions()
-    # Launch daily OCR temp-file cleanup in the background
+    # Launch daily OCR temp-file cleanup + daily DB backup in the background
     asyncio.create_task(_schedule_ocr_cleanup())
+    asyncio.create_task(_schedule_db_backup())
+    yield
+
+app = FastAPI(
+    title="EduQuest Pro API",
+    description="Hệ thống Thu thập & Quản lý Ngân hàng Câu hỏi Thi trực tuyến",
+    version=APP_VERSION_NUMBER,
+    lifespan=lifespan,
+)
 
 # ---------------------------------------------------------------------------
 # OCR temp-file cleanup: delete ocr_* files older than 15 days, once per day
@@ -112,14 +170,95 @@ async def _cleanup_ocr_temp_files():
         print(f"[OCR Cleanup] Đã xóa {deleted} file ocr_* cũ hơn {OCR_CLEANUP_MAX_AGE_DAYS} ngày"
               + (f" ({errors} lỗi)" if errors else ""))
 
+# ---------------------------------------------------------------------------
+# Daily SQLite backup (online backup API — safe while server runs, 7-day rotation)
+# ---------------------------------------------------------------------------
+DB_BACKUP_KEEP_DAILY = int(os.environ.get("DB_BACKUP_KEEP", "7"))
+DB_BACKUP_INTERVAL_SEC = 24 * 60 * 60  # 24 hours
+
+def _get_db_backup_dir() -> str:
+    from backend.database import DB_PATH
+    d = os.path.join(os.path.dirname(DB_PATH), "backup")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def _do_db_backup(tag: str = "auto") -> Optional[str]:
+    """Copies questions.db via sqlite3 online backup API. Returns filename or None."""
+    import sqlite3
+    from backend.database import DB_PATH
+    try:
+        if not os.path.exists(DB_PATH):
+            return None
+        ts = datetime.now(VN_TZ).strftime("%Y%m%d_%H%M%S")
+        fname = f"questions_{ts}_{tag}.db"
+        dest = os.path.join(_get_db_backup_dir(), fname)
+        src = sqlite3.connect(DB_PATH, timeout=30.0)
+        try:
+            dst = sqlite3.connect(dest, timeout=30.0)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+        # Rotation: only auto backups rotate; manual/pre-restore snapshots are kept
+        if tag == "auto":
+            auto_files = sorted(
+                f for f in os.listdir(_get_db_backup_dir()) if f.endswith("_auto.db")
+            )
+            while len(auto_files) > DB_BACKUP_KEEP_DAILY:
+                old = auto_files.pop(0)
+                try:
+                    os.remove(os.path.join(_get_db_backup_dir(), old))
+                except OSError:
+                    pass
+        print(f"[DB Backup] Da sao luu CSDL -> {fname}")
+        return fname
+    except Exception as e:
+        print(f"[DB Backup] Loi sao luu CSDL: {e}")
+        return None
+
+async def _schedule_db_backup():
+    """First backup 60s after startup, then every 24 hours."""
+    await asyncio.sleep(60)
+    while True:
+        await asyncio.to_thread(_do_db_backup, "auto")
+        await asyncio.sleep(DB_BACKUP_INTERVAL_SEC)
+
 # Enable CORS for browser extension and external tools
+# (Locked down: explicit origins + extension regex instead of allow_origins=["*"].
+#  Extra origins via env CORS_ORIGINS="https://example.com,https://..." )
+_extra_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost",
+        "http://127.0.0.1",
+        *_extra_origins,
+    ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+                       r"|https?://192\.168\.\d{1,3}\.\d{1,3}(:\d+)?"
+                       r"|https?://10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?"
+                       r"|chrome-extension://.*|moz-extension://.*|edge-extension://.*",
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Token"],
 )
+app.middleware("http")(_rate_limit_middleware)
+
+# ----------------- Version (single source of truth) -----------------
+
+@app.get("/api/version")
+async def get_app_version():
+    """Returns canonical app/extension versions + cache buster (from backend/version.py)."""
+    return {
+        "app_version": APP_VERSION,
+        "app_version_number": APP_VERSION_NUMBER,
+        "cache_buster": CACHE_BUSTER,
+        "ext_version": EXT_VERSION,
+    }
 
 # ----------------- Question Bank Endpoints -----------------
 
@@ -146,7 +285,7 @@ async def list_questions(
     only_duplicates: bool = Query(False),
     sort_by: str = Query("q_number_asc"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=10000),
+    page_size: int = Query(50, ge=1, le=200),
     has_handwriting: Optional[bool] = Query(None)
 ):
     items, total = get_questions(
@@ -179,7 +318,7 @@ async def get_duplicates_summary():
     return get_duplicate_questions_summary()
 
 @app.post("/api/questions/duplicates/clean")
-async def clean_duplicates(data: CleanDuplicatesRequest):
+async def clean_duplicates(data: CleanDuplicatesRequest, _auth=Depends(require_api_token)):
     """Cleans duplicate questions keeping the primary record or specific IDs."""
     res = clean_duplicate_questions(action=data.action, delete_ids=data.delete_ids)
     log_collector_event(
@@ -195,8 +334,97 @@ async def get_db_diagnostics():
     """Runs a complete diagnostic health check on SQLite database."""
     return run_database_diagnostics()
 
+@app.get("/api/database/backups")
+async def list_db_backups(_auth=Depends(require_api_token)):
+    """Lists SQLite backup snapshots in data/backup (newest first)."""
+    from backend.database import DB_PATH
+    import sqlite3
+    backups = []
+    try:
+        bdir = _get_db_backup_dir()
+        for fname in sorted(os.listdir(bdir), reverse=True):
+            if not fname.endswith(".db"):
+                continue
+            fpath = os.path.join(bdir, fname)
+            try:
+                st = os.stat(fpath)
+                qcount = None
+                try:
+                    c = sqlite3.connect(f"file:{fpath}?mode=ro", uri=True, timeout=10.0)
+                    try:
+                        qcount = c.execute("SELECT COUNT(*) FROM questions").fetchone()[0]
+                    finally:
+                        c.close()
+                except Exception:
+                    qcount = None
+                backups.append({
+                    "filename": fname,
+                    "size_bytes": st.st_size,
+                    "modified_at": datetime.fromtimestamp(st.st_mtime, tz=VN_TZ).isoformat(),
+                    "questions": qcount,
+                })
+            except OSError:
+                continue
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi liệt kê backup: {e}")
+    try:
+        live = os.path.getsize(DB_PATH)
+    except OSError:
+        live = 0
+    return {"success": True, "live_db_bytes": live, "backups": backups}
+
+@app.post("/api/database/backup")
+async def create_db_backup_now(_auth=Depends(require_api_token)):
+    """Creates an immediate manual SQLite backup snapshot."""
+    fname = await asyncio.to_thread(_do_db_backup, "manual")
+    if not fname:
+        raise HTTPException(status_code=500, detail="Sao lưu CSDL thất bại")
+    return {"success": True, "filename": fname, "message": f"Đã sao lưu CSDL: {fname}"}
+
+@app.post("/api/database/restore")
+async def restore_db_backup(payload: dict, _auth=Depends(require_api_token)):
+    """Restores questions.db from a backup snapshot (auto pre-restore snapshot first)."""
+    import sqlite3
+    filename = str((payload or {}).get("filename", "")).strip()
+    if not filename or "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Tên file backup không hợp lệ")
+    if not filename.endswith(".db"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file .db")
+    src = os.path.join(_get_db_backup_dir(), filename)
+    if not os.path.isfile(src):
+        raise HTTPException(status_code=404, detail="Không tìm thấy file backup")
+    from backend.database import DB_PATH, init_db, invalidate_stats_cache
+    # Online integrity check of the snapshot before touching live DB
+    try:
+        c = sqlite3.connect(f"file:{src}?mode=ro", uri=True, timeout=10.0)
+        try:
+            ok = c.execute("PRAGMA quick_check").fetchone()[0]
+        finally:
+            c.close()
+        if str(ok).lower() != "ok":
+            raise HTTPException(status_code=400, detail=f"File backup hỏng integrity_check: {ok}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Không đọc được file backup: {e}")
+    # Safety snapshot of current live DB first
+    pre = await asyncio.to_thread(_do_db_backup, "pre-restore")
+    try:
+        shutil.copy2(src, DB_PATH)
+        init_db()
+        invalidate_stats_cache()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Khôi phục thất bại: {e}")
+    log_collector_event(
+        platform="database",
+        status="success",
+        message=f"Đã khôi phục CSDL từ {filename} (snapshot trước khôi phục: {pre}).",
+        count=0,
+    )
+    return {"success": True, "restored_from": filename, "pre_restore_snapshot": pre}
+
 @app.post("/api/database/diagnostics/fix")
-async def fix_db_anomalies():
+async def fix_db_anomalies(_auth=Depends(require_api_token)):
     """Auto-repairs database issues: cleans duplicates, fixes null subjects, vacuums DB."""
     res = fix_database_issues()
     log_collector_event(
@@ -275,14 +503,14 @@ async def update_question(question_id: str, data: QuestionUpdate):
     return {"success": True, "id": question_id, "message": "Cập nhật thành công"}
 
 @app.delete("/api/questions/{question_id}")
-async def remove_question(question_id: str):
+async def remove_question(question_id: str, _auth=Depends(require_api_token)):
     success = delete_question(question_id)
     if not success:
         raise HTTPException(status_code=404, detail="Không tìm thấy câu hỏi để xóa")
     return {"success": True, "message": "Đã xóa câu hỏi"}
 
 @app.post("/api/questions/bulk-delete")
-async def bulk_delete_questions_endpoint(payload: BulkDeleteRequest):
+async def bulk_delete_questions_endpoint(payload: BulkDeleteRequest, _auth=Depends(require_api_token)):
     """API xóa hàng loạt câu hỏi trong 1 transaction SQLite."""
     if not payload.question_ids:
         return {"success": True, "status": "success", "deleted_count": 0, "message": "Không có câu hỏi nào được chọn"}
@@ -304,7 +532,7 @@ async def bulk_delete_questions_endpoint(payload: BulkDeleteRequest):
         raise HTTPException(status_code=500, detail=f"Lỗi khi xóa hàng loạt: {str(err)}")
 
 @app.post("/api/questions/bulk-update-grade")
-async def bulk_update_grade_endpoint(payload: BulkUpdateGradeRequest):
+async def bulk_update_grade_endpoint(payload: BulkUpdateGradeRequest, _auth=Depends(require_api_token)):
     """API cập nhật khối lớp (Lớp 1 đến 12) hàng loạt trong 1 transaction SQLite."""
     if not (1 <= payload.grade <= 12):
         raise HTTPException(status_code=400, detail="Khối lớp không hợp lệ (chỉ chấp nhận từ 1 đến 12)")
@@ -470,7 +698,7 @@ async def api_shuffle_exam(data: ExamShuffleRequest):
     }
 
 @app.delete("/api/exams/{exam_id}")
-async def remove_exam(exam_id: str):
+async def remove_exam(exam_id: str, _auth=Depends(require_api_token)):
     success = delete_exam(exam_id)
     return {"success": success}
 
@@ -1250,9 +1478,22 @@ async def get_ai_vision_settings_api():
     from backend.ai_vision import get_ai_vision_settings
     return {"success": True, "settings": get_ai_vision_settings()}
 
+@app.post("/api/ai-vision/models")
 @app.get("/api/ai-vision/models")
-async def fetch_ai_vision_models_api(provider: str = Query("openrouter"), api_key: str = Query(""), base_url: str = Query("")):
-    """Scans and retrieves currently active live vision models from the provider."""
+async def fetch_ai_vision_models_api(request: Request, provider: str = Query("openrouter"), api_key: str = Query(""), base_url: str = Query("")):
+    """Scans and retrieves currently active live vision models from the provider.
+
+    Prefers POST JSON body {provider, api_key, base_url}; legacy GET query params
+    are kept for backward compatibility (frontend migrated to POST).
+    """
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        provider = body.get("provider", provider)
+        api_key = body.get("api_key", api_key)
+        base_url = body.get("base_url", base_url)
     from backend.ai_vision import fetch_live_vision_models
     res = await fetch_live_vision_models(provider=provider, api_key=api_key, base_url=base_url)
     return res
@@ -1313,7 +1554,7 @@ async def add_ocr_correction(req: OcrCorrectionCreate):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/api/ocr/corrections/{correction_id}")
-async def remove_ocr_correction(correction_id: int):
+async def remove_ocr_correction(correction_id: int, _auth=Depends(require_api_token)):
     """Deletes a specific correction rule from the lexicon."""
     from backend.database import delete_ocr_correction
     ok = delete_ocr_correction(correction_id)
@@ -1322,7 +1563,7 @@ async def remove_ocr_correction(correction_id: int):
     return {"success": True, "message": "Đã xóa quy tắc thành công"}
 
 @app.post("/api/ocr/corrections/clear")
-async def clear_ocr_corrections():
+async def clear_ocr_corrections(_auth=Depends(require_api_token)):
     """Clears all learned correction rules."""
     from backend.database import clear_all_ocr_corrections
     count = clear_all_ocr_corrections()
@@ -1400,14 +1641,14 @@ async def sync_collector_log(payload: dict):
     return {"success": True}
 
 @app.delete("/api/collect/logs")
-async def delete_logs():
+async def delete_logs(_auth=Depends(require_api_token)):
     clear_collector_logs()
     return {"success": True, "message": "Đã xóa toàn bộ nhật ký"}
 
 # ----------------- Sample Data Seeder -----------------
 
 @app.post("/api/init-samples")
-async def init_sample_questions():
+async def init_sample_questions(_auth=Depends(require_api_token)):
     """Seeds authentic sample math questions from VioEdu, Trạng Nguyên, TIMO, HKIMO, and ASMO."""
     samples = [
         # 1. VioEdu Grade 5 - Fractions

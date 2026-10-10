@@ -45,3 +45,6 @@ data/.batch_checkpoint.json
 
 # Images for training AI to create quiz
 data/training/
+
+# Local SQLite backups (auto daily + manual snapshots) — never commit
+data/backup/
