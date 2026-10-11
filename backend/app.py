@@ -2052,8 +2052,12 @@ from backend.scrapers.internet_hunter import run_internet_question_hunter, get_g
 async def trigger_internet_hunter(payload: dict):
     subject = payload.get("subject", "all")
     grade = int(payload.get("grade", 5))
-    custom_url = payload.get("custom_url")
+    custom_url = payload.get("custom_url") or payload.get("url")
     custom_urls = payload.get("custom_urls", [])
+    single = payload.get("url")
+    if single and single.strip() and single.strip() not in custom_urls \
+            and single.strip() != (custom_url or "").strip():
+        custom_urls = custom_urls + [single.strip()]
     result = await run_internet_question_hunter(
         subject=subject,
         grade=grade,

@@ -161,6 +161,15 @@ def test_vietjack_same_grade_prefers_same_subject():
         "leaf trac-nghiem pages (with answer keys) must rank before hub pages"
 
 
+def test_hunter_run_accepts_single_url_alias():
+    # /api/hunter/run must accept {"url": ...} as alias of custom_url so a
+    # single-URL POST actually fetches it (2026-10-12: 4 ingests with "url"
+    # silently fetched nothing, only parametric filler was saved).
+    src = _read("backend/app.py")
+    assert 'payload.get("url")' in src, \
+        "/api/hunter/run ignores the single 'url' field"
+
+
 # Grade 6-12 exam pages use a NEW layout (verified DOM 2026-10-12, a120884):
 # stem+options inline in one <p> ("Câu 1: ... A. ... B. ... C. ... D. ..."),
 # key in a <table> of "<N>. <X>" cells, solutions as "<p><strong>Câu N</strong></p>
