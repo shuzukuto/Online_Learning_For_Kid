@@ -37,7 +37,7 @@ from backend.database import (
 from backend.models import (
     QuestionCreate, QuestionUpdate, BulkQuestionCreate,
     BulkDeleteRequest, BulkDeleteQuestionsRequest, BulkUpdateGradeRequest,
-    ExamCreate, ScrapeRequest, AutoExamGenerateRequest, CleanDuplicatesRequest,
+    ExamCreate, ScrapeRequest, VioEduPlanRequest, AutoExamGenerateRequest, CleanDuplicatesRequest,
     ExamDiversityRequest, ExamDiversifyRequest, ExamSwapRequest, ExamShuffleRequest,
     PracticeSubmitRequest, PracticeAnswerSubmission, PracticeHistoryResponse, PracticeAnalyticsResponse,
     OcrLearnRequest, OcrCorrectionCreate, AiVisionSettingsRequest, AiVisionTestConnectionRequest
@@ -126,6 +126,8 @@ async def lifespan(app: FastAPI):
     # Launch daily OCR temp-file cleanup + daily DB backup in the background
     asyncio.create_task(_schedule_ocr_cleanup())
     asyncio.create_task(_schedule_db_backup())
+    # 24/7 VioEdu auto-crawl scheduler (honors system_config vioedu_auto_crawl)
+    asyncio.create_task(_schedule_vioedu_auto_crawl())
     yield
 
 app = FastAPI(
@@ -1576,6 +1578,82 @@ async def clear_ocr_corrections(_auth=Depends(require_api_token)):
 # In-memory registry for background breadth jobs (single worker; DB log is the durable record).
 _BREADTH_JOBS: dict = {}
 
+# Auto-crawl 24/7 config keys (system_config): vioedu_auto_crawl = on/off,
+# vioedu_auto_interval_sec (default 21600 = 6h), vioedu_auto_grades, vioedu_auto_subjects.
+VIOEDU_AUTO_DEFAULT_INTERVAL_SEC = 6 * 60 * 60
+
+
+async def _run_breadth_job(jid: str, grades, subjects, max_q: int, force: bool = False,
+                           recrawl_days: int = 7, source: str = "manual"):
+    """Shared breadth sweep runner: crawl -> normalize -> insert -> log.
+
+    Used by action=breadth, the unified vioedu-plan endpoint, and the 24/7
+    background scheduler."""
+    from backend.normalizer import normalize_question_payload as _norm, is_valid_question_payload as _valid
+    try:
+        sweep = await crawl_vioedu_breadth(grades=grades, subjects=subjects,
+            max_questions_per_skill=max_q, force=force, recrawl_days=recrawl_days)
+        fallback_grade = (grades or [2])[0] if grades else 2
+        normalized_list = []
+        for raw in sweep.get("questions", []):
+            subj = raw.pop("_breadth_subject", "math")
+            parsed = parse_vioedu_question_data(
+                raw, exam_name=f"VioEdu {subj} Lớp {raw.get('grade', fallback_grade)}",
+                grade=int(raw.get("grade") or fallback_grade), subject=subj)
+            if parsed:
+                try:
+                    norm_q = await _norm(parsed)
+                    valid, _ = _valid(norm_q)
+                    if valid:
+                        normalized_list.append(norm_q)
+                except Exception:
+                    pass
+        inserted = bulk_insert_questions(normalized_list, skip_duplicates=True) if normalized_list else 0
+        _BREADTH_JOBS[jid] = {"status": "done", "count": inserted, "source": source,
+            "stats": sweep.get("stats", {}), "skills_visited": sweep.get("skills_visited", 0)}
+        log_collector_event("vioedu", "success",
+            f"Cào diện rộng VioEdu [{source}]: {inserted} câu mới ({sweep.get('skills_visited', 0)} bài, {sweep.get('stats', {})})", inserted)
+    except Exception as e:
+        _BREADTH_JOBS[jid] = {"status": "error", "error": str(e)[:200], "count": 0, "source": source}
+        log_collector_event("vioedu", "error", f"Cào diện rộng VioEdu lỗi: {str(e)[:150]}", 0)
+
+
+async def _schedule_vioedu_auto_crawl():
+    """24/7 background scheduler: sweep stale skills on interval when enabled.
+
+    Reads system_config vioedu_auto_crawl (on/off). Skips while a breadth job
+    is already running. Ledger (7-day default) prevents re-crawling fresh skills.
+    First run 120s after startup so boot stays fast.
+    """
+    from backend.database import get_system_config
+    await asyncio.sleep(120)
+    while True:
+        try:
+            enabled = (get_system_config("vioedu_auto_crawl", "off") or "off").strip().lower() == "on"
+            if enabled and not any(j.get("status") == "running" for j in _BREADTH_JOBS.values()):
+                try:
+                    interval = int(get_system_config("vioedu_auto_interval_sec", str(VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)) or VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)
+                except ValueError:
+                    interval = VIOEDU_AUTO_DEFAULT_INTERVAL_SEC
+                grades_raw = (get_system_config("vioedu_auto_grades", "2") or "2").strip()
+                subs_raw = (get_system_config("vioedu_auto_subjects", "math,vietnamese,english") or "math,vietnamese,english").strip()
+                grades = [int(g) for g in grades_raw.split(",") if g.strip().isdigit()] or [2]
+                subjects = [s.strip().lower() for s in subs_raw.split(",") if s.strip()] or ["math", "vietnamese", "english"]
+                import time as _t
+                jid = f"auto-{int(_t.time())}"
+                _BREADTH_JOBS[jid] = {"status": "running", "stats": {}, "count": 0, "skills_visited": 0, "source": "auto"}
+                log_collector_event("vioedu", "running", f"Tự động cào định kỳ [{jid}] (khối={grades})", 0)
+                await _run_breadth_job(jid, grades, subjects, 12, force=False, recrawl_days=7, source="auto")
+            else:
+                try:
+                    interval = int(get_system_config("vioedu_auto_interval_sec", str(VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)) or VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)
+                except ValueError:
+                    interval = VIOEDU_AUTO_DEFAULT_INTERVAL_SEC
+        except Exception as e:
+            print(f"[VioEdu Auto] lỗi vòng lặp: {e}")
+            interval = 3600
+        await asyncio.sleep(max(600, interval))
+
 @app.post("/api/collect/run")
 async def run_collector_task(req: ScrapeRequest):
     platform = req.platform.lower()
@@ -1624,10 +1702,7 @@ async def run_collector_task(req: ScrapeRequest):
             log_collector_event("vioedu", "success", f"Thu thập Đấu trường #{req.round_id}", inserted)
             return {"success": True, "count": inserted, "questions": normalized_list}
         elif req.action == "breadth":
-            # Cào diện rộng toàn curriculum: không cần login (GraphQL public).
-            # subjects: ["math","vietnamese","english"]; grades vd [2] rồi mở rộng.
-            # Sweep hàng trăm bài x 12 câu mất nhiều phút -> chạy NỀN, trả ngay
-            # job id (worker duy nhất của uvicorn không bị giữ, browser không timeout).
+            # Cào diện rộng: chạy NỀN qua helper dùng chung, trả ngay job id.
             import time as _time
             import asyncio as _asyncio
             job_id = f"breadth-{int(_time.time())}"
@@ -1637,37 +1712,9 @@ async def run_collector_task(req: ScrapeRequest):
             grades = [req.grade] if req.grade else None
             max_q = req.max_questions or 12
             _BREADTH_JOBS[job_id] = {"status": "running", "stats": {}, "count": 0, "skills_visited": 0}
-
-            async def _run_breadth_job(jid: str):
-                from backend.normalizer import normalize_question_payload as _norm, is_valid_question_payload as _valid
-                try:
-                    sweep = await crawl_vioedu_breadth(grades=grades, subjects=subjects, max_questions_per_skill=max_q)
-                    normalized_list = []
-                    for raw in sweep.get("questions", []):
-                        subj = raw.pop("_breadth_subject", "math")
-                        parsed = parse_vioedu_question_data(
-                            raw, exam_name=f"VioEdu {subj} Lớp {raw.get('grade', req.grade or 2)}",
-                            grade=int(raw.get("grade") or req.grade or 2), subject=subj)
-                        if parsed:
-                            try:
-                                norm_q = await _norm(parsed)
-                                valid, _ = _valid(norm_q)
-                                if valid:
-                                    normalized_list.append(norm_q)
-                            except Exception:
-                                pass
-                    inserted = bulk_insert_questions(normalized_list, skip_duplicates=True) if normalized_list else 0
-                    _BREADTH_JOBS[jid] = {"status": "done", "count": inserted,
-                        "stats": sweep.get("stats", {}), "skills_visited": sweep.get("skills_visited", 0)}
-                    log_collector_event("vioedu", "success",
-                        f"Cào diện rộng VioEdu: {inserted} câu mới ({sweep.get('skills_visited', 0)} bài, {sweep.get('stats', {})})", inserted)
-                except Exception as e:
-                    _BREADTH_JOBS[jid] = {"status": "error", "error": str(e)[:200], "count": 0}
-                    log_collector_event("vioedu", "error", f"Cào diện rộng VioEdu lỗi: {str(e)[:150]}", 0)
-
             log_collector_event(platform="vioedu", status="running",
                 message=f"Cào diện rộng VioEdu (môn={subjects or 'all'}, khối={grades or 'all'}) [{job_id}]", count=0)
-            _asyncio.create_task(_run_breadth_job(job_id))
+            _asyncio.create_task(_run_breadth_job(job_id, grades, subjects, max_q, source="manual"))
             return {"success": True, "background": True, "job_id": job_id,
                     "message": "Đã chạy nền. Theo dõi tiến độ ở Nhật ký Thu thập."}
             
@@ -1685,6 +1732,59 @@ async def breadth_status(job_id: str = ""):
         return {"success": True, "job_id": job_id, **_BREADTH_JOBS[job_id]}
     recent = dict(list(_BREADTH_JOBS.items())[-5:])
     return {"success": True, "jobs": recent}
+
+
+@app.post("/api/collect/vioedu-plan")
+async def vioedu_plan(req: VioEduPlanRequest):
+    """Cụm điều khiển thống nhất: cào 1 lần / tự động 24/7 / diện rộng.
+
+    - breadth/once: khởi động job nền quét skill cũ (ledger 7 ngày), trả job id.
+    - auto: bật/tắt scheduler nền 24/7 (lưu system_config, không cần mở tab).
+    Không cần login VioEdu cho breadth (GraphQL công khai).
+    """
+    import time as _t
+    import asyncio as _a
+    from backend.database import get_system_config, set_system_config
+    mode = (req.mode or "breadth").strip().lower()
+    if mode not in ("once", "auto", "breadth"):
+        raise HTTPException(status_code=422, detail="mode phải là once | auto | breadth")
+    grades = req.grades or [2]
+    subjects = [s.strip().lower() for s in (req.subjects or ["math", "vietnamese", "english"]) if s.strip()] or ["math", "vietnamese", "english"]
+    if mode == "auto":
+        if req.auto_enabled is not None:
+            set_system_config("vioedu_auto_crawl", "on" if req.auto_enabled else "off")
+        if req.interval_sec:
+            set_system_config("vioedu_auto_interval_sec", str(max(600, req.interval_sec)))
+        set_system_config("vioedu_auto_grades", ",".join(str(g) for g in grades))
+        set_system_config("vioedu_auto_subjects", ",".join(subjects))
+        on = (get_system_config("vioedu_auto_crawl", "off") or "off") == "on"
+        return {"success": True, "mode": "auto", "enabled": on,
+                "grades": grades, "subjects": subjects,
+                "message": "Đã BẬT tự động cào nền 24/7." if on else "Đã TẮT tự động cào nền."}
+    jid = f"{mode}-{int(_t.time())}"
+    _BREADTH_JOBS[jid] = {"status": "running", "stats": {}, "count": 0, "skills_visited": 0, "source": mode}
+    log_collector_event("vioedu", "running", f"Cụm VioEdu [{mode}] khởi động [{jid}] (khối={grades})", 0)
+    _a.create_task(_run_breadth_job(jid, grades, subjects, req.max_questions or 12,
+        force=req.force, recrawl_days=7, source=mode))
+    return {"success": True, "mode": mode, "background": True, "job_id": jid,
+            "message": "Đã chạy nền. Poll /api/collect/breadth-status để xem tiến độ."}
+
+
+@app.get("/api/collect/vioedu-plan")
+async def vioedu_plan_status():
+    """Trạng thái cụm: scheduler auto on/off + 5 job gần nhất + ledger size."""
+    from backend.database import get_system_config
+    from backend.scrapers.vioedu import _load_skill_ledger
+    recent = dict(list(_BREADTH_JOBS.items())[-5:])
+    running = [jid for jid, j in _BREADTH_JOBS.items() if j.get("status") == "running"]
+    return {"success": True,
+            "auto_enabled": (get_system_config("vioedu_auto_crawl", "off") or "off") == "on",
+            "interval_sec": get_system_config("vioedu_auto_interval_sec", str(VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)),
+            "grades": get_system_config("vioedu_auto_grades", "2"),
+            "subjects": get_system_config("vioedu_auto_subjects", "math,vietnamese,english"),
+            "ledger_skills": len(_load_skill_ledger()),
+            "running_jobs": running,
+            "recent_jobs": recent}
 
 @app.get("/api/collect/logs")
 async def get_logs(limit: int = 50):

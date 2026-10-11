@@ -26,6 +26,83 @@ VIOEDU_SUBJECTS = {
 # Grades to sweep in breadth mode: focus grade 2 first, then expand 1-5.
 VIOEDU_BREADTH_GRADES = [2, 1, 3, 4, 5]
 
+# Re-crawl cooldown: a skill visited within this window is skipped
+# unless force=True (user chose 7 days).
+VIOEDU_RECRAWL_DAYS = 7
+
+
+def _skill_ledger_path() -> str:
+    # Anchor to DB_PATH so the ledger lives in the same persistent volume
+    # as questions.db (./data -> /app/data in Docker). Never beside the
+    # backend package: that path is ephemeral and lost on every rebuild.
+    from backend.database import DB_PATH
+    import os
+    d = os.path.dirname(os.path.abspath(DB_PATH))
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "vioedu_skill_ledger.json")
+
+
+def _load_skill_ledger() -> Dict[str, str]:
+    """skill_id -> ISO timestamp of last successful crawl."""
+    import json as _json
+    import os as _os
+    p = _skill_ledger_path()
+    if not _os.path.exists(p):
+        return {}
+    try:
+        with open(p, encoding="utf-8") as f:
+            data = _json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_skill_ledger(ledger: Dict[str, str]) -> None:
+    import json as _json
+    try:
+        with open(_skill_ledger_path(), "w", encoding="utf-8") as f:
+            _json.dump(ledger, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def record_skill_crawl(skill_id: str, when: Optional[str] = None) -> None:
+    """Mark a skill as crawled now (ISO timestamp). Pure file-backed ledger."""
+    if not skill_id:
+        return
+    ledger = _load_skill_ledger()
+    ledger[str(skill_id)] = when or datetime.now(VN_TZ).isoformat()
+    _save_skill_ledger(ledger)
+
+
+def get_stale_skills(skills: List[Dict[str, Any]], max_age_days: int = VIOEDU_RECRAWL_DAYS,
+                      now: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return only skills never crawled or crawled longer than max_age_days ago."""
+    from datetime import datetime as _dt
+    ledger = _load_skill_ledger()
+    try:
+        ref = _dt.fromisoformat(now) if now else datetime.now(VN_TZ)
+    except Exception:
+        ref = datetime.now(VN_TZ)
+    stale: List[Dict[str, Any]] = []
+    for s in skills:
+        sid = str(s.get("skill_id") or "")
+        if not sid:
+            continue
+        ts = ledger.get(sid)
+        if not ts:
+            stale.append(s)
+            continue
+        try:
+            last = _dt.fromisoformat(ts)
+            age = (ref - last).total_seconds() / 86400.0
+        except Exception:
+            stale.append(s)
+            continue
+        if age >= max_age_days:
+            stale.append(s)
+    return stale
+
 
 def merge_vioedu_explanation(question: Dict[str, Any], explanation: str) -> Dict[str, Any]:
     """Attach a separately-fetched loi giai to a question dict (pure helper).
@@ -654,11 +731,14 @@ async def crawl_vioedu_breadth(
     max_skills: Optional[int] = None,
     cookies: Optional[Dict[str, str]] = None,
     log_func: Optional[Callable[..., None]] = None,
+    force: bool = False,
+    recrawl_days: int = VIOEDU_RECRAWL_DAYS,
 ) -> Dict[str, Any]:
     """Breadth sweep over the FULL VioEdu curriculum (public GraphQL, no login).
 
     Iterates every category x skill for the requested grades x subjects and
     fetches practice questions read-only. Grade 2 first, then 1/3/4/5.
+    Skills crawled within recrawl_days are SKIPPED (ledger) unless force=True.
     Returns raw question dicts tagged with grade + subject for the caller
     to normalize/insert (dedup by content downstream via content_hash).
     """
@@ -680,6 +760,11 @@ async def crawl_vioedu_breadth(
                     discovered = await fetch_vioedu_skills_in_grade(
                         grade=grade, cookies=cookies, subject_id=sid, log_func=None
                     )
+                    fresh_skipped = 0
+                    if not force:
+                        before = len(discovered)
+                        discovered = get_stale_skills(discovered, max_age_days=recrawl_days)
+                        fresh_skipped = before - len(discovered)
                     if max_skills is not None:
                         discovered = discovered[:max_skills]
                     n_q = 0
@@ -696,10 +781,12 @@ async def crawl_vioedu_breadth(
                             raw["skillName"] = raw.get("skillName") or s.get("skill_name")
                             collected.append(raw)
                         n_q += len(sqs)
+                        record_skill_crawl(s["skill_id"])
                         await asyncio.sleep(0.2)
                     stats[f"{subj}_g{grade}"] = n_q
                     if log_func:
-                        log_func(f"📚 {info['label']} Lớp {grade}: {len(discovered)} bài, {n_q} câu.")
+                        skip_note = f" (bỏ qua {fresh_skipped} bài mới cào)" if fresh_skipped else ""
+                        log_func(f"📚 {info['label']} Lớp {grade}: {len(discovered)} bài, {n_q} câu{skip_note}.")
                     _ = client  # keep client scope explicit; fetches use their own sessions
     except Exception as e:
         if log_func:

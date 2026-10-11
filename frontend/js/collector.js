@@ -1200,10 +1200,11 @@ async function runAutoScraper() {
   }
 }
 
-// Cào diện rộng VioEdu: toàn curriculum 3 môn (Toán/TV/Anh), không cần login.
-// Grade = khối đang chọn ở dropdown scraper-grade.
+// Cào diện rộng VioEdu qua cụm thống nhất: toàn curriculum 3 môn, không cần login.
+// Bài mới cào trong 7 ngày tự bỏ qua (ledger), trừ khi tick "Cào lại bài cũ".
 async function runVioEduBreadth() {
   const grade = parseInt(document.getElementById("scraper-grade").value) || 2;
+  const force = document.getElementById("vioedu-force-recrawl")?.checked || false;
   const btn = document.getElementById("btn-vioedu-breadth");
   const timeNow = getLogTimeVN();
   scraperLogLines = [
@@ -1216,15 +1217,15 @@ async function runVioEduBreadth() {
     btn.innerHTML = `⏳ Đang quét toàn bộ Khối ${grade}...`;
   }
   try {
-    const res = await fetch(`${API_BASE}/collect/run`, {
+    const res = await fetch(`${API_BASE}/collect/vioedu-plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        platform: "vioedu",
-        action: "breadth",
-        grade: grade,
-        subject: "math,vietnamese,english",
-        max_questions: 12
+        mode: "breadth",
+        grades: [grade],
+        subjects: ["math", "vietnamese", "english"],
+        max_questions: 12,
+        force: force
       })
     });
     const data = await res.json();
@@ -1235,8 +1236,9 @@ async function runVioEduBreadth() {
       renderScraperLog();
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = "🌐 Cào diện rộng VioEdu (3 môn)";
+        btn.innerHTML = "🌐 Cào diện rộng (3 môn)";
       }
+      refreshVioEduHubStatus();
       pollBreadthStatus(data.job_id);
       loadCollectorLogs();
       return;
@@ -1265,10 +1267,29 @@ async function runVioEduBreadth() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = "🌐 Cào diện rộng VioEdu (3 môn)";
+      btn.innerHTML = "🌐 Cào diện rộng (3 môn)";
     }
     loadCollectorLogs();
   }
+}
+
+// Trạng thái cụm VioEdu: auto on/off + ledger + job gần nhất
+async function refreshVioEduHubStatus() {
+  const box = document.getElementById("vioedu-hub-status");
+  const txt = document.getElementById("vioedu-hub-status-text");
+  if (!box || !txt) return;
+  try {
+    const res = await fetch(`${API_BASE}/collect/vioedu-plan`);
+    const data = await res.json();
+    if (!data.success) return;
+    const autoTxt = data.auto_enabled ? "🟢 Tự động nền 24/7: BẬT" : "⚪ Tự động nền 24/7: TẮT";
+    const jobs = Object.entries(data.recent_jobs || {});
+    const last = jobs.length ? jobs[jobs.length - 1] : null;
+    const lastTxt = last ? `Job gần nhất: ${last[0]} (${last[1].status}, +${last[1].count || 0} câu, ${last[1].skills_visited || 0} bài)` : "Chưa có job nào";
+    const runTxt = (data.running_jobs || []).length ? ` | ⏳ Đang chạy: ${data.running_jobs.join(", ")}` : "";
+    txt.textContent = `${autoTxt} | 📒 Đã cào: ${data.ledger_skills || 0} bài | ${lastTxt}${runTxt}`;
+    box.style.display = "block";
+  } catch (e) { /* im lặng */ }
 }
 
 // Poll tiến độ job breadth nền mỗi 15s (tối đa ~20 phút), không giữ nút bấm
@@ -1288,6 +1309,7 @@ async function pollBreadthStatus(jobId, tries = 0) {
       loadDashboardStats();
       renderScraperLog();
       loadCollectorLogs();
+      refreshVioEduHubStatus();
       return;
     }
     if (st === "error") {
@@ -1295,6 +1317,7 @@ async function pollBreadthStatus(jobId, tries = 0) {
       showToast("Cào diện rộng lỗi: " + (data.error || "?"), "error");
       renderScraperLog();
       loadCollectorLogs();
+      refreshVioEduHubStatus();
       return;
     }
   } catch (e) { /* thử lại kỳ sau */ }
@@ -1955,21 +1978,34 @@ function applyGradeToAllSelectors(grade) {
 let botAutoCountdown = 300;
 let botAutoInterval = null;
 
-function toggleBotAutoCrawl(enable) {
+// Hub thống nhất: toggle bật/tắt scheduler nền 24/7 trên server
+// (server tự quét bài cũ theo ledger 7 ngày, không cần mở tab).
+// Vòng lặp countdown trong tab cũ được dừng để tránh cào trùng 2 nơi.
+async function toggleBotAutoCrawl(enable) {
   localStorage.setItem("eduquest_bot_autocrawl", enable ? "true" : "false");
   const badge = document.getElementById("bot-auto-crawl-badge");
   const toggle = document.getElementById("bot-auto-crawl-toggle");
-  if (toggle) toggle.checked = enable;
-
-  if (enable) {
-    if (badge) badge.style.display = "inline-flex";
-    startBotAutoCrawlLoop();
-    showToast("Đã BẬT chế độ Tự động cào VioEdu định kỳ (mỗi 5 phút)!");
-  } else {
+  stopBotAutoCrawlLoop();
+  try {
+    const grade = parseInt(document.getElementById("scraper-grade")?.value) || 2;
+    const res = await fetch(`${API_BASE}/collect/vioedu-plan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "auto", grades: [grade],
+        subjects: ["math", "vietnamese", "english"], auto_enabled: !!enable })
+    });
+    const data = await res.json();
+    const on = !!(data.success && data.enabled);
+    if (toggle) toggle.checked = on;
+    if (badge) badge.style.display = on ? "inline-flex" : "none";
+    showToast(on ? "Đã BẬT tự động cào nền 24/7 (server tự quét, không cần mở tab)!"
+                 : "Đã TẮT tự động cào nền.", on ? "success" : undefined);
+  } catch (e) {
+    if (toggle) toggle.checked = false;
     if (badge) badge.style.display = "none";
-    stopBotAutoCrawlLoop();
-    showToast("Đã TẮT chế độ Tự động cào VioEdu.");
+    showToast("Không kết nối được server để bật/tắt tự động cào.", "error");
   }
+  refreshVioEduHubStatus();
 }
 
 function startBotAutoCrawlLoop() {
@@ -2225,17 +2261,16 @@ function restoreCollectorSettings() {
     }
   }
 
-  // 4. Restore R1 Bot auto-crawl toggle & loop
-  const isBotAuto = localStorage.getItem("eduquest_bot_autocrawl") === "true";
-  const botToggle = document.getElementById("bot-auto-crawl-toggle");
-  if (botToggle) {
-    botToggle.checked = isBotAuto;
-    if (isBotAuto) {
+  // 4. Hub VioEdu: đồng bộ toggle theo scheduler backend (không chạy loop tab cũ)
+  fetch(`${API_BASE}/collect/vioedu-plan`).then(r => r.json()).then(st => {
+    const botToggle = document.getElementById("bot-auto-crawl-toggle");
+    if (botToggle && st.success) {
+      botToggle.checked = !!st.auto_enabled;
       const badge = document.getElementById("bot-auto-crawl-badge");
-      if (badge) badge.style.display = "inline-flex";
-      startBotAutoCrawlLoop();
+      if (badge) badge.style.display = st.auto_enabled ? "inline-flex" : "none";
     }
-  }
+  }).catch(() => { /* giữ trạng thái localStorage */ });
+  refreshVioEduHubStatus();
 
   // 5. Restore hunter target URLs list
   loadHunterTargetUrls();

@@ -14,16 +14,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
 
   <!-- Favicon & Brand Icons (EduQuest Pro) -->
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.0.51">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.0.51">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.0.51">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.0.51">
-  <link rel="shortcut icon" href="favicon.ico?v=1.0.51">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.0.52">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.0.52">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.0.52">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.0.52">
+  <link rel="shortcut icon" href="favicon.ico?v=1.0.52">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#2563eb">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.51">
+  <link rel="stylesheet" href="css/style.css?v=1.0.52">
 </head>
 <body>
   <div class="app-container">
@@ -690,7 +690,7 @@
                   <span>ĐANG TỰ ĐỘNG CÀO</span>
                   <span id="bot-countdown-display" class="countdown-timer-text">05:00</span>
                 </div>
-                <label class="toggle-switch" title="Bật/Tắt tự động cào định kỳ 5 phút">
+                <label class="toggle-switch" title="Bật/Tắt tự động cào nền 24/7 (server tự quét bài cũ, không cần mở tab)">
                   <input type="checkbox" id="bot-auto-crawl-toggle" onchange="toggleBotAutoCrawl(this.checked)" />
                   <span class="toggle-slider"></span>
                 </label>
@@ -743,12 +743,21 @@
                 </div>
               </div>
 
-              <button class="btn btn-primary" id="btn-run-scraper" onclick="runAutoScraper()" style="margin-top: 6px;">
-                🚀 Bắt đầu cào dữ liệu
-              </button>
-              <button class="btn" id="btn-vioedu-breadth" onclick="runVioEduBreadth()" style="margin-top: 6px; margin-left: 8px; background: #059669; color: #fff;" title="Quét toàn bộ bài luyện tập VioEdu Khối đang chọn (Toán + Tiếng Việt + Tiếng Anh), không cần đăng nhập">
-                🌐 Cào diện rộng VioEdu (3 môn)
-              </button>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; align-items: center;">
+                <button class="btn btn-primary" id="btn-run-scraper" onclick="runAutoScraper()">
+                  🚀 Cào theo tài khoản (vòng thi)
+                </button>
+                <button class="btn" id="btn-vioedu-breadth" onclick="runVioEduBreadth()" style="background: #059669; color: #fff;" title="Quét toàn bộ bài luyện tập VioEdu Khối đang chọn (Toán + Tiếng Việt + Tiếng Anh), không cần đăng nhập. Bài mới cào trong 7 ngày sẽ bỏ qua.">
+                  🌐 Cào diện rộng (3 môn)
+                </button>
+                <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; cursor: pointer;" title="Cào lại toàn bộ kể cả bài đã cào trong 7 ngày">
+                  <input type="checkbox" id="vioedu-force-recrawl" style="accent-color: #059669;" />
+                  Cào lại bài cũ
+                </label>
+              </div>
+              <div id="vioedu-hub-status" style="display: none; margin-top: 8px; font-size: 12px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; line-height: 1.6;">
+                <span id="vioedu-hub-status-text">—</span>
+              </div>
 
               <!-- Scraper Live Log Header with Copy & Clear buttons -->
               <div id="scraper-log-toolbar" style="display: none; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 4px;">
@@ -2452,12 +2461,12 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.51"></script>
-  <script src="js/bank.js?v=1.0.51"></script>
-  <script src="js/exam_builder.js?v=1.0.51"></script>
-  <script src="js/collector.js?v=1.0.51"></script>
-  <script src="js/practice.js?v=1.0.51"></script>
-  <script src="js/ai_agent_importer.js?v=1.0.51"></script>
+  <script src="js/app.js?v=1.0.52"></script>
+  <script src="js/bank.js?v=1.0.52"></script>
+  <script src="js/exam_builder.js?v=1.0.52"></script>
+  <script src="js/collector.js?v=1.0.52"></script>
+  <script src="js/practice.js?v=1.0.52"></script>
+  <script src="js/ai_agent_importer.js?v=1.0.52"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>

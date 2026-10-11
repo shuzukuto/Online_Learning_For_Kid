@@ -48,3 +48,5 @@ data/training/
 
 # Local SQLite backups (auto daily + manual snapshots) — never commit
 data/backup/
+# VioEdu skill ledger (runtime crawl state, lives beside questions.db) — never commit
+data/vioedu_skill_ledger.json

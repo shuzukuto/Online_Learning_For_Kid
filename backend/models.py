@@ -96,6 +96,17 @@ class ScrapeRequest(BaseModel):
     subject: Optional[str] = None  # breadth: "math,vietnamese,english" (None = all)
     max_questions: Optional[int] = 12  # breadth: questions per skill
 
+
+class VioEduPlanRequest(BaseModel):
+    """Unified VioEdu crawl hub: one entry for once/auto/breadth modes."""
+    mode: str = "breadth"  # once | auto | breadth
+    grades: Optional[List[int]] = None  # None = default [2]
+    subjects: Optional[List[str]] = None  # None = all 3
+    max_questions: int = 12
+    force: bool = False  # True = ignore 7-day ledger, re-crawl everything
+    auto_enabled: Optional[bool] = None  # mode=auto: persist on/off
+    interval_sec: Optional[int] = None  # mode=auto: persist interval
+
 class AutoExamGenerateRequest(BaseModel):
     subject: str = "math"
     grade: int = 5
