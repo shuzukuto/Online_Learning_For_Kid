@@ -834,6 +834,55 @@ GRADE2_MATH_OLYMPIAD_POOLS = [
 
 
 
+# Lời Giải Hay EXAM-listing IDs — VERIFIED live 2026-10-11 (all HTTP 200).
+# These de-thi-...-cNNN.html pages list exam detail pages (-aNNNNNN.html)
+# whose div.question blocks carry div.loigiai answer keys.
+# (The chapter pages toan-lop-X-c12X.html instead list doc-hieu van links.)
+LOIGIAIHAY_MATH_CAT = {1: 1211, 2: 1212, 3: 1215, 4: 1636, 5: 1990}
+LOIGIAIHAY_VN_CAT = {2: 1213, 3: 2269, 4: 1796, 5: 1994}
+LOIGIAIHAY_EN_CAT = {2: 1217, 3: 1218, 4: 1627, 5: 2008}
+LOIGIAIHAY_MATH_SLUGS = {
+    1: "de-thi-de-kiem-tra-toan-lop-1-ket-noi-tri-thuc-c1211.html",
+    2: "de-thi-de-kiem-tra-toan-lop-2-ket-noi-tri-thuc-c1212.html",
+    3: "de-thi-de-kiem-tra-toan-lop-3-ket-noi-tri-thuc-c1215.html",
+    4: "de-thi-de-kiem-tra-toan-lop-4-ket-noi-tri-thuc-c1636.html",
+    5: "de-thi-de-kiem-tra-toan-lop-5-ket-noi-tri-thuc-c1990.html",
+}
+LOIGIAIHAY_VN_SLUGS = {
+    2: "de-thi-de-kiem-tra-tieng-viet-lop-2-ket-noi-tri-thuc-c1213.html",
+    3: "de-thi-de-kiem-tra-tieng-viet-lop-3-ket-noi-tri-thuc-c2269.html",
+    4: "de-thi-de-kiem-tra-tieng-viet-lop-4-ket-noi-tri-thuc-c1796.html",
+    5: "de-thi-de-kiem-tra-tieng-viet-lop-5-ket-noi-tri-thuc-c1994.html",
+}
+LOIGIAIHAY_EN_SLUGS = {
+    2: "de-thi-de-kiem-tra-tieng-anh-lop-2-ket-noi-tri-thuc-c1217.html",
+    3: "de-thi-de-kiem-tra-tieng-anh-lop-3-global-success-c1218.html",
+    4: "de-thi-de-kiem-tra-tieng-anh-lop-4-global-success-c1627.html",
+    5: "de-thi-de-kiem-tra-tieng-anh-lop-5-global-success-c2008.html",
+}
+
+# education.com worksheet slugs per grade (verified 200)
+EDUCATION_GRADE_SLUGS = {
+    1: "first-grade", 2: "second-grade", 3: "third-grade",
+    4: "fourth-grade", 5: "fifth-grade",
+}
+
+# mathplayground game pages per grade (verified 200)
+MATHPLAYGROUND_GRADES = {1, 2, 3}
+
+# tienganh123 lesson pages per grade (verified 200, lop-{1..5}-moi.html)
+TIENGANH123_GRADES = {1, 2, 3, 4, 5}
+
+
+def build_loigiaihay_url(subject: str, grade: int) -> Optional[str]:
+    """Exam-listing URL for loigiaihay by subject+grade, or None if not on site."""
+    slug = {"math": LOIGIAIHAY_MATH_SLUGS, "vietnamese": LOIGIAIHAY_VN_SLUGS,
+            "english": LOIGIAIHAY_EN_SLUGS}.get(subject, {}).get(grade)
+    if not slug:
+        return None
+    return f"https://loigiaihay.com/{slug}"
+
+
 def extract_grade_from_url(url: str, default_grade: int = 5) -> int:
     """Extracts grade 1-12 from URL query params, path slugs, or text patterns."""
     if not url:
@@ -914,18 +963,27 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
             "desc": f"Hệ thống bài tập Toán Lớp {grade} bám sát chương trình GDPT (ĐH Sư Phạm)"
         },
         {
-            "name": f"VnDoc Toán Lớp {grade}",
-            "url": f"https://vndoc.com/toan-lop-{grade}",
+            "name": f"VnDoc Lớp {grade}",
+            "url": "https://vndoc.com/",
             "type": "worksheet",
-            "desc": f"Phiếu bài tập theo tuần, đề thi giữa kỳ & học kỳ Toán Lớp {grade}"
+            "desc": f"Phiếu bài tập theo tuần, đề thi giữa kỳ & học kỳ Lớp {grade} (trang chủ sống, link lop-X lẻ trả 400)"
         },
         {
-            "name": f"VietJack Toán Lớp {grade}",
-            "url": f"https://vietjack.com/toan-{grade}-kn/index.jsp",
+            "name": f"Lời Giải Hay Toán Lớp {grade}",
+            "url": build_loigiaihay_url("math", grade) or "",
             "type": "practice",
-            "desc": f"Bài tập trắc nghiệm và lời giải chi tiết Toán Lớp {grade}"
+            "desc": f"Bài tập trắc nghiệm và lời giải chi tiết Toán Lớp {grade} (verified 200)"
+        },
+        {
+            "name": f"Lời Giải Hay Tiếng Việt Lớp {grade}",
+            "url": build_loigiaihay_url("vietnamese", grade) or "",
+            "type": "practice",
+            "desc": f"Soạn bài & luyện từ câu Tiếng Việt Lớp {grade} (verified 200)"
         }
     ]
+    # Drop entries with no verified URL (e.g. TV grade 1, grades 6-12):
+    # a guessed category ID points at the WRONG subject's page.
+    vn_sources = [s for s in vn_sources if s.get("url")]
 
     # English US Common Core & Cambridge sources
     k5_slugs = {
@@ -973,6 +1031,42 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
             "desc": f"Trình tạo đề bài tập tự động chuẩn Common Core (Khối {grade})"
         }
     ]
+    # New verified EN sources (live 200, 2026-10-11). Tiểu học 1-5 có URL theo khối.
+    edu_slug = EDUCATION_GRADE_SLUGS.get(grade)
+    if edu_slug:
+        en_sources.append({
+            "name": f"Education.com Math Grade {grade}",
+            "url": f"https://www.education.com/worksheets/{edu_slug}/math/",
+            "type": "worksheets",
+            "desc": f"Phiếu bài tập Toán Grade {grade} in được kèm đáp án (verified 200)"
+        })
+        en_sources.append({
+            "name": f"Education.com ELA Grade {grade}",
+            "url": f"https://www.education.com/worksheets/{edu_slug}/ela/",
+            "type": "worksheets",
+            "desc": f"Phiếu đọc hiểu & ngữ pháp Tiếng Anh Grade {grade} (verified 200)"
+        })
+    if grade in MATHPLAYGROUND_GRADES:
+        ord_map = {1: "1", 2: "2", 3: "3"}
+        en_sources.append({
+            "name": f"MathPlayground Grade {grade}",
+            "url": f"https://www.mathplayground.com/grade_{ord_map[grade]}_games.html",
+            "type": "interactive",
+            "desc": f"Game Toán tương tác Grade {grade} (verified 200)"
+        })
+    if grade in TIENGANH123_GRADES:
+        en_sources.append({
+            "name": f"Tiếng Anh 123 Lớp {grade}",
+            "url": f"https://www.tienganh123.com/lop-{grade}-moi.html",
+            "type": "practice",
+            "desc": f"Bài tập Tiếng Anh Lớp {grade} thuần Việt kèm lời giải (verified 200)"
+        })
+    en_sources.append({
+        "name": "IOE Olympic Tiếng Anh",
+        "url": "https://ioe.vn/",
+        "type": "olympiad",
+        "desc": "Sân chơi Olympic Tiếng Anh IOE (trang chủ sống; trang con đổi slug nên không deep-link)"
+    })
 
     # Olympic & Logic Bilingual sources
     if grade in [1, 2]:

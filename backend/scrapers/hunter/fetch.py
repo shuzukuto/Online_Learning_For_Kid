@@ -11,12 +11,53 @@ from backend.classifier import classify_subject
 from backend.database import insert_or_update_question, log_collector_event
 from backend.normalizer import is_valid_question_payload, normalize_question_payload
 from backend.scrapers.hunter.parametric import generate_parametric_questions
-from backend.scrapers.hunter.parsing import parse_unstructured_questions
+from backend.scrapers.hunter.parsing import parse_loigiaihay_questions, parse_unstructured_questions
 from backend.scrapers.hunter.sources import (
     CODEMATH_OLYMPIAD_POOLS, GRADE2_MATH_EN_POOLS, GRADE2_MATH_OLYMPIAD_POOLS,
     GRADE2_MATH_VN_POOLS, HANHTRANGSO_CURRICULUM_POOLS, OPEN_EXAM_REPOSITORY,
     extract_grade_from_url,
 )
+
+
+def filter_loigiaihay_detail_urls(urls: List[str], category_url: str) -> List[str]:
+    """Sorts category detail links so same-subject+grade exam pages come first.
+
+    Category pages (e.g. toan-lop-2-c122.html) list exams of MANY grades plus
+    sidebar junk (doc-hieu, category -cNNN.html pages). The detail crawler only
+    visits the first few links, so without ranking it wastes its budget on the
+    wrong grade's exams. Score: +2 same subject slug, +3 same grade marker
+    (``toan-2`` / ``lop-2``), -5 sidebar junk (no ``-aNNNN`` detail id).
+    """
+    cat = (category_url or "").lower()
+    grade_m = re.search(r"lop-(\d+)", cat)
+    grade = grade_m.group(1) if grade_m else ""
+    subject = ""
+    for slug in ("toan", "tieng-viet", "tieng-anh", "vat-li", "hoa-hoc",
+                 "sinh-hoc", "lich-su", "dia-li", "ngu-van", "khtn"):
+        if slug in cat:
+            subject = slug
+            break
+
+    def score(u: str) -> int:
+        ul = u.lower()
+        if not re.search(r"-a\d+\.html", ul):
+            return -5  # not a detail page (sidebar/category link)
+        if ul.startswith("/doc-hieu-") or "/doc-hieu-" in ul:
+            return -4  # reading-comprehension section, never a math exam
+        s = 0
+        if grade:
+            # strict markers only: "<subject>-<grade>" or "lop-<grade>".
+            # Bare subject words match author names ("tran-quoc-toan"), and a
+            # bare "-<grade>-" matches junk like "doan-2-luyen" — both score 0.
+            if (subject and f"{subject}-{grade}" in ul) or f"lop-{grade}" in ul:
+                s += 5
+            elif re.search(rf"lop-(1[0-2]|[0-9])\b", ul):
+                s -= 3  # another grade's explicit category marker
+        elif subject and subject in ul:
+            s += 1
+        return s
+
+    return sorted(urls, key=lambda u: (-score(u), u))
 
 
 async def fetch_questions_from_web_url(url: str) -> List[Dict[str, Any]]:
@@ -264,7 +305,48 @@ async def fetch_questions_from_web_url(url: str) -> List[Dict[str, Any]]:
             questions.append(mp)
         return questions
 
-    # 9. General Educational Web Crawler (Vietjack, Loigiaihay, VnDoc, Tuyensinh247, etc.)
+    # 9. Specialized Handler: loigiaihay.com (two-tier: category -> exam detail).
+    # Category pages (toan-lop-X-cNNN.html) only list links; the real items live
+    # in exam detail pages (-aNNNNNN.html) as div.question blocks with
+    # div.loigiai answer keys (verified DOM 2026-10-11).
+    if "loigiaihay.com" in url_lower:
+        questions = []
+        grade = extract_grade_from_url(url_lower, default_grade=5)
+        headers_lgh = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+        try:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                resp = await client.get(url, headers=headers_lgh)
+                if resp.status_code == 200:
+                    detail_urls = sorted(set(re.findall(
+                        r'href="((?:https://loigiaihay\.com)?/[a-z0-9\-]+-a\d+\.html)"', resp.text)))
+                    detail_urls = filter_loigiaihay_detail_urls(detail_urls, url)
+                    if re.search(r"-a\d+\.html", url_lower):
+                        detail_urls = [url] + detail_urls
+                    for d in detail_urls[:6]:
+                        d_full = d if d.startswith("http") else f"https://loigiaihay.com{d}"
+                        try:
+                            d_resp = await client.get(d_full, headers=headers_lgh)
+                            if d_resp.status_code != 200:
+                                continue
+                            parsed = parse_loigiaihay_questions(d_resp.text, source_url=d_full)
+                            for p in parsed:
+                                p["grade"] = grade
+                                questions.append(p)
+                                if len(questions) >= 15:
+                                    break
+                        except Exception:
+                            continue
+                        if len(questions) >= 15:
+                            break
+        except Exception as e:
+            print(f"Error fetching loigiaihay url {url}: {e}")
+        if questions:
+            return questions
+        # Fall through to the general crawler when the category yields nothing.
+
+    # 10. General Educational Web Crawler (Vietjack, VnDoc, Tuyensinh247, etc.)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }

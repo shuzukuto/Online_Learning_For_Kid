@@ -151,3 +151,103 @@ def parse_unstructured_questions(text: str, source_url: str = "") -> List[Dict[s
             if is_valid:
                 results.append(candidate)
     return results
+
+
+def parse_loigiaihay_questions(html: str, source_url: str = "") -> List[Dict[str, Any]]:
+    """Parses loigiaihay.com exam pages (verified DOM 2026-10-11).
+
+    Each item is ``div.question`` containing ``.question-content-inner``
+    (stem), ``ul.dapan > li`` (``span.span-answer`` letter + ``div`` text)
+    and ``.loigiai`` (``b`` "Dap an : X" + ``.solution-detail`` text).
+    Returns validated payloads tagged ``source_platform="loigiaihay"``.
+    """
+    results: List[Dict[str, Any]] = []
+    if not html or "question-content" not in html:
+        return results
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return results
+    # Live pages repeat the exam twice (first pass lacks .loigiai answer keys).
+    # Dedup by stem, preferring the copy that carries a real answer key.
+    seen: Dict[str, int] = {}
+
+    for block in soup.find_all("div", class_=re.compile(r"^question(\s|$)")):
+        try:
+            inner = block.find(class_="question-content-inner")
+            if inner is None:
+                continue
+            idx_tag = inner.find("strong")
+            q_num = idx_tag.get_text(strip=True) if idx_tag else ""
+            stem_parts = [p.get_text(" ", strip=True) for p in inner.find_all("p")]
+            stem = " ".join(s for s in stem_parts if s).strip()
+            if not stem:
+                stem = inner.get_text(" ", strip=True).replace(q_num, "", 1).strip()
+            if len(stem) < 5:
+                continue
+
+            options = []
+            dapan = block.find("ul", class_=re.compile(r"dapan"))
+            if dapan is not None:
+                for li in dapan.find_all("li"):
+                    letter_tag = li.find("span", class_=re.compile(r"span-answer"))
+                    letter_raw = letter_tag.get_text(strip=True) if letter_tag else ""
+                    letter = re.sub(r"[^A-Da-d]", "", letter_raw).upper()
+                    opt_div = li.find("div")
+                    opt_text = opt_div.get_text(" ", strip=True) if opt_div else ""
+                    if letter and opt_text and len(opt_text) < 300:
+                        options.append({"id": letter, "content": opt_text, "is_correct": False})
+            if len(options) < 2:
+                continue
+
+            loigiai = block.find(class_="loigiai")
+            loigiai_text = loigiai.get_text(" ", strip=True) if loigiai else ""
+            ans_match = re.search(r"[Đđ]áp án\s*:\s*([A-D])\b", loigiai_text)
+            correct_ans = ans_match.group(1).upper() if ans_match else options[0]["id"]
+            for o in options:
+                if o["id"] == correct_ans:
+                    o["is_correct"] = True
+
+            explanation = ""
+            sol_detail = block.find(class_="solution-detail")
+            if sol_detail is not None:
+                explanation = re.sub(
+                    r"^\s*Lời giải chi tiết\s*:\s*", "",
+                    sol_detail.get_text(" ", strip=True),
+                ).strip()
+
+            q_text = re.sub(r"^(Câu|Bài)\s*\d+\s*[:.]\s*", "", stem, flags=re.IGNORECASE).strip() or stem
+            candidate = {
+                "id": f"lgh_{uuid.uuid4().hex[:10]}",
+                "source_platform": "loigiaihay",
+                "source_url": source_url or "https://loigiaihay.com/",
+                "exam_name": "Lời Giải Hay - Đề thi có lời giải chi tiết",
+                "grade": extract_grade_from_url(source_url, default_grade=5),
+                "subject": classify_subject(q_text),
+                "topic": "Đề thi Lời Giải Hay",
+                "question_type": "single_choice",
+                "content_html": f"<p>{q_text}</p>",
+                "content_text": q_text,
+                "images": [],
+                "options": options,
+                "correct_answer": correct_ans,
+                "explanation": explanation,
+                "difficulty": "medium",
+            }
+            is_valid, _ = is_valid_question_payload(candidate)
+            if is_valid:
+                key = re.sub(r"\s+", " ", q_text.lower()).strip()
+                has_key = bool(ans_match)
+                if key in seen:
+                    if has_key and not results[seen[key]].get("_lgh_has_key"):
+                        results[seen[key]] = candidate
+                        candidate["_lgh_has_key"] = True
+                else:
+                    candidate["_lgh_has_key"] = has_key
+                    seen[key] = len(results)
+                    results.append(candidate)
+        except Exception:
+            continue
+    for r in results:
+        r.pop("_lgh_has_key", None)
+    return results
