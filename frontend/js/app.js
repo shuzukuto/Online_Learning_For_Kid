@@ -1,7 +1,7 @@
 // EduQuest Pro - Core Application & Router
 // Version hien thi duoc cap nhat dong tu /api/version (backend/version.py la nguon duy nhat).
 // APP_VERSION giu lam gia tri fallback khi backend chua san sang.
-let APP_VERSION = "v1.0.43";
+let APP_VERSION = "v1.0.44";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
@@ -431,12 +431,38 @@ function formatMathSymbols(str) {
 }
 window.formatMathSymbols = formatMathSymbols;
 
+// Placeholder token: protects currency patterns ($50000$, $100000$) from being
+// parsed as KaTeX math delimiters. Uses \u0001/\u0002 control chars — never a
+// backslash, so a failed restore can NEVER render a stray "\" before digits.
+const CURRENCY_TOKEN_OPEN = "";
+const CURRENCY_TOKEN_CLOSE = "";
+
+// Pure helper: replace currency $...$ (digits inside, no letters/backslash —
+// i.e. NOT a formula like $\frac{}{}$ or $\text{}$) with placeholder tokens.
+// Real formulas are returned byte-identical.
+function escapeCurrencyForKatex(str) {
+  if (!str || typeof str !== "string") return str || "";
+  return str.replace(/\$(\s*\d[\d\s.,]*)\$/g, (m, inner) => {
+    // Safety: if inner contains a letter or backslash it is a formula — keep.
+    if (/[A-Za-z\\]/.test(inner)) return m;
+    return CURRENCY_TOKEN_OPEN + inner + CURRENCY_TOKEN_CLOSE;
+  });
+}
+
+// Pure helper: restore placeholders back to the original $...$ text.
+function restoreCurrencyAfterKatex(str) {
+  if (!str || typeof str !== "string") return str || "";
+  return str
+    .split(CURRENCY_TOKEN_OPEN).join("$")
+    .split(CURRENCY_TOKEN_CLOSE).join("$");
+}
+
 // Render KaTeX formulas in an element
 function renderMath(container) {
   if (!container || !window.renderMathInElement) return;
 
-  // 1. Quét các text nodes trong container, tự động escape các dấu $ tiền tệ đứng trước số ($(\d+)) thành \$1
-  // để KaTeX bỏ qua không bắt nhầm làm delimiter
+  // 1. Quét các text nodes trong container, thay các cụm tiền tệ $50000$
+  // bằng placeholder (không bao giờ dùng backslash để escape).
   const walker = document.createTreeWalker(
     container,
     NodeFilter.SHOW_TEXT,
@@ -461,9 +487,8 @@ function renderMath(container) {
     matchedNodes.push(current);
   }
 
-  // Tự động escape dấu $ đứng trước số: $3 -> \$3, $ 50 -> \$ 50
   matchedNodes.forEach(node => {
-    node.nodeValue = node.nodeValue.replace(/\$(\s*\d+)/g, (m, p1) => '\\$' + p1);
+    node.nodeValue = escapeCurrencyForKatex(node.nodeValue);
   });
 
   try {
@@ -477,20 +502,21 @@ function renderMath(container) {
       throwOnError: false
     });
   } finally {
-    // 2. Unescape lại sau khi render hoàn tất
-    matchedNodes.forEach(node => {
-      if (node.nodeValue && node.nodeValue.includes('\\$')) {
-        node.nodeValue = node.nodeValue.replace(/\\\$(\s*\d+)/g, (m, p1) => '$' + p1);
+    // 2. Khôi phục placeholder về $...$ gốc sau khi render hoàn tất
+    const restoreIn = (node) => {
+      if (node.nodeValue && (node.nodeValue.includes(CURRENCY_TOKEN_OPEN) || node.nodeValue.includes(CURRENCY_TOKEN_CLOSE))) {
+        node.nodeValue = restoreCurrencyAfterKatex(node.nodeValue);
       }
-    });
+    };
+    matchedNodes.forEach(restoreIn);
 
-    // Quét bổ sung dọn dẹp phòng trường hợp KaTeX chia tách text nodes
+    // Quét bổ sung phòng trường hợp KaTeX chia tách text nodes
     const cleanupWalker = document.createTreeWalker(
       container,
       NodeFilter.SHOW_TEXT,
       {
         acceptNode(node) {
-          if (node.nodeValue && node.nodeValue.includes('\\$')) {
+          if (node.nodeValue && (node.nodeValue.includes(CURRENCY_TOKEN_OPEN) || node.nodeValue.includes(CURRENCY_TOKEN_CLOSE))) {
             const parent = node.parentElement;
             if (parent && (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.classList.contains('katex'))) {
               return NodeFilter.FILTER_REJECT;
@@ -504,7 +530,7 @@ function renderMath(container) {
     );
     let cNode;
     while ((cNode = cleanupWalker.nextNode())) {
-      cNode.nodeValue = cNode.nodeValue.replace(/\\\$(\s*\d+)/g, (m, p1) => '$' + p1);
+      restoreIn(cNode);
     }
   }
 }

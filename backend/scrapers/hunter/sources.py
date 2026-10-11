@@ -897,19 +897,19 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
         },
         {
             "name": f"VioEdu Luyện tập Toán {grade}",
-            "url": "https://vio.edu.vn/luyen-tap",
+            "url": "https://vio.edu.vn/skill-list",
             "type": "interactive",
             "desc": f"Đấu trường toán học & Khóa luyện Toán Lớp {grade} (FPT)"
         },
         {
             "name": f"Trạng Nguyên Toán {grade}",
-            "url": "https://tnmath.edu.vn/luyen-tap",
+            "url": "https://tnmath.edu.vn/",
             "type": "interactive",
             "desc": f"Thi Hương, Thi Hội Toán Lớp {grade} Thuần Việt"
         },
         {
             "name": f"OLM.vn Toán Lớp {grade}",
-            "url": f"https://olm.vn/chu-de/toan-lop-{grade}",
+            "url": f"https://olm.vn/lop-{grade}",
             "type": "practice",
             "desc": f"Hệ thống bài tập Toán Lớp {grade} bám sát chương trình GDPT (ĐH Sư Phạm)"
         },
@@ -921,7 +921,7 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
         },
         {
             "name": f"VietJack Toán Lớp {grade}",
-            "url": f"https://vietjack.com/toan-lop-{grade}/index.jsp",
+            "url": f"https://vietjack.com/toan-{grade}-kn/index.jsp",
             "type": "practice",
             "desc": f"Bài tập trắc nghiệm và lời giải chi tiết Toán Lớp {grade}"
         }

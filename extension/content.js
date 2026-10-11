@@ -303,6 +303,25 @@
       addLog(`[MẠNG GÓI TIN] Bắt được gói tin từ ${event.data.url} (${(event.data.payload || []).length} mục)`, "net");
       processNetworkPayload(event.data.payload);
     }
+
+    // VioEdu GraphQL returns the solution/explanation in a SEPARATE packet
+    // (getQuestionResultQuery) AFTER the question. Attach it to the most
+    // recent captured question lacking an explanation so lời giải is kept.
+    if (event.data.type === "QUESTION_SOLUTION_CAPTURED") {
+      const exp = (event.data.explanation || "").trim();
+      if (exp && Array.isArray(capturedQuestions) && capturedQuestions.length > 0) {
+        for (let i = capturedQuestions.length - 1; i >= 0; i--) {
+          if (!capturedQuestions[i].explanation) {
+            capturedQuestions[i].explanation = exp;
+            addLog(`[LỜI GIẢI] Đã gắn lời giải VioEdu vào câu hỏi '${(capturedQuestions[i].content_text || "").substring(0, 30)}...'`, "success");
+            persistCapturedQuestions();
+            renderScannedModalQuestions();
+            break;
+          }
+        }
+      }
+      return;
+    }
   });
 
   // Strict Question Validator to reject junk, logs, UUIDs, game dialogs, and news/promos
@@ -571,7 +590,7 @@
         source_url: item.source_url || window.location.href,
         exam_name: item.exam_name || document.title || "Đề thi trực tuyến",
         grade: item.grade || detectGrade(),
-        subject: item.subject || "math",
+        subject: item.subject || (typeof detectSubject === "function" ? detectSubject() : "math"),
         topic: item.topic || item.skillName || item.skill_name || item.unit || "Luyện tập & Đấu trường",
         question_type: item.question_type || (options.length > 0 ? "single_choice" : "fill_blank"),
         content_html: item.content_html || rawContent || cleanText,

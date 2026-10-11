@@ -527,28 +527,144 @@ function stripMathForSpeech(raw) {
   return t;
 }
 
-function speakCurrentQuestion() {
+// Pure helper: split long speech text into speakable chunks (<= maxLen chars,
+// split on sentence boundaries). Chrome desktop stops ~15s/utterance, Android
+// WebView even sooner — one giant utterance = "TTS không kêu" symptom.
+function splitIntoSpeechChunks(text, maxLen) {
+  const t = String(text || "").replace(/\s+/g, " ").trim();
+  if (!t) return [];
+  const limit = Math.max(60, maxLen || 180);
+  if (t.length <= limit) return [t];
+  const parts = t.split(/(?<=[.!?…:;])\s+/);
+  const chunks = [];
+  let cur = "";
+  const pushCur = () => { const s = cur.trim(); if (s) chunks.push(s); cur = ""; };
+  for (const p of parts) {
+    if ((cur + " " + p).trim().length <= limit) {
+      cur = (cur + " " + p).trim();
+    } else {
+      pushCur();
+      if (p.length <= limit) {
+        cur = p;
+      } else {
+        // Hard-split very long segment on commas/spaces.
+        let rest = p;
+        while (rest.length > limit) {
+          let cut = rest.lastIndexOf(",", limit);
+          if (cut < 40) cut = rest.lastIndexOf(" ", limit);
+          if (cut < 40) cut = limit;
+          chunks.push(rest.slice(0, cut).trim());
+          rest = rest.slice(cut).replace(/^[,;\s]+/, "");
+        }
+        cur = rest;
+      }
+    }
+  }
+  pushCur();
+  return chunks;
+}
+
+function pickVietnameseVoice() {
+  try {
+    const voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return null;
+    const vi = voices.filter(v => (v.lang || "").toLowerCase().replace("_", "-").startsWith("vi"));
+    if (vi.length) {
+      const googleVi = vi.find(v => /google/i.test(v.name || ""));
+      return googleVi || vi[0];
+    }
+    const googleVn = voices.find(v => /google.{0,12}tiếng việt|google.{0,12}vietnam/i.test(v.name || ""));
+    return googleVn || null;
+  } catch (e) { return null; }
+}
+
+function waitForVoicesReady(timeoutMs) {
+  return new Promise(resolve => {
+    try {
+      const have = (window.speechSynthesis.getVoices() || []).length > 0;
+      if (have) { resolve(true); return; }
+      let done = false;
+      const finish = (v) => { if (!done) { done = true; resolve(v); } };
+      const timer = setTimeout(() => finish(false), timeoutMs || 1500);
+      const h = () => {
+        try {
+          if ((window.speechSynthesis.getVoices() || []).length > 0) {
+            clearTimeout(timer); finish(true);
+          }
+        } catch (e) {}
+      };
+      window.speechSynthesis.onvoiceschanged = h;
+      // Some browsers never fire the event — poll as backup.
+      const poll = setInterval(() => {
+        try {
+          if ((window.speechSynthesis.getVoices() || []).length > 0) {
+            clearInterval(poll); clearTimeout(timer); finish(true);
+          }
+        } catch (e) {}
+      }, 200);
+      setTimeout(() => clearInterval(poll), (timeoutMs || 1500) + 200);
+    } catch (e) { resolve(false); }
+  });
+}
+
+let ttsQueue = [];
+let ttsSpeaking = false;
+
+function resetTtsButton() {
+  ttsSpeaking = false;
+  ttsQueue = [];
+  const btn = document.getElementById("btn-tts-speak");
+  if (btn) { btn.textContent = "🔊 Đọc đề"; btn.onclick = () => speakCurrentQuestion(); }
+}
+
+function playNextTtsChunk() {
+  if (!ttsQueue.length) { resetTtsButton(); return; }
+  const chunk = ttsQueue.shift();
+  const u = new SpeechSynthesisUtterance(chunk);
+  u.lang = "vi-VN";
+  u.rate = 0.95;
+  const voice = pickVietnameseVoice();
+  if (voice) u.voice = voice;
+  const btn = document.getElementById("btn-tts-speak");
+  if (btn) { btn.textContent = `⏹ Dừng đọc (${ttsQueue.length + 1} đoạn)`; btn.onclick = () => { window.speechSynthesis.cancel(); resetTtsButton(); }; }
+  u.onend = () => {
+    if (!ttsQueue.length) { resetTtsButton(); return; }
+    playNextTtsChunk();
+  };
+  u.onerror = (ev) => {
+    // 'interrupted'/'canceled' = user pressed stop — silent. Real errors surface.
+    if (ev && (ev.error === "interrupted" || ev.error === "canceled")) { resetTtsButton(); return; }
+    console.warn("TTS chunk error:", ev && ev.error);
+    if (!ttsQueue.length) { resetTtsButton(); return; }
+    playNextTtsChunk();
+  };
+  // Keep the engine alive on Chrome (long pauses trigger its idle cutoff).
+  if (window._ttsResumeTimer) clearInterval(window._ttsResumeTimer);
+  window._ttsResumeTimer = setInterval(() => {
+    try { if (window.speechSynthesis.speaking && !ttsSpeaking) { window.speechSynthesis.resume(); } } catch (e) {}
+  }, 5000);
+  window.speechSynthesis.speak(u);
+}
+
+async function speakCurrentQuestion() {
   try {
     if (!("speechSynthesis" in window)) { alert("Trình duyệt này không hỗ trợ đọc thành tiếng."); return; }
     const q = practiceState.questions[practiceState.currentIndex];
-    if (!q) return;
+    if (!q) { if (typeof showToast === "function") showToast("Chưa tải câu hỏi để đọc.", "warning"); return; }
     window.speechSynthesis.cancel();
+    ttsQueue = [];
     const stem = stripMathForSpeech(q.content_html || q.content_text || "");
     const opts = (q.options || []).map(o => `Đáp án ${o.id}: ${stripMathForSpeech(o.content || "")}.`).join(" ");
-    const text = `Câu ${practiceState.currentIndex + 1}. ${stem}. ${opts}`;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "vi-VN";
-    u.rate = 0.95;
-    const btn = document.getElementById("btn-tts-speak");
-    if (btn) { btn.textContent = "⏹ Dừng đọc"; btn.onclick = () => { window.speechSynthesis.cancel(); resetTtsButton(); }; }
-    u.onend = resetTtsButton; u.onerror = resetTtsButton;
-    window.speechSynthesis.speak(u);
-  } catch (e) { console.warn("TTS error:", e); }
-}
-
-function resetTtsButton() {
-  const btn = document.getElementById("btn-tts-speak");
-  if (btn) { btn.textContent = "🔊 Đọc đề"; btn.onclick = () => speakCurrentQuestion(); }
+    const text = `Câu ${practiceState.currentIndex + 1}. ${stem}. ${opts}`.replace(/\s+/g, " ").trim();
+    if (!text || text.length < 8) { if (typeof showToast === "function") showToast("Nội dung câu hỏi trống, không đọc được.", "warning"); return; }
+    ttsSpeaking = true;
+    // Voices load async on first use — speaking before they exist = silence.
+    await waitForVoicesReady(1500);
+    ttsQueue = splitIntoSpeechChunks(text, 180);
+    if (!ttsQueue.length) { ttsSpeaking = false; return; }
+    if (typeof showToast === "function") showToast(`🔊 Đang đọc câu ${practiceState.currentIndex + 1}...`, "info");
+    playNextTtsChunk();
+  } catch (e) { console.warn("TTS error:", e); ttsSpeaking = false; }
 }
 
 // Select an option
@@ -1130,6 +1246,48 @@ async function loadPracticeAnalytics() {
   renderBadgesGrid(unlockedBadges);
 }
 
+// Pure helper: resolve one subject's mastery display state (self-contained:
+// no calls to other app functions, so it can be unit-tested in isolation).
+// 0 attempts -> hasData false, no fake baseline, never "Đạt yêu cầu".
+function resolveMasteryDisplay(subStat, localTests) {
+  const tests = Array.isArray(localTests) ? localTests : [];
+  const statusFor = (acc, has) => {
+    if (!has) return { text: "Chưa luyện tập", bg: "#f1f5f9", color: "#64748b" };
+    if (acc >= 85) return { text: "Thành thạo", bg: "#f0fdf4", color: "#15803d" };
+    if (acc < 60) return { text: "Cần rèn luyện", bg: "#fef2f2", color: "#b91c1c" };
+    return { text: "Đạt yêu cầu", bg: "#eff6ff", color: "#1d4ed8" };
+  };
+  const pack = (hasData, accuracy, attempts) => {
+    const st = statusFor(accuracy, hasData);
+    return { hasData: hasData, accuracy: accuracy, attempts: attempts, statusText: st.text, statusBg: st.bg, statusColor: st.color };
+  };
+  if (subStat !== null && subStat !== undefined) {
+    if (typeof subStat === "number") {
+      return pack(true, Math.round(subStat), 0);
+    }
+    if (typeof subStat === "object") {
+      const attempts = subStat.attempts || 0;
+      if (attempts <= 0 && (subStat.accuracy_rate === undefined || subStat.accuracy_rate === null)
+          && subStat.accuracy === undefined) {
+        return pack(false, null, 0);
+      }
+      const acc = subStat.accuracy_rate !== undefined && subStat.accuracy_rate !== null
+        ? subStat.accuracy_rate : subStat.accuracy;
+      if (acc === undefined || acc === null) {
+        return pack(false, null, attempts);
+      }
+      return pack(true, Math.round(acc), attempts);
+    }
+  }
+  if (tests.length > 0) {
+    const totalCorrect = tests.reduce((sum, t) => sum + (t.correct_count || 0), 0);
+    const totalQ = tests.reduce((sum, t) => sum + (t.total_questions || ((t.correct_count || 0) + (t.wrong_count || 0))), 0);
+    if (totalQ <= 0) return pack(false, null, tests.length);
+    return pack(true, Math.round((totalCorrect / totalQ) * 100), tests.length);
+  }
+  return pack(false, null, 0);
+}
+
 function renderSubjectMastery(serverMastery, history) {
   const container = document.getElementById("skill-mastery-container");
   if (!container) return;
@@ -1137,14 +1295,11 @@ function renderSubjectMastery(serverMastery, history) {
   const subjects = [
     { id: "math", name: "Toán Học", icon: "📐", color: "#2563eb" },
     { id: "vietnamese", name: "Tiếng Việt", icon: "📖", color: "#e11d48" },
-    { id: "english", name: "Tiếng Anh", icon: "🇬🇧", color: "#059669" },
+    { id: "english", name: "Tiếng Anh", icon: "🔤", color: "#059669" },
     { id: "science", name: "Khoa Học", icon: "🔬", color: "#7c3aed" }
   ];
 
   container.innerHTML = subjects.map(s => {
-    let accuracy = 75; // Default baseline
-    let totalAttempts = 0;
-
     let subStat = null;
     if (Array.isArray(serverMastery)) {
       subStat = serverMastery.find(m => m.subject === s.id);
@@ -1152,35 +1307,20 @@ function renderSubjectMastery(serverMastery, history) {
       subStat = serverMastery[s.id];
     }
 
-    if (subStat !== null && subStat !== undefined) {
-      if (typeof subStat === "number") {
-        accuracy = Math.round(subStat);
-      } else if (typeof subStat === "object") {
-        accuracy = Math.round(subStat.accuracy_rate !== undefined ? subStat.accuracy_rate : (subStat.accuracy || 75));
-        totalAttempts = subStat.attempts || 0;
-      }
-    } else if (history && history.length > 0) {
-      const subTests = history.filter(t => t.subject === s.id);
-      if (subTests.length > 0) {
-        totalAttempts = subTests.length;
-        const totalCorrect = subTests.reduce((sum, t) => sum + (t.correct_count || 0), 0);
-        const totalQ = subTests.reduce((sum, t) => sum + (t.total_questions || (t.correct_count + t.wrong_count)), 0);
-        accuracy = Math.round((totalCorrect / (totalQ || 1)) * 100);
-      }
-    }
+    const subTests = (history && history.length > 0) ? history.filter(t => t.subject === s.id) : [];
+    // Server stat (object/number) wins when present; otherwise local history backs it.
+    const display = (subStat !== null && subStat !== undefined)
+      ? resolveMasteryDisplay(subStat, subTests)
+      : resolveMasteryDisplay(null, subTests);
+    const hasData = display.hasData;
+    const accuracy = hasData ? display.accuracy : 0;
+    const totalAttempts = display.attempts;
+    const accuracyLabel = hasData ? `${accuracy}%` : "—";
 
-    let statusText = "Đạt yêu cầu";
-    let statusBg = "#eff6ff";
-    let statusColor = "#1d4ed8";
-    if (accuracy >= 85) {
-      statusText = "Thành thạo";
-      statusBg = "#f0fdf4";
-      statusColor = "#15803d";
-    } else if (accuracy < 60) {
-      statusText = "Cần rèn luyện";
-      statusBg = "#fef2f2";
-      statusColor = "#b91c1c";
-    }
+    const st = display;
+    const statusText = st.statusText;
+    const statusBg = st.statusBg;
+    const statusColor = st.statusColor;
 
     return `
       <div class="mastery-card">
@@ -1197,7 +1337,7 @@ function renderSubjectMastery(serverMastery, history) {
         <div>
           <div style="display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 6px;">
             <span style="color: #64748b;">Độ chính xác</span>
-            <span style="font-weight: 800; color: #0f172a;">${accuracy}%</span>
+            <span style="font-weight: 800; color: #0f172a;">${accuracyLabel}</span>
           </div>
           <div class="progress-bar-track">
             <div class="progress-bar-fill" style="width: ${accuracy}%; background: ${s.color};"></div>
