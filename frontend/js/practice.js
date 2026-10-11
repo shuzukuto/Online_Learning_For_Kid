@@ -160,7 +160,8 @@ function switchPracticeTab(tabId) {
     trending: document.getElementById("tab-practice-trending"),
     mastery: document.getElementById("tab-practice-mastery"),
     badges: document.getElementById("tab-practice-badges"),
-    history: document.getElementById("tab-practice-history")
+    history: document.getElementById("tab-practice-history"),
+    review: document.getElementById("tab-practice-review")
   };
 
   Object.keys(tabContents).forEach(key => {
@@ -177,7 +178,107 @@ function switchPracticeTab(tabId) {
     loadPracticeAnalytics();
   } else if (tabId === "history") {
     loadPracticeHistory();
+  } else if (tabId === "review") {
+    loadReviewDue();
   }
+}
+
+// ----------------- Spaced-Repetition Review (P1.3b) -----------------
+
+async function loadReviewDue() {
+  const tbody = document.getElementById("review-due-tbody");
+  const statsEl = document.getElementById("review-stats-text");
+  const badge = document.getElementById("review-due-badge");
+  try {
+    const [dueRes, statsRes] = await Promise.all([
+      fetch(`${API_BASE}/practice/review-due?limit=50`),
+      fetch(`${API_BASE}/practice/review-stats`)
+    ]);
+    const dueData = dueRes.ok ? await dueRes.json() : { due: [], count: 0 };
+    const statsData = statsRes.ok ? await statsRes.json() : { stats: {} };
+    const due = dueData.due || [];
+    const stats = statsData.stats || {};
+    if (statsEl) statsEl.innerText = `Đang theo dõi ${stats.total_tracked || 0} câu • ${stats.due_count || 0} câu đến hạn ôn`;
+    if (badge) {
+      if ((stats.due_count || 0) > 0) { badge.style.display = "inline-block"; badge.innerText = stats.due_count; }
+      else badge.style.display = "none";
+    }
+    window._reviewDueCache = due;
+    if (!tbody) return;
+    if (due.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">Chưa có câu nào đến hạn. Làm bài và câu sai sẽ tự quay lại đây nhé! 🔁</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = due.map(d => {
+      const dueStr = d.due_at ? new Date(d.due_at).toLocaleString("vi-VN") : "—";
+      return `<tr>
+        <td style="font-family: monospace; font-size: 12px;">${d.question_id}</td>
+        <td><span class="tag-badge" style="background: #eff6ff; color: #1d4ed8;">${getSubjectName(d.subject)}</span></td>
+        <td style="font-size: 13px;">Khối ${d.grade || 5}</td>
+        <td style="font-size: 13px; font-weight: 700;">${d.repetitions || 0} lần</td>
+        <td style="font-size: 13px;">${d.interval_days || 1} ngày</td>
+        <td style="font-size: 12.5px; color: #b91c1c; font-weight: 700;">${dueStr}</td>
+      </tr>`;
+    }).join("");
+  } catch (err) {
+    console.warn("Could not fetch review queue:", err);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">Không tải được danh sách ôn tập.</td></tr>`;
+  }
+}
+
+async function startReviewSession() {
+  const due = window._reviewDueCache || [];
+  if (due.length === 0) {
+    await loadReviewDue();
+    if ((window._reviewDueCache || []).length === 0) {
+      showToast("Chưa có câu nào đến hạn ôn. Làm thêm bài luyện tập nhé! 🔁", "warning");
+      return;
+    }
+  }
+  const ids = (window._reviewDueCache || []).map(d => d.question_id).filter(Boolean);
+  // Fetch full question payloads for due ids (chunked to respect page_size cap)
+  let questions = [];
+  try {
+    for (const qid of ids.slice(0, 20)) {
+      const r = await fetch(`${API_BASE}/questions/${encodeURIComponent(qid)}`);
+      if (r.ok) { const q = await r.json(); if (q && (q.id || q.content_text)) questions.push(q.item || q); }
+    }
+  } catch (err) { console.warn("fetch review questions failed:", err); }
+  if (questions.length === 0) { showToast("Không tải được câu hỏi ôn tập.", "error"); return; }
+  practiceState.inExam = true;
+  practiceState.examId = `review_${Date.now()}`;
+  practiceState.examTitle = `Ôn tập Lặp lại (${questions.length} câu đến hạn)`;
+  practiceState.subject = due[0]?.subject || "math";
+  practiceState.grade = due[0]?.grade || 5;
+  practiceState.questions = questions;
+  practiceState.currentIndex = 0;
+  practiceState.userAnswers = {};
+  practiceState.flaggedQuestions = new Set();
+  practiceState.timerTotalSec = Math.max(5, questions.length * 2) * 60;
+  practiceState.timerRemainingSec = practiceState.timerTotalSec;
+  practiceState.timeSpentSec = 0;
+  document.getElementById("practice-lobby").style.display = "none";
+  document.getElementById("practice-result-view").style.display = "none";
+  document.getElementById("practice-active-arena").style.display = "block";
+  document.getElementById("arena-title-text").innerText = practiceState.examTitle;
+  document.getElementById("arena-meta-text").innerText = `Ôn tập lặp lại • ${questions.length} câu`;
+  startArenaTimer();
+  renderArenaQuestion();
+  renderStepperGrid();
+  showToast(`Bắt đầu ôn ${questions.length} câu đến hạn! 🔁`);
+}
+
+async function refreshReviewBadge() {
+  try {
+    const res = await fetch(`${API_BASE}/practice/review-stats`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById("review-due-badge");
+    if (badge && data.stats && data.stats.due_count > 0) {
+      badge.style.display = "inline-block";
+      badge.innerText = data.stats.due_count;
+    }
+  } catch (e) { /* silent */ }
 }
 
 // ----------------- Practice Session Generator & Runner -----------------
@@ -408,6 +509,46 @@ function renderArenaQuestion() {
     renderMath(stemEl);
     renderMath(optionsGrid);
   }
+}
+
+// ── TTS: Text-to-Speech đọc đề cho bé chưa đọc thạo (P1.3a, Web Speech API miễn phí) ──
+function stripMathForSpeech(raw) {
+  if (!raw) return "";
+  let t = String(raw);
+  t = t.replace(/\$\$[\s\S]*?\$\$/g, " công thức ");
+  t = t.replace(/\$[^$\n]+?\$/g, " công thức ");
+  t = t.replace(/\\\(([\s\S]*?)\\\)/g, " $1 ");
+  t = t.replace(/\\\[([\s\S]*?)\\\]/g, " $1 ");
+  t = t.replace(/\\(frac|sqrt|times|div|pm|leq|geq|alpha|beta|pi)\b/g, " ");
+  t = t.replace(/[{}_^\\]/g, " ");
+  const div = document.createElement("div");
+  div.innerHTML = t;
+  t = (div.textContent || div.innerText || "").replace(/\s+/g, " ").trim();
+  return t;
+}
+
+function speakCurrentQuestion() {
+  try {
+    if (!("speechSynthesis" in window)) { alert("Trình duyệt này không hỗ trợ đọc thành tiếng."); return; }
+    const q = practiceState.questions[practiceState.currentIndex];
+    if (!q) return;
+    window.speechSynthesis.cancel();
+    const stem = stripMathForSpeech(q.content_html || q.content_text || "");
+    const opts = (q.options || []).map(o => `Đáp án ${o.id}: ${stripMathForSpeech(o.content || "")}.`).join(" ");
+    const text = `Câu ${practiceState.currentIndex + 1}. ${stem}. ${opts}`;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "vi-VN";
+    u.rate = 0.95;
+    const btn = document.getElementById("btn-tts-speak");
+    if (btn) { btn.textContent = "⏹ Dừng đọc"; btn.onclick = () => { window.speechSynthesis.cancel(); resetTtsButton(); }; }
+    u.onend = resetTtsButton; u.onerror = resetTtsButton;
+    window.speechSynthesis.speak(u);
+  } catch (e) { console.warn("TTS error:", e); }
+}
+
+function resetTtsButton() {
+  const btn = document.getElementById("btn-tts-speak");
+  if (btn) { btn.textContent = "🔊 Đọc đề"; btn.onclick = () => speakCurrentQuestion(); }
 }
 
 // Select an option

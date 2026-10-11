@@ -806,6 +806,9 @@
             <button class="practice-tab-btn" data-tab="history" onclick="switchPracticeTab('history')">
               📜 Lịch sử Làm bài
             </button>
+            <button class="practice-tab-btn" data-tab="review" onclick="switchPracticeTab('review')">
+              🔁 Ôn tập Lặp lại <span id="review-due-badge" style="display: none; background: #dc2626; color: white; font-size: 10.5px; font-weight: 800; border-radius: 10px; padding: 1px 7px; margin-left: 4px;"></span>
+            </button>
           </div>
 
           <!-- Tab 1: Start Practice Setup -->
@@ -968,6 +971,39 @@
               </div>
             </div>
           </div>
+
+          <!-- Tab 6: Spaced-Repetition Review (P1.3b) -->
+          <div id="tab-practice-review" style="display: none; margin-top: 16px;">
+            <div style="background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-xl); padding: 26px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                  <h3 style="font-size: 17px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">🔁 Ôn tập Lặp lại (Nhớ lâu)</h3>
+                  <p style="font-size: 13px; color: #64748b; margin: 0;" id="review-stats-text">Câu làm sai sẽ tự quay lại sau 1 → 3 → 7 → 14 → 30 ngày</p>
+                </div>
+                <span>
+                  <button class="btn btn-secondary btn-sm" onclick="loadReviewDue()">🔄 Tải lại</button>
+                  <button class="btn btn-primary btn-sm" id="btn-start-review" onclick="startReviewSession()">🚀 Ôn ngay</button>
+                </span>
+              </div>
+              <div style="overflow-x: auto;">
+                <table class="table" style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-size: 12.5px; text-transform: uppercase;">
+                      <th>Mã câu</th>
+                      <th>Bộ môn</th>
+                      <th>Khối</th>
+                      <th>Chuỗi đúng</th>
+                      <th>Kỳ hạn</th>
+                      <th>Đến hạn</th>
+                    </tr>
+                  </thead>
+                  <tbody id="review-due-tbody">
+                    <!-- Filled by JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 2. Active Exam Arena (HUD, Central Question Card & Stepper Grid) -->
@@ -1011,7 +1047,10 @@
             <div class="arena-main-card">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span class="q-number-pill" id="arena-q-index-pill" style="font-size: 13.5px; padding: 4px 12px;">Câu 1 / 10</span>
-                <span style="font-size: 12px; color: #64748b;">Dùng phím tắt <strong>1, 2, 3, 4</strong> hoặc <strong>A, B, C, D</strong> để chọn</span>
+                <span style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 12px; color: #64748b;">Dùng phím tắt <strong>1, 2, 3, 4</strong> hoặc <strong>A, B, C, D</strong> để chọn</span>
+                  <button type="button" id="btn-tts-speak" onclick="speakCurrentQuestion()" title="Đọc câu hỏi thành tiếng (cho bé chưa đọc thạo)" style="border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: 4px 10px; font-size: 14px; cursor: pointer;">🔊 Đọc đề</button>
+                </span>
               </div>
 
               <!-- Question Stem -->

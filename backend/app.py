@@ -31,7 +31,8 @@ from backend.database import (
     run_database_diagnostics, fix_database_issues, auto_generate_exam_questions,
     fetch_diverse_replacement_question,
     maybe_resequence_deferred,
-    save_practice_history, get_practice_history, get_practice_history_by_id, get_practice_analytics
+    save_practice_history, get_practice_history, get_practice_history_by_id, get_practice_analytics,
+    get_due_reviews, get_review_stats, record_review_results
 )
 from backend.models import (
     QuestionCreate, QuestionUpdate, BulkQuestionCreate,
@@ -2105,6 +2106,26 @@ async def submit_practice_exam(submission: PracticeSubmitRequest):
     history_record["id"] = record_id
     history_record["score_100"] = score_100
 
+    # P1.3b: feed per-question outcomes into the spaced-repetition queue
+    # (best-effort — never fails the submit if review tracking errors).
+    try:
+        record_review_results([
+            {
+                "question_id": a.get("question_id", ""),
+                "correct": bool(a.get("is_correct", False)),
+                "subject": a.get("subject") or submission.subject,
+                "grade": submission.grade,
+            }
+            for a in answers_detail
+            if a.get("question_id")
+        ])
+    except Exception as e:
+        logging.warning(f"[review] record_review_results failed: {e}")
+    try:
+        review_stats = get_review_stats()
+    except Exception:
+        review_stats = {"total_tracked": 0, "due_count": 0}
+
     return {
         "success": True,
         "id": record_id,
@@ -2123,7 +2144,8 @@ async def submit_practice_exam(submission: PracticeSubmitRequest):
         "time_spent_seconds": submission.time_spent_seconds,
         "ranking": ranking,
         "created_at": history_record["created_at"],
-        "answers_detail": answers_detail
+        "answers_detail": answers_detail,
+        "review_stats": review_stats
     }
 
 @app.get("/api/practice/history")
@@ -2155,6 +2177,25 @@ async def get_practice_analytics_report(
     """
     report = get_practice_analytics(subject=subject, grade=grade)
     return {"success": True, "analytics": report}
+
+@app.get("/api/practice/review-due")
+async def list_review_due(
+    subject: Optional[str] = Query(None),
+    grade: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200)
+):
+    """Returns questions due for spaced-repetition review (oldest due first)."""
+    due = get_due_reviews(subject=subject, grade=grade, limit=limit)
+    return {"success": True, "count": len(due), "due": due}
+
+@app.get("/api/practice/review-stats")
+async def get_review_stats_report(
+    subject: Optional[str] = Query(None),
+    grade: Optional[int] = Query(None)
+):
+    """Returns spaced-repetition stats: total tracked + due count."""
+    stats = get_review_stats(subject=subject, grade=grade)
+    return {"success": True, "stats": stats}
 
 # ----------------- Favicon Suppression (Clear Browser Cache) -----------------
 
