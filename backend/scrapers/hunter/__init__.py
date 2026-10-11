@@ -21,6 +21,7 @@ from backend.scrapers.hunter.parametric import (
 from backend.scrapers.hunter.parsing import (
     parse_loigiaihay_questions,
     parse_unstructured_questions,
+    parse_vietjack_questions,
 )
 
 from backend.scrapers.hunter.fetch import (

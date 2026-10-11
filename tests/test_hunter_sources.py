@@ -176,3 +176,70 @@ def test_parse_loigiaihay_dedups_repeated_blocks_prefers_answer_key():
                                      source_url="https://loigiaihay.com/x-a1.html")
     assert len(out) == 1
     assert out[0]["correct_answer"] == "B"
+
+
+# Expansion 2026-10-12 — verified live (urllib HTTP 200):
+# - vietjack bo-de-thi / bai-tap trac-nghiem toan 1-5 (.jsp, 43 cau + dap an)
+# - loigiaihay TV2-c2270 + TA2-c1327 (song song voi c1213/c1217: de ket-noi vs
+#   global-success — 2 bo sach khac nhau, ca 2 deu song)
+def test_grade_source_urls_include_vietjack_exam_packs():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import get_grade_source_urls
+    for grade in (1, 2, 3, 4, 5):
+        got = get_grade_source_urls(grade)
+        urls = [s["url"] for cat in got["categories"] for s in cat["sources"]]
+        assert any("vietjack.com" in u and f"lop-{grade}" in u for u in urls), \
+            f"grade {grade} missing vietjack exam-pack URL"
+
+
+def test_build_loigiaihay_url_covers_both_textbook_sets():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import build_loigiaihay_url
+    # grade 2 has TWO live listings (ket-noi c1213/c1217 + alternates c2270/c1327)
+    assert build_loigiaihay_url("vietnamese", 2) is not None
+    assert build_loigiaihay_url("english", 2) is not None
+
+
+# VietJack .jsp fixture (verbatim structure from live page
+# de-thi-giua-ki-1-toan-lop-2-chan-troi-sang-tao.jsp, 2026-10-12):
+# stem in <p><strong>Cau N:</strong>...</p>, options in sibling <p>A/B/C/D.</p>,
+# answer key in a <table> (header row Cau 1..N, second row letters).
+VIETJACK_EXAM_HTML = (
+    '<p><strong>Câu 1:</strong> Số gồm 6 chục và 7 đơn vị được viết là:</p>'
+    '<p>A. 76</p><p>B. 67</p><p>C. 70</p><p>D. 60</p>'
+    '<p><strong>Câu 2:</strong> Điền số thích hợp vào chỗ chấm: 54 = 50 + .....</p>'
+    '<p>A. 4</p><p>B. 5</p><p>C. 50</p><p>D. 40</p>'
+    '<h3><strong>I. Trắc nghiệm: 4 điểm (mỗi câu đúng được 0,5 điểm)</strong></h3>'
+    '<table border="1" cellpadding="5" cellspacing="0" class="table table-bordered"><tbody>'
+    '<tr><td><strong>Câu 1</strong></td><td><strong>Câu 2</strong></td></tr>'
+    '<tr><td><strong>B</strong></td><td><strong>A</strong></td></tr>'
+    '</tbody></table>'
+)
+
+
+def test_parse_vietjack_extracts_question_answer_key():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.parsing import parse_vietjack_questions
+    out = parse_vietjack_questions(
+        VIETJACK_EXAM_HTML,
+        source_url="https://vietjack.com/de-kiem-tra-lop-2/de-thi-giua-ki-1-toan-lop-2-chan-troi-sang-tao.jsp")
+    assert len(out) == 2, out
+    assert "6 chục" in out[0]["content_text"]
+    assert len(out[0]["options"]) == 4
+    assert out[0]["correct_answer"] == "B"
+    assert out[1]["correct_answer"] == "A"
+    assert out[0]["source_platform"] == "vietjack"
+
+
+def test_fetch_dispatches_vietjack_to_dedicated_parser():
+    src = _read("backend/scrapers/hunter/fetch.py")
+    assert "parse_vietjack_questions" in src, \
+        "fetch.py must route vietjack URLs to parse_vietjack_questions (not generic crawler)"
+
+
+def test_hunter_package_exports_vietjack_parser():
+    src = _read("backend/scrapers/hunter/__init__.py")
+    assert "parse_vietjack_questions" in src

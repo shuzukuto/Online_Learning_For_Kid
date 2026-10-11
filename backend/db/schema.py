@@ -216,5 +216,11 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_review_due_at ON review_queue (due_at);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_review_subject_grade ON review_queue (subject, grade);")
 
+    # 10. Account Auth Tables (login/register/approval/sessions).
+    # Logic lives in backend/auth.py; tables are created here so every
+    # init_db() (app start, backup-restore) carries them.
+    from backend.auth import init_auth_tables
+    init_auth_tables(conn)
+
     conn.commit()
     conn.close()

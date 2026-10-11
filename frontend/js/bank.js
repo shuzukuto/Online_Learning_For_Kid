@@ -1293,6 +1293,7 @@ async function submitContributeFile() {
 
     const res = await fetch(`${API_BASE}/contribute/upload`, {
       method: "POST",
+      headers: (window.EduAuth && window.EduAuth.authHeaders()) || {},
       body: formData
     });
     const data = await res.json();

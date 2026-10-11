@@ -94,12 +94,35 @@ def _check_rate_limit(client_ip: str) -> bool:
 
 
 def require_api_token(request: Request):
-    """Enforces X-API-Token on destructive/admin endpoints — only when API_TOKEN env is set.
-    Local default (env empty) keeps current open behavior so the dashboard & extension keep working."""
+    """Enforces credential on destructive/admin endpoints.
+
+    Accepts EITHER a valid admin Bearer session (account login) OR the
+    X-API-Token header (when API_TOKEN env is set). Local default (env empty
+    AND no Bearer token) keeps pass-through so the dashboard & extension keep
+    working. Ingest paths (collect, sync, bulk-insert) are intentionally NOT
+    gated so zero-click extension sync never breaks.
+    """
+    # 1. Admin session (account login) is always accepted.
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        try:
+            from backend import auth as A
+            from backend.database import get_connection
+            conn = get_connection()
+            try:
+                user = A.get_session_user(conn, auth[7:].strip())
+            finally:
+                conn.close()
+            if user is not None and user["role"] == "admin" and user["status"] == "active":
+                return None
+        except Exception:
+            pass
+        # Bearer present but invalid -> fall through to token check below
+    # 2. Legacy X-API-Token (only enforced when env is set).
     if not API_TOKEN:
         return None
     if request.headers.get("X-API-Token", "") != API_TOKEN:
-        raise HTTPException(status_code=401, detail="Thiếu hoặc sai API token (header X-API-Token)")
+        raise HTTPException(status_code=401, detail="Thiếu hoặc sai credential (đăng nhập admin hoặc header X-API-Token)")
     return None
 
 
@@ -2398,16 +2421,145 @@ async def upload_media_file(file: UploadFile = File(...)):
     public_url = f"/media/{unique_name}"
     return {"success": True, "url": public_url, "filename": unique_name, "size": len(contents)}
 
+# ----------------- Account Auth Endpoints -----------------
+# Register: username + password (pending approval). Login: active only.
+# Sessions are opaque Bearer tokens; admin (luanpt) approves new accounts.
+
+def _auth_conn():
+    from backend.database import get_connection
+    return get_connection()
+
+
+def _bearer_token(request: Request) -> str:
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:].strip()
+    return ""
+
+
+def _require_session(request: Request):
+    from backend import auth as A
+    conn = _auth_conn()
+    try:
+        user = A.get_session_user(conn, _bearer_token(request))
+    finally:
+        conn.close()
+    if user is None:
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập hoặc phiên đã hết hạn.")
+    return {"username": user["username"], "role": user["role"], "status": user["status"]}
+
+
+def _require_admin(request: Request):
+    me = _require_session(request)
+    if me["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ admin mới được thực hiện.")
+    return me
+
+
+@app.post("/api/auth/register")
+async def auth_register(payload: dict):
+    from backend import auth as A
+    conn = _auth_conn()
+    try:
+        ok, msg = A.register_user(conn, payload.get("username", ""), payload.get("password", ""))
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
+@app.post("/api/auth/login")
+async def auth_login(payload: dict):
+    from backend import auth as A
+    conn = _auth_conn()
+    try:
+        token, msg = A.login_user(conn, payload.get("username", ""), payload.get("password", ""))
+        me = A.get_session_user(conn, token) if token else None
+    finally:
+        conn.close()
+    if not token or me is None:
+        raise HTTPException(status_code=401, detail=msg)
+    return {"success": True, "message": msg, "token": token,
+            "username": me["username"], "role": me["role"]}
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request):
+    from backend import auth as A
+    conn = _auth_conn()
+    try:
+        A.logout_user(conn, _bearer_token(request))
+    finally:
+        conn.close()
+    return {"success": True, "message": "Đã đăng xuất."}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    return {"success": True, "user": _require_session(request)}
+
+
+@app.post("/api/auth/change-password")
+async def auth_change_password(request: Request, payload: dict):
+    from backend import auth as A
+    me = _require_session(request)
+    conn = _auth_conn()
+    try:
+        ok, msg = A.change_password(conn, me["username"],
+                                    payload.get("old_password", ""),
+                                    payload.get("new_password", ""))
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
+@app.get("/api/auth/users")
+async def auth_list_users(request: Request):
+    from backend import auth as A
+    _require_admin(request)
+    conn = _auth_conn()
+    try:
+        users = A.list_users(conn)
+    finally:
+        conn.close()
+    return {"success": True, "users": users}
+
+
+@app.post("/api/auth/approve")
+async def auth_approve_user(request: Request, payload: dict):
+    from backend import auth as A
+    me = _require_admin(request)
+    conn = _auth_conn()
+    try:
+        ok, msg = A.set_user_status(conn, payload.get("username", ""),
+                                    payload.get("status", "active"), by=me["username"])
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
 # ----------------- Question Bank Contribution Endpoint -----------------
 
 @app.post("/api/contribute/upload")
 async def upload_contribute_file(
+    request: Request,
     file: UploadFile = File(...),
     contributor_name: Optional[str] = Form(None),
     notes: Optional[str] = Form(None)
 ):
     """Allows users/teachers to contribute exam files (PDF, Word, Image, Text) to the training pool."""
     import unicodedata
+    # Logged-in username is embedded in the saved filename (user request).
+    account_name = ""
+    try:
+        account_name = _require_session(request)["username"]
+    except HTTPException:
+        account_name = ""
     allowed_ext = {".png", ".jpg", ".jpeg", ".pdf", ".docx", ".txt", ".webp", ".bmp"}
     orig_filename = file.filename or "tai_lieu"
     base_name, ext = os.path.splitext(orig_filename)
@@ -2429,7 +2581,15 @@ async def upload_contribute_file(
         clean_name = "de_thi"
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    target_filename = f"{clean_name}_{ts}_contribute{ext}"
+    # Logged-in account is part of the filename (user request); fall back to
+    # the typed contributor name, then anonymous.
+    who = re.sub(r"[^\w\-.]", "_", (account_name or "").strip().lower()).strip("_")
+    if not who and contributor_name:
+        who = re.sub(r"[^\w\-.]", "_", unicodedata.normalize(
+            'NFKD', contributor_name.strip()).encode('ASCII', 'ignore').decode('utf-8')).strip("_").lower()
+    if not who:
+        who = "an_danh"
+    target_filename = f"{clean_name}_{who}_{ts}_contribute{ext}"
 
     training_dir = os.path.join(BASE_DIR, "data", "training")
     os.makedirs(training_dir, exist_ok=True)
@@ -2439,7 +2599,9 @@ async def upload_contribute_file(
         f.write(contents)
 
     log_msg = f"Đã nhận tệp đóng góp: {target_filename}"
-    if contributor_name:
+    if account_name:
+        log_msg += f" (tài khoản: {account_name})"
+    elif contributor_name:
         log_msg += f" từ {contributor_name.strip()}"
     if notes:
         log_msg += f" (Ghi chú: {notes.strip()})"

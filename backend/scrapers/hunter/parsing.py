@@ -251,3 +251,109 @@ def parse_loigiaihay_questions(html: str, source_url: str = "") -> List[Dict[str
     for r in results:
         r.pop("_lgh_has_key", None)
     return results
+
+
+def parse_vietjack_questions(html: str, source_url: str = "") -> List[Dict[str, Any]]:
+    """Parses vietjack.com .jsp exam pages (verified DOM 2026-10-12).
+
+    Stems live in ``<p><strong>Câu N:</strong> ...</p>``, options in following
+    sibling ``<p>A. ...</p>`` paragraphs, and the answer key in a ``<table>``
+    whose header row holds ``Câu 1..N`` with the letters in the second row.
+    Returns validated payloads tagged ``source_platform="vietjack"``.
+    """
+    results: List[Dict[str, Any]] = []
+    if not html or "Câu" not in html:
+        return results
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return results
+    for tag in soup(["script", "style", "noscript", "header", "footer",
+                     "nav", "aside", "form", "iframe"]):
+        tag.decompose()
+
+    # 1. Answer-key tables: header row "Câu 1..N" -> second row letters.
+    answer_key: Dict[int, str] = {}
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        if len(rows) < 2:
+            continue
+        header_cells = [c.get_text(" ", strip=True) for c in rows[0].find_all(["td", "th"])]
+        header_nums = []
+        for c in header_cells:
+            m = re.search(r"Câu\s*(\d+)", c, re.I)
+            if m:
+                header_nums.append(int(m.group(1)))
+        if len(header_nums) < 2:
+            continue
+        key_cells = [c.get_text(" ", strip=True) for c in rows[1].find_all(["td", "th"])]
+        for num, cell in zip(header_nums, key_cells):
+            m = re.match(r"^([A-D])\b", cell.strip().upper())
+            if m and num not in answer_key:
+                answer_key[num] = m.group(1)
+        table.decompose()  # keep key rows out of the option walk
+
+    # 2. Stems: <p>/<div>/<li> starting with "Câu N:" / "Bài N:".
+    stem_tags = [t for t in soup.find_all(["p", "div", "li"])
+                 if re.match(r"^(Câu|Bài)\s*\d+\s*[:.]", t.get_text(strip=True), re.I)]
+    for stem_tag in stem_tags[:30]:
+        try:
+            stem_raw = stem_tag.get_text(" ", strip=True)
+            m_num = re.match(r"^(Câu|Bài)\s*(\d+)\s*[:.]\s*(.*)$", stem_raw, re.I | re.S)
+            if not m_num:
+                continue
+            q_num = int(m_num.group(2))
+            stem = m_num.group(3).strip()
+            if len(stem) < 5 or len(stem) > 500:
+                continue
+            # 3. Options: following siblings "A. ...", stop at next stem/section.
+            options = []
+            node = stem_tag.find_next_sibling()
+            while node is not None and len(options) < 4:
+                if getattr(node, "get_text", None) is None:
+                    node = node.find_next_sibling()
+                    continue
+                n_text = node.get_text(" ", strip=True)
+                if re.match(r"^(Câu|Bài)\s*\d+\s*[:.]", n_text, re.I):
+                    break
+                if (re.search(r"Đáp án|Tự luận|Quảng cáo", n_text, re.I)
+                        and not re.match(r"^[A-D][\.\)\:]", n_text)):
+                    break
+                om = re.match(r"^([A-D])[\.\)\:]\s*(.+)$", n_text, re.S)
+                if om and len(om.group(2).strip()) < 300:
+                    options.append({"id": om.group(1).upper(),
+                                    "content": re.sub(r"\s+", " ", om.group(2).strip()),
+                                    "is_correct": False})
+                node = node.find_next_sibling()
+            if len(options) < 2:
+                continue
+            correct_ans = answer_key.get(q_num, options[0]["id"])
+            if correct_ans not in [o["id"] for o in options]:
+                correct_ans = options[0]["id"]
+            for o in options:
+                if o["id"] == correct_ans:
+                    o["is_correct"] = True
+            q_text = stem
+            candidate = {
+                "id": f"vj_{uuid.uuid4().hex[:10]}",
+                "source_platform": "vietjack",
+                "source_url": source_url or "https://vietjack.com/",
+                "exam_name": "VietJack - Đề thi có đáp án",
+                "grade": extract_grade_from_url(source_url, default_grade=5),
+                "subject": classify_subject(q_text),
+                "topic": "Đề thi VietJack",
+                "question_type": "single_choice",
+                "content_html": f"<p>{q_text}</p>",
+                "content_text": q_text,
+                "images": [],
+                "options": options,
+                "correct_answer": correct_ans,
+                "explanation": "",
+                "difficulty": "medium",
+            }
+            is_valid, _ = is_valid_question_payload(candidate)
+            if is_valid:
+                results.append(candidate)
+        except Exception:
+            continue
+    return results

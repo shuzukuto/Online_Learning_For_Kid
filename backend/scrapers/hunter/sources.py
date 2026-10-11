@@ -861,6 +861,32 @@ LOIGIAIHAY_EN_SLUGS = {
     5: "de-thi-de-kiem-tra-tieng-anh-lop-5-global-success-c2008.html",
 }
 
+# vietjack exam-pack URLs — VERIFIED live 2026-10-12 (all HTTP 200).
+# NOTE two slug families: lop-{1,2,3} vs toan-lop-4 vs toan-5 (verified each).
+VIETJACK_EXAM_PACKS = {
+    1: "https://vietjack.com/de-kiem-tra-lop-1/de-kiem-tra-toan-lop-1.jsp",
+    2: "https://vietjack.com/de-kiem-tra-lop-2/de-kiem-tra-toan-lop-2.jsp",
+    3: "https://vietjack.com/de-kiem-tra-lop-3/de-kiem-tra-toan-lop-3.jsp",
+    4: "https://vietjack.com/de-kiem-tra-toan-lop-4/index.jsp",
+    5: "https://vietjack.com/de-kiem-tra-toan-5/index.jsp",
+}
+# vietjack trac-nghiem co dap an (grade 2-5 share the lop-2 bai-tap hub pattern)
+VIETJACK_TRACNGHIEM = {
+    2: "https://vietjack.com/de-kiem-tra-lop-2/bai-tap-toan-lop-2.jsp",
+    3: "https://vietjack.com/giai-toan-lop-3/bai-tap-trac-nghiem-toan-lop-3-co-dap-an.jsp",
+    4: "https://vietjack.com/giai-toan-lop-4/bai-tap-trac-nghiem-toan-lop-4-co-dap-an.jsp",
+    5: "https://vietjack.com/giai-toan-lop-5/bai-tap-trac-nghiem-toan-lop-5-co-dap-an.jsp",
+}
+
+# loigiaihay alternate listings (2nd textbook set, VERIFIED 200 2026-10-12):
+# TV2-c2270 (ket-noi) sits beside c1213; TA2-c1327 (global-success) beside c1217.
+LOIGIAIHAY_VN_SLUGS_ALT = {
+    2: "de-thi-de-kiem-tra-tieng-viet-lop-2-ket-noi-tri-thuc-c2270.html",
+}
+LOIGIAIHAY_EN_SLUGS_ALT = {
+    2: "de-thi-de-kiem-tra-tieng-anh-lop-2-global-success-c1327.html",
+}
+
 # education.com worksheet slugs per grade (verified 200)
 EDUCATION_GRADE_SLUGS = {
     1: "first-grade", 2: "second-grade", 3: "third-grade",
@@ -878,6 +904,15 @@ def build_loigiaihay_url(subject: str, grade: int) -> Optional[str]:
     """Exam-listing URL for loigiaihay by subject+grade, or None if not on site."""
     slug = {"math": LOIGIAIHAY_MATH_SLUGS, "vietnamese": LOIGIAIHAY_VN_SLUGS,
             "english": LOIGIAIHAY_EN_SLUGS}.get(subject, {}).get(grade)
+    if not slug:
+        return None
+    return f"https://loigiaihay.com/{slug}"
+
+
+def build_loigiaihay_alt_url(subject: str, grade: int) -> Optional[str]:
+    """Alternate-listing URL (2nd textbook set) for grade 2 TV/EN, else None."""
+    slug = {"vietnamese": LOIGIAIHAY_VN_SLUGS_ALT,
+            "english": LOIGIAIHAY_EN_SLUGS_ALT}.get(subject, {}).get(grade)
     if not slug:
         return None
     return f"https://loigiaihay.com/{slug}"
@@ -979,8 +1014,29 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
             "url": build_loigiaihay_url("vietnamese", grade) or "",
             "type": "practice",
             "desc": f"Soạn bài & luyện từ câu Tiếng Việt Lớp {grade} (verified 200)"
-        }
+        },
+        {
+            "name": f"VietJack Đề thi Toán Lớp {grade}",
+            "url": VIETJACK_EXAM_PACKS.get(grade, ""),
+            "type": "practice",
+            "desc": f"Bộ đề kiểm tra + trắc nghiệm có đáp án Toán Lớp {grade} (.jsp, verified 200)"
+        },
+        {
+            "name": f"VietJack Trắc nghiệm Toán Lớp {grade}",
+            "url": VIETJACK_TRACNGHIEM.get(grade, ""),
+            "type": "practice",
+            "desc": f"Bài tập trắc nghiệm Toán Lớp {grade} có đáp án chi tiết (verified 200)"
+        },
     ]
+    # 2nd textbook-set listings (grade 2 TV/EN alternates)
+    _alt_vn = build_loigiaihay_alt_url("vietnamese", grade)
+    if _alt_vn:
+        vn_sources.append({
+            "name": f"Lời Giải Hay Tiếng Việt Lớp {grade} (bộ 2)",
+            "url": _alt_vn,
+            "type": "practice",
+            "desc": f"Đề Tiếng Việt Lớp {grade} bộ sách thứ 2 (verified 200)",
+        })
     # Drop entries with no verified URL (e.g. TV grade 1, grades 6-12):
     # a guessed category ID points at the WRONG subject's page.
     vn_sources = [s for s in vn_sources if s.get("url")]
@@ -1067,6 +1123,14 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
         "type": "olympiad",
         "desc": "Sân chơi Olympic Tiếng Anh IOE (trang chủ sống; trang con đổi slug nên không deep-link)"
     })
+    _alt_en = build_loigiaihay_alt_url("english", grade)
+    if _alt_en:
+        en_sources.append({
+            "name": f"Lời Giải Hay Tiếng Anh Lớp {grade} (bộ 2)",
+            "url": _alt_en,
+            "type": "practice",
+            "desc": f"Đề Tiếng Anh Lớp {grade} bộ sách thứ 2 (verified 200)",
+        })
 
     # Olympic & Logic Bilingual sources
     if grade in [1, 2]:

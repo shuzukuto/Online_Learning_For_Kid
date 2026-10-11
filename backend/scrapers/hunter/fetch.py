@@ -11,7 +11,8 @@ from backend.classifier import classify_subject
 from backend.database import insert_or_update_question, log_collector_event
 from backend.normalizer import is_valid_question_payload, normalize_question_payload
 from backend.scrapers.hunter.parametric import generate_parametric_questions
-from backend.scrapers.hunter.parsing import parse_loigiaihay_questions, parse_unstructured_questions
+from backend.scrapers.hunter.parsing import (
+    parse_loigiaihay_questions, parse_unstructured_questions, parse_vietjack_questions)
 from backend.scrapers.hunter.sources import (
     CODEMATH_OLYMPIAD_POOLS, GRADE2_MATH_EN_POOLS, GRADE2_MATH_OLYMPIAD_POOLS,
     GRADE2_MATH_VN_POOLS, HANHTRANGSO_CURRICULUM_POOLS, OPEN_EXAM_REPOSITORY,
@@ -346,7 +347,58 @@ async def fetch_questions_from_web_url(url: str) -> List[Dict[str, Any]]:
             return questions
         # Fall through to the general crawler when the category yields nothing.
 
-    # 10. General Educational Web Crawler (Vietjack, VnDoc, Tuyensinh247, etc.)
+    # 10. Specialized Handler: vietjack.com (two-tier: pack page -> .jsp exams).
+    # Pack pages (de-kiem-tra-toan-lop-X.jsp) only list links; the real items
+    # live in exam .jsp pages as <p><strong>Câu N:</strong> blocks with an
+    # answer-key <table> (verified DOM 2026-10-12).
+    if "vietjack.com" in url_lower:
+        questions = []
+        grade = extract_grade_from_url(url_lower, default_grade=5)
+        headers_vj = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+        exam_urls: List[str] = []
+        try:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                if url_lower.endswith(".jsp"):
+                    exam_urls = [url]
+                resp = await client.get(url, headers=headers_vj)
+                if resp.status_code == 200:
+                    links = sorted(set(re.findall(
+                        r'href="((?:(?:https://vietjack\.com)?/[^"]*?\.jsp))"', resp.text)))
+                    grade_pat = re.compile(rf"lop-{grade}\b")
+                    same_grade = [l for l in links if grade_pat.search(l)
+                                  and re.search(r"(de-thi|de-kiem-tra|bai-tap-trac-nghiem|bo-de-thi)", l)]
+                    exam_urls = (same_grade or links)[:8]
+                    if url_lower.endswith(".jsp") and url not in exam_urls:
+                        exam_urls = [url] + exam_urls
+                for e in exam_urls[:8]:
+                    e_full = e if e.startswith("http") else (
+                        f"https://vietjack.com{e}" if e.startswith("/") else f"https://vietjack.com/{e}")
+                    if e_full.startswith("../"):
+                        base_dir = url.rsplit("/", 1)[0]
+                        e_full = base_dir + "/" + e_full[3:]
+                    try:
+                        e_resp = await client.get(e_full, headers=headers_vj)
+                        if e_resp.status_code != 200:
+                            continue
+                        parsed = parse_vietjack_questions(e_resp.text, source_url=e_full)
+                        for p in parsed:
+                            p["grade"] = grade
+                            questions.append(p)
+                            if len(questions) >= 20:
+                                break
+                    except Exception:
+                        continue
+                    if len(questions) >= 20:
+                        break
+        except Exception as e:
+            print(f"Error fetching vietjack url {url}: {e}")
+        if questions:
+            return questions
+        # Fall through to the general crawler when the pack yields nothing.
+
+    # 11. General Educational Web Crawler (VnDoc, Tuyensinh247, etc.)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }
