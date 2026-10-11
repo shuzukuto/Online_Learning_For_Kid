@@ -838,27 +838,46 @@ GRADE2_MATH_OLYMPIAD_POOLS = [
 # These de-thi-...-cNNN.html pages list exam detail pages (-aNNNNNN.html)
 # whose div.question blocks carry div.loigiai answer keys.
 # (The chapter pages toan-lop-X-c12X.html instead list doc-hieu van links.)
-LOIGIAIHAY_MATH_CAT = {1: 1211, 2: 1212, 3: 1215, 4: 1636, 5: 1990}
-LOIGIAIHAY_VN_CAT = {2: 1213, 3: 2269, 4: 1796, 5: 1994}
-LOIGIAIHAY_EN_CAT = {2: 1217, 3: 1218, 4: 1627, 5: 2008}
+LOIGIAIHAY_MATH_CAT = {1: 1211, 2: 1212, 3: 1215, 4: 1636, 5: 1990,
+                       6: 1022, 7: 1097, 8: 1612, 9: 1984, 11: 1623, 12: 1964}
+LOIGIAIHAY_VN_CAT = {2: 1213, 3: 2269, 4: 1796, 5: 1994, 9: 1968}
+LOIGIAIHAY_EN_CAT = {2: 1217, 3: 1218, 4: 1627, 5: 2008,
+                     6: 1160, 7: 1182, 8: 1658, 9: 2003, 10: 1192}
 LOIGIAIHAY_MATH_SLUGS = {
     1: "de-thi-de-kiem-tra-toan-lop-1-ket-noi-tri-thuc-c1211.html",
     2: "de-thi-de-kiem-tra-toan-lop-2-ket-noi-tri-thuc-c1212.html",
     3: "de-thi-de-kiem-tra-toan-lop-3-ket-noi-tri-thuc-c1215.html",
     4: "de-thi-de-kiem-tra-toan-lop-4-ket-noi-tri-thuc-c1636.html",
     5: "de-thi-de-kiem-tra-toan-lop-5-ket-noi-tri-thuc-c1990.html",
+    # Grades 6-12 — VERIFIED live 2026-10-12 (all HTTP 200, homepage harvest).
+    6: "de-thi-de-kiem-tra-toan-lop-6-ket-noi-tri-thuc-c1022.html",
+    7: "de-thi-de-kiem-tra-toan-lop-7-ket-noi-tri-thuc-c1097.html",
+    8: "de-thi-de-kiem-tra-toan-lop-8-ket-noi-tri-thuc-c1612.html",
+    9: "de-thi-de-kiem-tra-toan-lop-9-ket-noi-tri-thuc-c1984.html",
+    10: "v2/tu-luyen-trac-nghiem-toan-10-ket-noi-tri-thuc-c980.html",
+    11: "de-thi-de-kiem-tra-toan-lop-11-ket-noi-tri-thuc-c1623.html",
+    12: "de-thi-de-kiem-tra-toan-lop-12-ket-noi-tri-thuc-c1964.html",
 }
 LOIGIAIHAY_VN_SLUGS = {
     2: "de-thi-de-kiem-tra-tieng-viet-lop-2-ket-noi-tri-thuc-c1213.html",
     3: "de-thi-de-kiem-tra-tieng-viet-lop-3-ket-noi-tri-thuc-c2269.html",
     4: "de-thi-de-kiem-tra-tieng-viet-lop-4-ket-noi-tri-thuc-c1796.html",
     5: "de-thi-de-kiem-tra-tieng-viet-lop-5-ket-noi-tri-thuc-c1994.html",
+    # Grade 9 Van (de-thi van-9) — VERIFIED 200 2026-10-12.
+    9: "de-thi-de-kiem-tra-van-9-ket-noi-tri-thuc-c1968.html",
 }
 LOIGIAIHAY_EN_SLUGS = {
     2: "de-thi-de-kiem-tra-tieng-anh-lop-2-ket-noi-tri-thuc-c1217.html",
     3: "de-thi-de-kiem-tra-tieng-anh-lop-3-global-success-c1218.html",
     4: "de-thi-de-kiem-tra-tieng-anh-lop-4-global-success-c1627.html",
     5: "de-thi-de-kiem-tra-tieng-anh-lop-5-global-success-c2008.html",
+    # Grades 6-10 + trac-nghiem 11 — VERIFIED live 2026-10-12 (all HTTP 200).
+    6: "de-thi-de-kiem-tra-tieng-anh-lop-6-global-success-c1160.html",
+    7: "de-thi-de-kiem-tra-tieng-anh-lop-7-global-success-c1182.html",
+    8: "de-thi-de-kiem-tra-tieng-anh-lop-8-global-success-c1658.html",
+    9: "de-thi-de-kiem-tra-tieng-anh-lop-9-global-success-c2003.html",
+    10: "de-thi-de-kiem-tra-tieng-anh-lop-10-global-success-c1192.html",
+    11: "v2/tu-luyen-trac-nghiem-tieng-anh-11-global-success-c1445.html",
 }
 
 # vietjack exam-pack URLs — VERIFIED live 2026-10-12 (all HTTP 200).
@@ -876,6 +895,14 @@ VIETJACK_TRACNGHIEM = {
     3: "https://vietjack.com/giai-toan-lop-3/bai-tap-trac-nghiem-toan-lop-3-co-dap-an.jsp",
     4: "https://vietjack.com/giai-toan-lop-4/bai-tap-trac-nghiem-toan-lop-4-co-dap-an.jsp",
     5: "https://vietjack.com/giai-toan-lop-5/bai-tap-trac-nghiem-toan-lop-5-co-dap-an.jsp",
+    # Upper grades — VERIFIED live 2026-10-12 (all HTTP 200).
+    6: "https://vietjack.com/toan-6-ket-noi/bai-tap-trac-nghiem-toan-lop-6.jsp",
+    9: "https://vietjack.com/toan-9-kn/trac-nghiem-toan-lop-9.jsp",
+}
+# vietjack upper-grade exam packs (de-kiem-tra hub per grade).
+VIETJACK_EXAM_PACKS_UPPER = {
+    6: "https://vietjack.com/de-kiem-tra-lop-6/de-kiem-tra-toan-6.jsp",
+    9: "https://vietjack.com/de-kiem-tra-lop-9/de-kiem-tra-toan-9.jsp",
 }
 
 # loigiaihay alternate listings (2nd textbook set, VERIFIED 200 2026-10-12):
@@ -934,8 +961,8 @@ def extract_grade_from_url(url: str, default_grade: int = 5) -> int:
         except ValueError:
             pass
 
-    # 2. Path patterns: toan-lop-X, lop-X, grade-X
-    path_match = re.search(r'(?:toan-lop-|lop-|grade-)(\d+)', url_lower)
+    # 2. Path patterns: toan-lop-X, toan-X (detail pages), lop-X, grade-X
+    path_match = re.search(r'(?:toan-lop-|toan-|lop-|grade-)(\d+)', url_lower)
     if path_match:
         try:
             g = int(path_match.group(1))
@@ -1017,7 +1044,7 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
         },
         {
             "name": f"VietJack Đề thi Toán Lớp {grade}",
-            "url": VIETJACK_EXAM_PACKS.get(grade, ""),
+            "url": VIETJACK_EXAM_PACKS.get(grade) or VIETJACK_EXAM_PACKS_UPPER.get(grade, ""),
             "type": "practice",
             "desc": f"Bộ đề kiểm tra + trắc nghiệm có đáp án Toán Lớp {grade} (.jsp, verified 200)"
         },
@@ -1130,6 +1157,21 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
             "url": _alt_en,
             "type": "practice",
             "desc": f"Đề Tiếng Anh Lớp {grade} bộ sách thứ 2 (verified 200)",
+        })
+    _lgh_en = build_loigiaihay_url("english", grade)
+    if _lgh_en:
+        en_sources.insert(0, {
+            "name": f"Lời Giải Hay Tiếng Anh Lớp {grade}",
+            "url": _lgh_en,
+            "type": "practice",
+            "desc": f"Đề thi + lời giải Tiếng Anh Lớp {grade} (verified 200)",
+        })
+    if grade in (6, 9):
+        en_sources.append({
+            "name": f"OLM Học trực tuyến Lớp {grade}",
+            "url": f"https://olm.vn/lop-{grade}",
+            "type": "practice",
+            "desc": f"Bài luyện tương tác Lớp {grade} trên OLM (verified 200)",
         })
 
     # Olympic & Logic Bilingual sources

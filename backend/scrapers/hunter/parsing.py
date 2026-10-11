@@ -162,7 +162,11 @@ def parse_loigiaihay_questions(html: str, source_url: str = "") -> List[Dict[str
     Returns validated payloads tagged ``source_platform="loigiaihay"``.
     """
     results: List[Dict[str, Any]] = []
-    if not html or "question-content" not in html:
+    if not html:
+        return results
+    has_classic = "question-content" in html
+    has_upper = "sub-question-" in html or "box-question" in html
+    if not has_classic and not has_upper:
         return results
     try:
         soup = BeautifulSoup(html, "html.parser")
@@ -250,6 +254,141 @@ def parse_loigiaihay_questions(html: str, source_url: str = "") -> List[Dict[str
             continue
     for r in results:
         r.pop("_lgh_has_key", None)
+    if results:
+        return results
+    # Fallback: grade 6-12 layout (verified DOM 2026-10-12, a120884).
+    # No div.question blocks: stems+options inline in <p> ("Câu N: ... A. ...
+    # B. ... C. ... D. ..."), key in a <table> of "<N>. <X>" cells, and
+    # solutions as "<p><strong>Câu N</strong></p> ... Phương pháp/Cách giải ...
+    # <p><strong>Chọn X.</strong></p>".
+    return _parse_loigiaihay_upper_layout(soup, source_url)
+
+
+def _parse_loigiaihay_upper_layout(soup: "BeautifulSoup", source_url: str) -> List[Dict[str, Any]]:
+    results: List[Dict[str, Any]] = []
+    try:
+        # 1. Answer-key table: cells like "1. B" / "12. A".
+        answer_key: Dict[int, str] = {}
+        for table in soup.find_all("table"):
+            for cell in table.find_all(["td", "th"]):
+                m = re.match(r"^\s*(\d{1,2})\s*[.\):]\s*([A-D])\b",
+                             cell.get_text(" ", strip=True), re.I)
+                if m and int(m.group(1)) not in answer_key:
+                    answer_key[int(m.group(1))] = m.group(2).upper()
+            if len(answer_key) >= 5:
+                break
+
+        # 2. Solutions: "Câu N" header -> text until "Chọn X.".
+        solutions: Dict[int, str] = {}
+        chosen: Dict[int, str] = {}
+        paras = [p for p in soup.find_all("p")
+                 if not p.find_parent("table")]
+        current: Optional[int] = None
+        buf: List[str] = []
+        for p in paras:
+            t = p.get_text(" ", strip=True)
+            m_head = re.match(r"^(Câu|Bài)\s*(\d{1,2})\s*$", t, re.I)
+            if m_head:
+                if current is not None and buf:
+                    solutions[current] = re.sub(r"\s+", " ", " ".join(buf)).strip()
+                current = int(m_head.group(2))
+                buf = []
+                continue
+            m_pick = re.match(r"^Chọn\s+([A-D])\s*[.\!]?\s*$", t, re.I)
+            if m_pick and current is not None:
+                chosen[current] = m_pick.group(1).upper()
+                if buf:
+                    solutions[current] = re.sub(r"\s+", " ", " ".join(buf)).strip()
+                current = None
+                buf = []
+                continue
+            if current is not None and t and len(t) < 600:
+                if not re.match(r"^(Phương pháp|Cách giải)\s*:?\s*$", t, re.I):
+                    buf.append(t)
+        if current is not None and buf:
+            solutions[current] = re.sub(r"\s+", " ", " ".join(buf)).strip()
+
+        # 3. Stems: <p> starting "Câu N:" — options inline OR in following <p>.
+        grade = extract_grade_from_url(source_url, default_grade=5)
+        seen_nums = set()
+        for p in soup.find_all("p"):
+            t = p.get_text(" ", strip=True)
+            m_stem = re.match(r"^(Câu|Bài)\s*(\d{1,2})\s*[:.]\s*(.+)$", t, re.I | re.S)
+            if not m_stem:
+                continue
+            q_num = int(m_stem.group(2))
+            if q_num in seen_nums:
+                continue
+            seen_nums.add(q_num)
+            rest = m_stem.group(3).strip()
+            # Split inline options at "A. / B. / C. / D." markers.
+            marks = list(re.finditer(r"\b([A-D])\s*[.\):]\s*", rest))
+            options = []
+            if len(marks) >= 2 and [m.group(1).upper() for m in marks[:2]] == ["A", "B"]:
+                stem = rest[:marks[0].start()].strip()
+                for i, m in enumerate(marks):
+                    end = marks[i + 1].start() if i + 1 < len(marks) else len(rest)
+                    opt_text = re.sub(r"\s+", " ", rest[m.end():end].strip())
+                    if opt_text and len(opt_text) < 300:
+                        options.append({"id": m.group(1).upper(), "content": opt_text,
+                                        "is_correct": False})
+            else:
+                # Options live in the following sibling <p> (a120884 layout).
+                stem = rest
+                node = p.find_next_sibling()
+                hops = 0
+                while node is not None and hops < 4 and len(options) < 2:
+                    hops += 1
+                    if getattr(node, "get_text", None) is None:
+                        node = node.find_next_sibling()
+                        continue
+                    n_text = node.get_text(" ", strip=True)
+                    if re.match(r"^(Câu|Bài)\s*\d{1,2}\s*[:.]", n_text, re.I):
+                        break
+                    n_marks = list(re.finditer(r"\b([A-D])\s*[.\):]\s*", n_text))
+                    if len(n_marks) >= 2 and [m.group(1).upper() for m in n_marks[:2]] == ["A", "B"]:
+                        for i, m in enumerate(n_marks):
+                            end = n_marks[i + 1].start() if i + 1 < len(n_marks) else len(n_text)
+                            opt_text = re.sub(r"\s+", " ", n_text[m.end():end].strip())
+                            if opt_text and len(opt_text) < 300:
+                                options.append({"id": m.group(1).upper(), "content": opt_text,
+                                                "is_correct": False})
+                        break
+                    node = node.find_next_sibling()
+            if len(stem) < 5 or len(options) < 2:
+                continue
+            correct_ans = (answer_key.get(q_num) or chosen.get(q_num)
+                           or options[0]["id"])
+            if correct_ans not in [o["id"] for o in options]:
+                correct_ans = options[0]["id"]
+            for o in options:
+                if o["id"] == correct_ans:
+                    o["is_correct"] = True
+            q_text = stem
+            candidate = {
+                "id": f"lgh_{uuid.uuid4().hex[:10]}",
+                "source_platform": "loigiaihay",
+                "source_url": source_url or "https://loigiaihay.com/",
+                "exam_name": "Lời Giải Hay - Đề thi có lời giải chi tiết",
+                "grade": grade,
+                "subject": classify_subject(q_text),
+                "topic": "Đề thi Lời Giải Hay",
+                "question_type": "single_choice",
+                "content_html": f"<p>{q_text}</p>",
+                "content_text": q_text,
+                "images": [],
+                "options": options,
+                "correct_answer": correct_ans,
+                "explanation": solutions.get(q_num, ""),
+                "difficulty": "medium",
+            }
+            is_valid, _ = is_valid_question_payload(candidate)
+            if is_valid:
+                results.append(candidate)
+                if len(results) >= 30:
+                    break
+    except Exception:
+        return results
     return results
 
 

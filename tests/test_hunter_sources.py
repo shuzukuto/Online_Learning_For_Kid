@@ -126,6 +126,53 @@ def test_fetch_dispatches_loigiaihay_to_dedicated_parser():
         "fetch.py must route loigiaihay URLs to parse_loigiaihay_questions (not generic crawler)"
 
 
+# Grade 6-12 exam pages use a NEW layout (verified DOM 2026-10-12, a120884):
+# stem+options inline in one <p> ("Câu 1: ... A. ... B. ... C. ... D. ..."),
+# key in a <table> of "<N>. <X>" cells, solutions as "<p><strong>Câu N</strong></p>
+# ... <p><strong>Chọn X.</strong></p>". The old div.question parser yields 0.
+LOIGIAIHAY_UPPER_HTML = (
+    '<div class="box-question" id="sub-question-1">'
+    '<p><strong>Câu 1</strong><strong>:</strong> Cho tập hợp M các tháng có 31 ngày. '
+    'Phần tử không thuộc M là</p>'
+    '<p><strong>A.</strong> Tháng 5 <strong>B.</strong> Tháng 6 '
+    '<strong>C.</strong> Tháng 7 <strong>D.</strong> Tháng 8.</p>'
+    '<p><strong>Câu 2</strong><strong>:</strong> Tập hợp các chữ cái trong từ TOÁN 6 là</p>'
+    '<p><strong>A.</strong> {T;O;A;N;6} <strong>B.</strong> {T;O;A;N} '
+    '<strong>C.</strong> {T;A;N} <strong>D.</strong> {T;O;A;N;S;U}.</p>'
+    '</div>'
+    '<div class="box-question" id="sub-question-2">'
+    '<p id="question-title-idx-2"><strong>Lời giải</strong></p>'
+    '<table><tbody><tr><td><p><strong>1. B</strong></p></td>'
+    '<td><p><strong>2. B</strong></p></td></tr></tbody></table>'
+    '<p><strong>Câu 1</strong></p><p><strong>Phương pháp:</strong></p>'
+    '<p>Dùng quy ước bàn tay.</p><p><strong>Cách giải:</strong></p>'
+    '<p>Tháng 6 có 30 ngày.</p><p><strong>Chọn B.</strong></p>'
+    '<p><strong>Câu 2</strong></p><p><strong>Phương pháp:</strong></p>'
+    '<p>Liệt kê duy nhất 1 lần.</p><p><strong>Cách giải:</strong></p>'
+    '<p>Số 6 không phải chữ cái.</p><p><strong>Chọn B.</strong></p>'
+    '</div>'
+)
+
+
+def test_parse_loigiaihay_upper_layout_extracts_key_and_explanation():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.parsing import parse_loigiaihay_questions
+    out = parse_loigiaihay_questions(
+        LOIGIAIHAY_UPPER_HTML,
+        source_url="https://loigiaihay.com/de-kiem-tra-giua-hoc-ki-1-toan-6-de-so-1-a120884.html",
+    )
+    assert len(out) == 2, f"expected 2 questions, got {len(out)}"
+    by_num = {q["content_text"][:20]: q for q in out}
+    q1 = next(q for q in out if "31 ngày" in q["content_text"])
+    assert len(q1["options"]) == 4
+    assert q1["correct_answer"] == "B", f"got {q1['correct_answer']}"
+    assert "bàn tay" in q1["explanation"], f"got {q1['explanation'][:60]!r}"
+    q2 = next(q for q in out if "TOÁN 6" in q["content_text"])
+    assert q2["correct_answer"] == "B"
+    assert q1["grade"] == 6
+
+
 def test_hunter_package_exports_loigiaihay_parser():
     src = _read("backend/scrapers/hunter/__init__.py")
     assert "parse_loigiaihay_questions" in src
@@ -243,3 +290,45 @@ def test_fetch_dispatches_vietjack_to_dedicated_parser():
 def test_hunter_package_exports_vietjack_parser():
     src = _read("backend/scrapers/hunter/__init__.py")
     assert "parse_vietjack_questions" in src
+
+
+# Expansion 2026-10-12b — LGH exam listings grades 6-12 + VietJack 6/9
+# (all verified urllib HTTP 200; homepage hrefs harvested, no guessing).
+def test_build_loigiaihay_url_covers_grades_6_to_12():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import build_loigiaihay_url
+    assert build_loigiaihay_url("math", 6) == \
+        "https://loigiaihay.com/de-thi-de-kiem-tra-toan-lop-6-ket-noi-tri-thuc-c1022.html"
+    assert build_loigiaihay_url("math", 9) == \
+        "https://loigiaihay.com/de-thi-de-kiem-tra-toan-lop-9-ket-noi-tri-thuc-c1984.html"
+    assert build_loigiaihay_url("math", 12) == \
+        "https://loigiaihay.com/de-thi-de-kiem-tra-toan-lop-12-ket-noi-tri-thuc-c1964.html"
+    assert build_loigiaihay_url("english", 6) == \
+        "https://loigiaihay.com/de-thi-de-kiem-tra-tieng-anh-lop-6-global-success-c1160.html"
+    assert build_loigiaihay_url("english", 10) == \
+        "https://loigiaihay.com/de-thi-de-kiem-tra-tieng-anh-lop-10-global-success-c1192.html"
+    assert build_loigiaihay_url("math", 10) is not None  # trac-nghiem set
+    assert build_loigiaihay_url("vietnamese", 6) is None  # no verified VN-6 listing
+
+
+def test_grade_source_urls_include_vietjack_upper_grades():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import get_grade_source_urls
+    for grade in (6, 9):
+        got = get_grade_source_urls(grade)
+        urls = [s["url"] for cat in got["categories"] for s in cat["sources"]]
+        assert any("vietjack.com" in u for u in urls), \
+            f"grade {grade} missing vietjack URL"
+
+
+def test_grade_source_urls_6_to_12_have_lgh_listings():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import get_grade_source_urls
+    for grade in (6, 7, 8, 9, 11, 12):
+        got = get_grade_source_urls(grade)
+        urls = [s["url"] for cat in got["categories"] for s in cat["sources"]]
+        assert any("loigiaihay.com" in u for u in urls), \
+            f"grade {grade} missing loigiaihay listing URL"
