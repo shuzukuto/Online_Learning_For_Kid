@@ -126,6 +126,41 @@ def test_fetch_dispatches_loigiaihay_to_dedicated_parser():
         "fetch.py must route loigiaihay URLs to parse_loigiaihay_questions (not generic crawler)"
 
 
+def test_vietjack_filter_matches_toan_grade_slug_and_trac_nghiem():
+    # Upper-grade trac-nghiem links use toan-{grade}-kn/... (no "lop-12"),
+    # e.g. ../toan-12-kn/trac-nghiem-bai-1-....jsp (verified live 2026-10-12).
+    src = _read("backend/scrapers/hunter/fetch.py")
+    assert "toan-{grade}" in src, "grade pattern misses toan-{grade} slug family"
+    assert "trac-nghiem" in src, "link filter misses bare trac-nghiem pages"
+    assert r"(?:/|\.\./)" in src or "../" in src, \
+        "link regex misses relative ../ sibling links used by upper-grade hubs"
+
+
+def test_vietjack_relative_parent_link_resolves_one_level_up():
+    # "../de-kiem-tra-lop-12/x.jsp" seen from
+    # https://vietjack.com/toan-12-kn/trac-nghiem-toan-lop-12.jsp must resolve
+    # to https://vietjack.com/de-kiem-tra-lop-12/x.jsp (urljoin semantics) —
+    # naive base_dir + "/" + e[3:] lands in /toan-12-kn/... (404).
+    from urllib.parse import urljoin
+    base = "https://vietjack.com/toan-12-kn/trac-nghiem-toan-lop-12.jsp"
+    assert urljoin(base, "../de-kiem-tra-lop-12/de-kiem-tra-toan-12.jsp") == \
+        "https://vietjack.com/de-kiem-tra-lop-12/de-kiem-tra-toan-12.jsp"
+    src = _read("backend/scrapers/hunter/fetch.py")
+    assert "urljoin" in src, "vietjack handler must use urljoin for ../ links"
+
+
+def test_vietjack_same_grade_prefers_same_subject():
+    # VJ12 trac hub lists 60 same-grade links incl. de-cuong hoa/van; the
+    # 8-URL budget was eaten by wrong subjects (E2E TOTAL 0, 2026-10-12).
+    # Hub/listing pages (de-cuong/de-thi tong-hop) have stems but NO key;
+    # leaf trac-nghiem-bai-N pages carry "Đáp án đúng là: X" — rank them first.
+    src = _read("backend/scrapers/hunter/fetch.py")
+    assert "same_grade.sort" in src or "same-subject" in src or \
+        "subj" in src, "same-grade links must prefer the hub subject"
+    assert "trac-nghiem-(bai|chuong|tuan)" in src, \
+        "leaf trac-nghiem pages (with answer keys) must rank before hub pages"
+
+
 # Grade 6-12 exam pages use a NEW layout (verified DOM 2026-10-12, a120884):
 # stem+options inline in one <p> ("Câu 1: ... A. ... B. ... C. ... D. ..."),
 # key in a <table> of "<N>. <X>" cells, solutions as "<p><strong>Câu N</strong></p>
@@ -301,6 +336,29 @@ VIETJACK_EXAM_HTML = (
 )
 
 
+# Upper-grade trac-nghiem pages (verified DOM 2026-10-12,
+# toan-12-kn/trac-nghiem-bai-1...): NO key table; the key lives inline as
+# "Đáp án đúng là: X" inside the solution text after "Hiển thị đáp án".
+VIETJACK_SOLUTION_KEY_HTML = (
+    '<p><strong><span>Câu 1. </span></strong>'
+    '<span>Cho hàm số y = f(x). Hàm số đã cho đồng biến trên khoảng nào?</span></p>'
+    '<p>A. (-2; 2).</p><p>B. (0; 2).</p><p>C. (-1; 1).</p><p>D. (1; 2).</p>'
+    '<section>Hiển thị đáp án Đáp án đúng là: D - Xét đáp án A, trên khoảng '
+    '(-2; 2) có đoạn đi xuống nên loại. Xét đáp án D, đồ thị đi lên nên chọn.</section>'
+)
+
+
+def test_parse_vietjack_reads_inline_solution_key():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.parsing import parse_vietjack_questions
+    out = parse_vietjack_questions(
+        VIETJACK_SOLUTION_KEY_HTML,
+        source_url="https://vietjack.com/toan-12-kn/trac-nghiem-bai-1-tinh-don-dieu.jsp")
+    assert len(out) == 1, out
+    assert out[0]["correct_answer"] == "D", out[0]
+
+
 def test_parse_vietjack_extracts_question_answer_key():
     import sys
     sys.path.insert(0, PROJECT_ROOT)
@@ -393,3 +451,28 @@ def test_van_and_en_upper_grades_have_verified_listings():
     en_urls = [s["url"] for cat in got12["categories"]
                for s in cat["sources"] if cat["id"] == "english"]
     assert any("c1907" in u for u in en_urls), "grade 12 english missing trac-nghiem URL"
+
+
+# Expansion 2026-10-12d — VietJack exam-pack + trac-nghiem 7/8/10/11/12,
+# OLM lop-{7,8,10,11,12} (all verified urllib HTTP 200).
+def test_vietjack_and_olm_cover_upper_grades():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import (
+        get_grade_source_urls, VIETJACK_EXAM_PACKS_UPPER, VIETJACK_TRACNGHIEM,
+    )
+    assert VIETJACK_EXAM_PACKS_UPPER[7] == \
+        "https://vietjack.com/de-kiem-tra-lop-7/de-kiem-tra-toan-7.jsp"
+    assert VIETJACK_EXAM_PACKS_UPPER[12] == \
+        "https://vietjack.com/de-kiem-tra-lop-12/de-kiem-tra-toan-12.jsp"
+    assert VIETJACK_TRACNGHIEM[10] == \
+        "https://vietjack.com/toan-10-kn/trac-nghiem-toan-lop-10-ket-noi.jsp"
+    assert VIETJACK_TRACNGHIEM[12] == \
+        "https://vietjack.com/toan-12-kn/trac-nghiem-toan-lop-12.jsp"
+    for grade in (7, 8, 10, 11, 12):
+        got = get_grade_source_urls(grade)
+        urls = [s["url"] for cat in got["categories"] for s in cat["sources"]]
+        assert any("vietjack.com" in u for u in urls), \
+            f"grade {grade} missing vietjack URL"
+        assert f"https://olm.vn/lop-{grade}" in urls, \
+            f"grade {grade} missing verified OLM url"

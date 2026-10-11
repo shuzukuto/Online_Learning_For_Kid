@@ -454,15 +454,29 @@ def parse_vietjack_questions(html: str, source_url: str = "") -> List[Dict[str, 
             if len(stem) < 5 or len(stem) > 500:
                 continue
             # 3. Options: following siblings "A. ...", stop at next stem/section.
+            # The solution lives in a sibling <section> ("Hiển thị đáp án /
+            # Đáp án đúng là: X") — collect it, don't stop at it.
             options = []
             node = stem_tag.find_next_sibling()
-            while node is not None and len(options) < 4:
+            sol_section_texts = []
+            # NOTE: keep walking until the next stem (not just until 4 options)
+            # so the trailing <section> holding "Đáp án đúng là: X" is seen.
+            while node is not None:
                 if getattr(node, "get_text", None) is None:
                     node = node.find_next_sibling()
                     continue
                 n_text = node.get_text(" ", strip=True)
                 if re.match(r"^(Câu|Bài)\s*\d+\s*[:.]", n_text, re.I):
                     break
+                if node.name == "section" and re.search(
+                        r"Đáp án|Hiển thị đáp án|Lời giải", n_text, re.I):
+                    sol_section_texts.append(n_text)
+                    node = node.find_next_sibling()
+                    continue
+                if len(options) >= 4 and not re.search(
+                        r"Đáp án|Hiển thị đáp án|Lời giải", n_text, re.I):
+                    node = node.find_next_sibling()
+                    continue
                 if (re.search(r"Đáp án|Tự luận|Quảng cáo", n_text, re.I)
                         and not re.match(r"^[A-D][\.\)\:]", n_text)):
                     break
@@ -474,7 +488,35 @@ def parse_vietjack_questions(html: str, source_url: str = "") -> List[Dict[str, 
                 node = node.find_next_sibling()
             if len(options) < 2:
                 continue
-            correct_ans = answer_key.get(q_num, options[0]["id"])
+            # 3b. Inline key: "Đáp án đúng là: X" — solution <section> first,
+            # then remaining siblings. Capture solution text as explanation.
+            explanation = ""
+            inline_key = None
+            sol_parts = list(sol_section_texts)
+            for _sp in sol_section_texts:
+                km0 = re.search(r"Đáp án đúng là:\s*([A-D])\b", _sp, re.I)
+                if km0:
+                    inline_key = km0.group(1).upper()
+                    break
+            node2 = node
+            while node2 is not None:
+                if getattr(node2, "get_text", None) is None:
+                    node2 = node2.find_next_sibling()
+                    continue
+                s_text = node2.get_text(" ", strip=True)
+                if re.match(r"^(Câu|Bài)\s*\d+\s*[:.]", s_text, re.I):
+                    break
+                km = re.search(r"Đáp án đúng là:\s*([A-D])\b", s_text, re.I)
+                if km and inline_key is None:
+                    inline_key = km.group(1).upper()
+                if re.search(r"Đáp án|Hiển thị đáp án|Lời giải", s_text, re.I):
+                    sol_parts.append(s_text)
+                node2 = node2.find_next_sibling()
+                if len(sol_parts) > 6:
+                    break
+            if sol_parts:
+                explanation = re.sub(r"\s+", " ", " ".join(sol_parts))[:600]
+            correct_ans = inline_key or answer_key.get(q_num, options[0]["id"])
             if correct_ans not in [o["id"] for o in options]:
                 correct_ans = options[0]["id"]
             for o in options:
@@ -495,7 +537,7 @@ def parse_vietjack_questions(html: str, source_url: str = "") -> List[Dict[str, 
                 "images": [],
                 "options": options,
                 "correct_answer": correct_ans,
-                "explanation": "",
+                "explanation": explanation,
                 "difficulty": "medium",
             }
             is_valid, _ = is_valid_question_payload(candidate)

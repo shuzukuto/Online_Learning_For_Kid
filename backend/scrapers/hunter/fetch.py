@@ -6,6 +6,7 @@ import random
 import re
 import uuid
 from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from backend.classifier import classify_subject
 from backend.database import insert_or_update_question, log_collector_event
@@ -365,19 +366,31 @@ async def fetch_questions_from_web_url(url: str) -> List[Dict[str, Any]]:
                 resp = await client.get(url, headers=headers_vj)
                 if resp.status_code == 200:
                     links = sorted(set(re.findall(
-                        r'href="((?:(?:https://vietjack\.com)?/[^"]*?\.jsp))"', resp.text)))
-                    grade_pat = re.compile(rf"lop-{grade}\b")
+                        r'href="((?:(?:https://vietjack\.com)?(?:/|\.\./)[^"]*?\.jsp))"', resp.text)))
+                    grade_pat = re.compile(rf"(lop-{grade}\b|toan-{grade}\b|toan-lop-{grade}\b)")
                     same_grade = [l for l in links if grade_pat.search(l)
-                                  and re.search(r"(de-thi|de-kiem-tra|bai-tap-trac-nghiem|bo-de-thi)", l)]
+                                  and re.search(r"(de-thi|de-kiem-tra|bai-tap-trac-nghiem|bo-de-thi|trac-nghiem)", l)]
+                    # Same-grade hubs list OTHER subjects too (de-cuong hoa/van...).
+                    # Prefer links sharing the hub's subject slug (toan/...) so the
+                    # 8-URL budget isn't eaten by wrong-subject pages (VJ12 E2E 0).
+                    # Leaf trac-nghiem pages (trac-nghiem-bai-N) carry the key
+                    # ("Đáp án đúng là: X"); listing/hub pages (de-cuong/de-thi
+                    # tong-hop) have stems but no keys — rank leaf pages first.
+                    subj_m = re.search(r"(toan|ngu-van|tieng-anh|vat-ly|hoa-hoc)", url_lower)
+                    subj = subj_m.group(1) if subj_m else ""
+
+                    def _vj_rank(link: str):
+                        subj_rank = (0 if subj and f"{subj}-{grade}" in link else
+                                     (1 if subj and subj in link else 2))
+                        leaf = 0 if re.search(r"trac-nghiem-(bai|chuong|tuan)", link) else 1
+                        return (subj_rank, leaf, link)
+
+                    same_grade.sort(key=_vj_rank)
                     exam_urls = (same_grade or links)[:8]
                     if url_lower.endswith(".jsp") and url not in exam_urls:
                         exam_urls = [url] + exam_urls
                 for e in exam_urls[:8]:
-                    e_full = e if e.startswith("http") else (
-                        f"https://vietjack.com{e}" if e.startswith("/") else f"https://vietjack.com/{e}")
-                    if e_full.startswith("../"):
-                        base_dir = url.rsplit("/", 1)[0]
-                        e_full = base_dir + "/" + e_full[3:]
+                    e_full = urljoin(url, e) if not e.startswith("http") else e
                     try:
                         e_resp = await client.get(e_full, headers=headers_vj)
                         if e_resp.status_code != 200:

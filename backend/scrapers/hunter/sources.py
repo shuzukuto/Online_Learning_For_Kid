@@ -910,12 +910,23 @@ VIETJACK_TRACNGHIEM = {
     5: "https://vietjack.com/giai-toan-lop-5/bai-tap-trac-nghiem-toan-lop-5-co-dap-an.jsp",
     # Upper grades — VERIFIED live 2026-10-12 (all HTTP 200).
     6: "https://vietjack.com/toan-6-ket-noi/bai-tap-trac-nghiem-toan-lop-6.jsp",
+    7: "https://vietjack.com/toan-7-kn/trac-nghiem-toan-lop-7-ket-noi.jsp",
+    8: "https://vietjack.com/toan-8-kn/trac-nghiem-toan-8-ket-noi.jsp",
     9: "https://vietjack.com/toan-9-kn/trac-nghiem-toan-lop-9.jsp",
+    10: "https://vietjack.com/toan-10-kn/trac-nghiem-toan-lop-10-ket-noi.jsp",
+    11: "https://vietjack.com/toan-11-kn/trac-nghiem-toan-11-ket-noi.jsp",
+    12: "https://vietjack.com/toan-12-kn/trac-nghiem-toan-lop-12.jsp",
 }
 # vietjack upper-grade exam packs (de-kiem-tra hub per grade).
+# VERIFIED live 2026-10-12 (all HTTP 200, homepage harvest).
 VIETJACK_EXAM_PACKS_UPPER = {
     6: "https://vietjack.com/de-kiem-tra-lop-6/de-kiem-tra-toan-6.jsp",
+    7: "https://vietjack.com/de-kiem-tra-lop-7/de-kiem-tra-toan-7.jsp",
+    8: "https://vietjack.com/de-kiem-tra-lop-8/de-kiem-tra-toan-8.jsp",
     9: "https://vietjack.com/de-kiem-tra-lop-9/de-kiem-tra-toan-9.jsp",
+    10: "https://vietjack.com/de-kiem-tra-lop-10/de-kiem-tra-toan-10.jsp",
+    11: "https://vietjack.com/de-kiem-tra-lop-11/de-kiem-tra-toan-11.jsp",
+    12: "https://vietjack.com/de-kiem-tra-lop-12/de-kiem-tra-toan-12.jsp",
 }
 
 # loigiaihay alternate listings (2nd textbook set, VERIFIED 200 2026-10-12):
@@ -1199,13 +1210,13 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
                      if _is_quiz else
                      f"Đề thi + lời giải Tiếng Anh Lớp {grade} (verified 200)"),
         })
-    if grade in (6, 9):
-        en_sources.append({
-            "name": f"OLM Học trực tuyến Lớp {grade}",
-            "url": f"https://olm.vn/lop-{grade}",
-            "type": "practice",
-            "desc": f"Bài luyện tương tác Lớp {grade} trên OLM (verified 200)",
-        })
+    # OLM lop pages — VERIFIED live 200 for grades 1-12 (2026-10-11/12).
+    en_sources.append({
+        "name": f"OLM Học trực tuyến Lớp {grade}",
+        "url": f"https://olm.vn/lop-{grade}",
+        "type": "practice",
+        "desc": f"Bài luyện tương tác Lớp {grade} trên OLM (verified 200)",
+    })
 
     # Olympic & Logic Bilingual sources
     if grade in [1, 2]:
