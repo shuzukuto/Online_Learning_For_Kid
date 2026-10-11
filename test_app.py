@@ -309,10 +309,10 @@ def test_full_pipeline():
         index_html = f.read()
     with open("frontend/js/app.js", "r", encoding="utf-8") as f:
         app_js = f.read()
-    assert any(v in index_html for v in ["1.0.45", "1.0.44", "1.0.43"]), "frontend/index.html thiếu phiên bản Web App!"
-    assert any(v in app_js for v in ["1.0.45", "1.0.44", "1.0.43"]), "frontend/js/app.js thiếu phiên bản Web App!"
-    assert any(v in index_html for v in ["?v=1.0.50", "?v=1.0.49", "?v=1.0.48"]), "frontend/index.html thiếu Cache Buster!"
-    print("   => Web App đồng bộ v1.0.45 và Cache Buster ?v=1.0.50 chính xác!")
+    assert any(v in index_html for v in ["1.0.46", "1.0.45", "1.0.44"]), "frontend/index.html thiếu phiên bản Web App!"
+    assert any(v in app_js for v in ["1.0.46", "1.0.45", "1.0.44"]), "frontend/js/app.js thiếu phiên bản Web App!"
+    assert any(v in index_html for v in ["?v=1.0.51", "?v=1.0.50", "?v=1.0.49"]), "frontend/index.html thiếu Cache Buster!"
+    print("   => Web App đồng bộ v1.0.46 và Cache Buster ?v=1.0.51 chính xác!")
 
     print("\n17. Kiểm tra Bộ Thẩm định Normalizer & Phân biệt Dấu thanh 'Khoa học' vs 'Khóa học'...")
     # 17.1 Science questions with "khoa học" / "truyện khoa học" must be accepted

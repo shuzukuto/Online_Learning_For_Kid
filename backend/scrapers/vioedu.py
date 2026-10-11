@@ -1,4 +1,5 @@
 from __future__ import annotations
+import hashlib
 import re
 import uuid
 import asyncio
@@ -1033,7 +1034,15 @@ async def crawl_vioedu_rounds_headless(
         )
         if parsed:
             parsed["grade"] = item_grade
-            key = re.sub(r'\s+', '', parsed["content_text"] or "").lower()[:80]
+            # Dedup key: full normalized text + options signature. NEVER truncate:
+            # VioEdu stems share long prefixes ("Bạn hãy chọn đáp án đúng..."),
+            # so a [:80] prefix key collapses distinct questions into one.
+            opt_sig = "|".join(
+                str((o.get("content") or "") if isinstance(o, dict) else o)[:60]
+                for o in (parsed.get("options") or [])
+            )
+            key_src = f"{parsed['content_text'] or ''}||{opt_sig}".strip().lower()
+            key = hashlib.md5(key_src.encode("utf-8")).hexdigest() if key_src else ""
             if key and key not in unique_candidates:
                 unique_candidates[key] = parsed
                 

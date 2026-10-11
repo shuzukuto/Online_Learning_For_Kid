@@ -1229,6 +1229,18 @@ async function runVioEduBreadth() {
     });
     const data = await res.json();
     const finishTime = getLogTimeVN();
+    if (data.success && data.background) {
+      // Sweep chạy nền nhiều phút — poll tiến độ, không giữ nút
+      scraperLogLines.unshift(`[${finishTime}] 🚀 Đã khởi động job ${data.job_id}. Đang quét nền, tự cập nhật tiến độ...`);
+      renderScraperLog();
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = "🌐 Cào diện rộng VioEdu (3 môn)";
+      }
+      pollBreadthStatus(data.job_id);
+      loadCollectorLogs();
+      return;
+    }
     if (data.success) {
       const st = data.stats || {};
       const detail = Object.entries(st).map(([k, v]) => `${k}: ${v}`).join(", ");
@@ -1256,6 +1268,41 @@ async function runVioEduBreadth() {
       btn.innerHTML = "🌐 Cào diện rộng VioEdu (3 môn)";
     }
     loadCollectorLogs();
+  }
+}
+
+// Poll tiến độ job breadth nền mỗi 15s (tối đa ~20 phút), không giữ nút bấm
+async function pollBreadthStatus(jobId, tries = 0) {
+  const MAX_TRIES = 80;
+  try {
+    const res = await fetch(`${API_BASE}/collect/breadth-status?job_id=${encodeURIComponent(jobId)}`);
+    const data = await res.json();
+    const st = data.status || "running";
+    if (st === "done") {
+      const detail = Object.entries(data.stats || {}).map(([k, v]) => `${k}: ${v}`).join(", ");
+      scraperLogLines.unshift(`[${getLogTimeVN()}] ✅ Cào diện rộng xong: ${data.count} câu mới, ${data.skills_visited} bài (${detail})`);
+      showToast(`Đã thêm ${data.count} câu VioEdu mới (${data.skills_visited} bài)!`, "success");
+      if (typeof broadcastNewQuestions === "function" && data.count > 0) {
+        broadcastNewQuestions(data.count, "VioEdu Diện rộng");
+      }
+      loadDashboardStats();
+      renderScraperLog();
+      loadCollectorLogs();
+      return;
+    }
+    if (st === "error") {
+      scraperLogLines.unshift(`[${getLogTimeVN()}] ❌ Cào diện rộng lỗi: ${data.error || "?"}`);
+      showToast("Cào diện rộng lỗi: " + (data.error || "?"), "error");
+      renderScraperLog();
+      loadCollectorLogs();
+      return;
+    }
+  } catch (e) { /* thử lại kỳ sau */ }
+  if (tries < MAX_TRIES) {
+    setTimeout(() => pollBreadthStatus(jobId, tries + 1), 15000);
+  } else {
+    scraperLogLines.unshift(`[${getLogTimeVN()}] ℹ️ Job ${jobId} quá 20 phút — xem kết quả ở Nhật ký Thu thập.`);
+    renderScraperLog();
   }
 }
 

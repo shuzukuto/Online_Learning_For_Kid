@@ -1573,6 +1573,9 @@ async def clear_ocr_corrections(_auth=Depends(require_api_token)):
 
 # ----------------- Automated Scraper Runner -----------------
 
+# In-memory registry for background breadth jobs (single worker; DB log is the durable record).
+_BREADTH_JOBS: dict = {}
+
 @app.post("/api/collect/run")
 async def run_collector_task(req: ScrapeRequest):
     platform = req.platform.lower()
@@ -1623,34 +1626,50 @@ async def run_collector_task(req: ScrapeRequest):
         elif req.action == "breadth":
             # Cào diện rộng toàn curriculum: không cần login (GraphQL public).
             # subjects: ["math","vietnamese","english"]; grades vd [2] rồi mở rộng.
-            from backend.normalizer import normalize_question_payload as _norm, is_valid_question_payload as _valid
+            # Sweep hàng trăm bài x 12 câu mất nhiều phút -> chạy NỀN, trả ngay
+            # job id (worker duy nhất của uvicorn không bị giữ, browser không timeout).
+            import time as _time
+            import asyncio as _asyncio
+            job_id = f"breadth-{int(_time.time())}"
             subjects = None
             if isinstance(req.subject, str) and req.subject.strip():
                 subjects = [s.strip().lower() for s in req.subject.split(",") if s.strip()]
             grades = [req.grade] if req.grade else None
             max_q = req.max_questions or 12
+            _BREADTH_JOBS[job_id] = {"status": "running", "stats": {}, "count": 0, "skills_visited": 0}
+
+            async def _run_breadth_job(jid: str):
+                from backend.normalizer import normalize_question_payload as _norm, is_valid_question_payload as _valid
+                try:
+                    sweep = await crawl_vioedu_breadth(grades=grades, subjects=subjects, max_questions_per_skill=max_q)
+                    normalized_list = []
+                    for raw in sweep.get("questions", []):
+                        subj = raw.pop("_breadth_subject", "math")
+                        parsed = parse_vioedu_question_data(
+                            raw, exam_name=f"VioEdu {subj} Lớp {raw.get('grade', req.grade or 2)}",
+                            grade=int(raw.get("grade") or req.grade or 2), subject=subj)
+                        if parsed:
+                            try:
+                                norm_q = await _norm(parsed)
+                                valid, _ = _valid(norm_q)
+                                if valid:
+                                    normalized_list.append(norm_q)
+                            except Exception:
+                                pass
+                    inserted = bulk_insert_questions(normalized_list, skip_duplicates=True) if normalized_list else 0
+                    _BREADTH_JOBS[jid] = {"status": "done", "count": inserted,
+                        "stats": sweep.get("stats", {}), "skills_visited": sweep.get("skills_visited", 0)}
+                    log_collector_event("vioedu", "success",
+                        f"Cào diện rộng VioEdu: {inserted} câu mới ({sweep.get('skills_visited', 0)} bài, {sweep.get('stats', {})})", inserted)
+                except Exception as e:
+                    _BREADTH_JOBS[jid] = {"status": "error", "error": str(e)[:200], "count": 0}
+                    log_collector_event("vioedu", "error", f"Cào diện rộng VioEdu lỗi: {str(e)[:150]}", 0)
+
             log_collector_event(platform="vioedu", status="running",
-                message=f"Cào diện rộng VioEdu (môn={subjects or 'all'}, khối={grades or 'all'})", count=0)
-            sweep = await crawl_vioedu_breadth(grades=grades, subjects=subjects, max_questions_per_skill=max_q)
-            normalized_list = []
-            for raw in sweep.get("questions", []):
-                subj = raw.pop("_breadth_subject", "math")
-                parsed = parse_vioedu_question_data(
-                    raw, exam_name=f"VioEdu {subj} Lớp {raw.get('grade', req.grade or 2)}",
-                    grade=int(raw.get("grade") or req.grade or 2), subject=subj)
-                if parsed:
-                    try:
-                        norm_q = await _norm(parsed)
-                        valid, _ = _valid(norm_q)
-                        if valid:
-                            normalized_list.append(norm_q)
-                    except Exception:
-                        pass
-            inserted = bulk_insert_questions(normalized_list, skip_duplicates=True) if normalized_list else 0
-            log_collector_event("vioedu", "success",
-                f"Cào diện rộng VioEdu: {inserted} câu mới ({sweep.get('skills_visited', 0)} bài, {sweep.get('stats', {})})", inserted)
-            return {"success": True, "count": inserted, "stats": sweep.get("stats", {}),
-                    "skills_visited": sweep.get("skills_visited", 0)}
+                message=f"Cào diện rộng VioEdu (môn={subjects or 'all'}, khối={grades or 'all'}) [{job_id}]", count=0)
+            _asyncio.create_task(_run_breadth_job(job_id))
+            return {"success": True, "background": True, "job_id": job_id,
+                    "message": "Đã chạy nền. Theo dõi tiến độ ở Nhật ký Thu thập."}
             
     elif platform == "tnmath":
         if req.action == "login":
@@ -1658,6 +1677,14 @@ async def run_collector_task(req: ScrapeRequest):
             return res
             
     return {"success": False, "error": "Chức năng hoặc nền tảng chưa được hỗ trợ trực tiếp. Vui lòng sử dụng Tiện ích Extension hoặc nạp PDF."}
+
+@app.get("/api/collect/breadth-status")
+async def breadth_status(job_id: str = ""):
+    """Poll tiến độ job cào diện rộng (không giữ worker)."""
+    if job_id and job_id in _BREADTH_JOBS:
+        return {"success": True, "job_id": job_id, **_BREADTH_JOBS[job_id]}
+    recent = dict(list(_BREADTH_JOBS.items())[-5:])
+    return {"success": True, "jobs": recent}
 
 @app.get("/api/collect/logs")
 async def get_logs(limit: int = 50):
