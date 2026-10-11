@@ -178,6 +178,41 @@ def test_hunter_package_exports_loigiaihay_parser():
     assert "parse_loigiaihay_questions" in src
 
 
+# EN grade 6-12 exercise pages (verified DOM 2026-10-12, a154048): no
+# div.question blocks — "Exercise N|instruction|1. stem|A. a B. b C. c D. d|
+# ...|Đáp án: |1. X|2. Y|..." with numbered inline options and a
+# "Đáp án: |<num>. <letter>|" key per exercise.
+LOIGIAIHAY_EN_EXERCISE_HTML = (
+    '<div class="box-question" id="sub-question-2">'
+    '<p id="question-title-idx-2"><strong>Lời giải</strong></p>'
+    '<p>Exercise 3|Choose the correct preposition.|'
+    '1. There is a clock _______ the wall in class.|'
+    'A. near B. across C. on D. at|'
+    '2. Where is Susan? She is sitting _______ Jim.|'
+    'A. on B. under C. between D. next to|'
+    'Đáp án: | | |1. C| |2. D| | |</p>'
+    '</div>'
+)
+
+
+def test_parse_loigiaihay_english_exercise_layout():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.parsing import parse_loigiaihay_questions
+    out = parse_loigiaihay_questions(
+        LOIGIAIHAY_EN_EXERCISE_HTML,
+        source_url="https://loigiaihay.com/de-cuong-on-tap-hk1-tieng-anh-6-a154048.html",
+    )
+    assert len(out) == 2, f"expected 2 questions, got {len(out)}"
+    q1 = next(q for q in out if "clock" in q["content_text"])
+    assert len(q1["options"]) == 4
+    assert q1["correct_answer"] == "C", f"got {q1['correct_answer']}"
+    q2 = next(q for q in out if "Susan" in q["content_text"])
+    assert q2["correct_answer"] == "D"
+    assert q1["grade"] == 6
+    assert "anh" in q1["subject"] or "english" in q1["subject"], q1["subject"]
+
+
 def test_filter_loigiaihay_prefers_same_subject_grade_links():
     # Category toan-lop-2 lists exams of MANY grades + sidebar junk.
     # The crawler must prefer links matching the category's own subject+grade.
@@ -332,3 +367,29 @@ def test_grade_source_urls_6_to_12_have_lgh_listings():
         urls = [s["url"] for cat in got["categories"] for s in cat["sources"]]
         assert any("loigiaihay.com" in u for u in urls), \
             f"grade {grade} missing loigiaihay listing URL"
+
+
+# Expansion 2026-10-12c — Van trac-nghiem hubs 6/7/8/10/11, Van 12 de-thi,
+# EN trac-nghiem 12 (all verified urllib HTTP 200 with matching titles).
+def test_van_and_en_upper_grades_have_verified_listings():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import (
+        build_loigiaihay_url, get_grade_source_urls,
+        LOIGIAIHAY_VN_TRACNGHIEM,
+    )
+    assert build_loigiaihay_url("vietnamese", 12) == \
+        "https://loigiaihay.com/de-thi-de-kiem-tra-van-12-ket-noi-tri-thuc-c1972.html"
+    assert build_loigiaihay_url("english", 12) == \
+        "https://loigiaihay.com/v2/tu-luyen-trac-nghiem-tieng-anh-12-global-success-c1907.html"
+    assert set(LOIGIAIHAY_VN_TRACNGHIEM) == {6, 7, 8, 10, 11}
+    for grade in (6, 7, 8, 10, 11, 12):
+        got = get_grade_source_urls(grade)
+        vn_urls = [s["url"] for cat in got["categories"]
+                   for s in cat["sources"] if cat["id"] == "vietnamese"]
+        assert any("loigiaihay.com" in u for u in vn_urls), \
+            f"grade {grade} vietnamese missing loigiaihay URL"
+    got12 = get_grade_source_urls(12)
+    en_urls = [s["url"] for cat in got12["categories"]
+               for s in cat["sources"] if cat["id"] == "english"]
+    assert any("c1907" in u for u in en_urls), "grade 12 english missing trac-nghiem URL"

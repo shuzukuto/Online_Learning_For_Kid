@@ -840,7 +840,7 @@ GRADE2_MATH_OLYMPIAD_POOLS = [
 # (The chapter pages toan-lop-X-c12X.html instead list doc-hieu van links.)
 LOIGIAIHAY_MATH_CAT = {1: 1211, 2: 1212, 3: 1215, 4: 1636, 5: 1990,
                        6: 1022, 7: 1097, 8: 1612, 9: 1984, 11: 1623, 12: 1964}
-LOIGIAIHAY_VN_CAT = {2: 1213, 3: 2269, 4: 1796, 5: 1994, 9: 1968}
+LOIGIAIHAY_VN_CAT = {2: 1213, 3: 2269, 4: 1796, 5: 1994, 9: 1968, 12: 1972}
 LOIGIAIHAY_EN_CAT = {2: 1217, 3: 1218, 4: 1627, 5: 2008,
                      6: 1160, 7: 1182, 8: 1658, 9: 2003, 10: 1192}
 LOIGIAIHAY_MATH_SLUGS = {
@@ -865,6 +865,17 @@ LOIGIAIHAY_VN_SLUGS = {
     5: "de-thi-de-kiem-tra-tieng-viet-lop-5-ket-noi-tri-thuc-c1994.html",
     # Grade 9 Van (de-thi van-9) — VERIFIED 200 2026-10-12.
     9: "de-thi-de-kiem-tra-van-9-ket-noi-tri-thuc-c1968.html",
+    # Grade 12 Van de-thi listing (41 exams) — VERIFIED 200 2026-10-12.
+    12: "de-thi-de-kiem-tra-van-12-ket-noi-tri-thuc-c1972.html",
+}
+# Grade 6-12 Van trac-nghiem/tu-luyen hubs — VERIFIED live 2026-10-12
+# (all HTTP 200, titles match grade+subject; these list /v2/ quiz links).
+LOIGIAIHAY_VN_TRACNGHIEM = {
+    6: "v2/tu-luyen-tu-luyen-van-6-kntt-c788.html",
+    7: "v2/tu-luyen-tu-luyen-van-7-c761.html",
+    8: "v2/tu-luyen-trac-nghiem-van-8-ket-noi-tri-thuc-c1453.html",
+    10: "v2/tu-luyen-trac-nghiem-ngu-van-10-ket-noi-tri-thuc-c959.html",
+    11: "v2/tu-luyen-trac-nghiem-van-11-ket-noi-tri-thuc-c1481.html",
 }
 LOIGIAIHAY_EN_SLUGS = {
     2: "de-thi-de-kiem-tra-tieng-anh-lop-2-ket-noi-tri-thuc-c1217.html",
@@ -878,6 +889,8 @@ LOIGIAIHAY_EN_SLUGS = {
     9: "de-thi-de-kiem-tra-tieng-anh-lop-9-global-success-c2003.html",
     10: "de-thi-de-kiem-tra-tieng-anh-lop-10-global-success-c1192.html",
     11: "v2/tu-luyen-trac-nghiem-tieng-anh-11-global-success-c1445.html",
+    # Grade 12 trac-nghiem hub (48 /v2/ skill quizzes) — VERIFIED 200 2026-10-12.
+    12: "v2/tu-luyen-trac-nghiem-tieng-anh-12-global-success-c1907.html",
 }
 
 # vietjack exam-pack URLs — VERIFIED live 2026-10-12 (all HTTP 200).
@@ -961,8 +974,8 @@ def extract_grade_from_url(url: str, default_grade: int = 5) -> int:
         except ValueError:
             pass
 
-    # 2. Path patterns: toan-lop-X, toan-X (detail pages), lop-X, grade-X
-    path_match = re.search(r'(?:toan-lop-|toan-|lop-|grade-)(\d+)', url_lower)
+    # 2. Path patterns: toan-lop-X, toan-X, tieng-anh-X, van-X (detail pages), lop-X, grade-X
+    path_match = re.search(r'(?:toan-lop-|toan-|tieng-anh-|van(?:-lop)?-|lop-|grade-)(\d+)', url_lower)
     if path_match:
         try:
             g = int(path_match.group(1))
@@ -999,6 +1012,12 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
     grade = max(1, min(12, int(grade or 2)))
     
     # Vietnamese sources
+    _lgh_math = build_loigiaihay_url("math", grade) or ""
+    _lgh_math_quiz = _lgh_math.startswith("https://loigiaihay.com/v2/")
+    _lgh_vn = build_loigiaihay_url("vietnamese", grade) or ""
+    # Grade 12 VN is a de-thi listing of ESSAY exams (tu luan) — manual open,
+    # not auto-harvestable by the MCQ hunter.
+    _lgh_vn_essay = grade == 12
     vn_sources = [
         {
             "name": f"Hành Trang Số (SGK Toán {grade})",
@@ -1032,15 +1051,19 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
         },
         {
             "name": f"Lời Giải Hay Toán Lớp {grade}",
-            "url": build_loigiaihay_url("math", grade) or "",
-            "type": "practice",
-            "desc": f"Bài tập trắc nghiệm và lời giải chi tiết Toán Lớp {grade} (verified 200)"
+            "url": _lgh_math,
+            "type": "interactive" if _lgh_math_quiz else "practice",
+            "desc": (f"Trắc nghiệm Toán Lớp {grade} — trang quiz JS (mở tay, verified 200)"
+                     if _lgh_math_quiz else
+                     f"Bài tập trắc nghiệm và lời giải chi tiết Toán Lớp {grade} (verified 200)")
         },
         {
             "name": f"Lời Giải Hay Tiếng Việt Lớp {grade}",
-            "url": build_loigiaihay_url("vietnamese", grade) or "",
-            "type": "practice",
-            "desc": f"Soạn bài & luyện từ câu Tiếng Việt Lớp {grade} (verified 200)"
+            "url": _lgh_vn,
+            "type": "interactive" if _lgh_vn_essay else "practice",
+            "desc": (f"Đề thi tự luận Văn Lớp {grade} có lời giải (mở tay, verified 200)"
+                     if _lgh_vn_essay else
+                     f"Soạn bài & luyện từ câu Tiếng Việt Lớp {grade} (verified 200)")
         },
         {
             "name": f"VietJack Đề thi Toán Lớp {grade}",
@@ -1064,7 +1087,14 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
             "type": "practice",
             "desc": f"Đề Tiếng Việt Lớp {grade} bộ sách thứ 2 (verified 200)",
         })
-    # Drop entries with no verified URL (e.g. TV grade 1, grades 6-12):
+    if grade in LOIGIAIHAY_VN_TRACNGHIEM:
+        vn_sources.append({
+            "name": f"Lời Giải Hay Trắc nghiệm Văn Lớp {grade}",
+            "url": f"https://loigiaihay.com/{LOIGIAIHAY_VN_TRACNGHIEM[grade]}",
+            "type": "interactive",
+            "desc": f"Trắc nghiệm Văn Lớp {grade} có đáp án + lời giải — trang quiz JS (mở tay, verified 200)",
+        })
+    # Drop entries with no verified URL (e.g. TV grade 1):
     # a guessed category ID points at the WRONG subject's page.
     vn_sources = [s for s in vn_sources if s.get("url")]
 
@@ -1160,11 +1190,14 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
         })
     _lgh_en = build_loigiaihay_url("english", grade)
     if _lgh_en:
+        _is_quiz = _lgh_en.startswith("https://loigiaihay.com/v2/")
         en_sources.insert(0, {
             "name": f"Lời Giải Hay Tiếng Anh Lớp {grade}",
             "url": _lgh_en,
-            "type": "practice",
-            "desc": f"Đề thi + lời giải Tiếng Anh Lớp {grade} (verified 200)",
+            "type": "interactive" if _is_quiz else "practice",
+            "desc": (f"Trắc nghiệm Tiếng Anh Lớp {grade} — trang quiz JS (mở tay, verified 200)"
+                     if _is_quiz else
+                     f"Đề thi + lời giải Tiếng Anh Lớp {grade} (verified 200)"),
         })
     if grade in (6, 9):
         en_sources.append({

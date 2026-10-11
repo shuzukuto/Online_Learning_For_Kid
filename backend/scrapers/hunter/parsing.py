@@ -267,6 +267,15 @@ def parse_loigiaihay_questions(html: str, source_url: str = "") -> List[Dict[str
 def _parse_loigiaihay_upper_layout(soup: "BeautifulSoup", source_url: str) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     try:
+        grade = extract_grade_from_url(source_url, default_grade=5)
+        # 0. EN exercise layout (a154048): numbered items + "Đáp án: |N. X|" keys.
+        # Try it first when the page has Exercise markers; it shares no
+        # structure with the Câu-N layouts below.
+        page_text = soup.get_text(" ", strip=True)
+        if re.search(r"\bExercise\s*\d+", page_text, re.I):
+            ex_out = _parse_loigiaihay_exercise_layout(soup, source_url, grade)
+            if ex_out:
+                return ex_out
         # 1. Answer-key table: cells like "1. B" / "12. A".
         answer_key: Dict[int, str] = {}
         for table in soup.find_all("table"):
@@ -309,7 +318,6 @@ def _parse_loigiaihay_upper_layout(soup: "BeautifulSoup", source_url: str) -> Li
             solutions[current] = re.sub(r"\s+", " ", " ".join(buf)).strip()
 
         # 3. Stems: <p> starting "Câu N:" — options inline OR in following <p>.
-        grade = extract_grade_from_url(source_url, default_grade=5)
         seen_nums = set()
         for p in soup.find_all("p"):
             t = p.get_text(" ", strip=True)
@@ -496,3 +504,173 @@ def parse_vietjack_questions(html: str, source_url: str = "") -> List[Dict[str, 
         except Exception:
             continue
     return results
+
+
+def _parse_loigiaihay_exercise_layout(soup: "BeautifulSoup", source_url: str,
+                                     grade: int) -> List[Dict[str, Any]]:
+    """Parses EN exercise pages (verified DOM 2026-10-12, a154048).
+
+    Items are numbered ``1. stem|A. a B. b C. c D. d|2. ...`` inside <p>
+    blocks; each exercise's key follows a ``Đáp án:`` marker as
+    ``|<num>. <letter>|`` cells (letters only for MCQ items — written-answer
+    keys like ``1. is`` are skipped). Subject is forced to ``english``
+    from the URL slug (stems alone often miss the classifier's keywords).
+    """
+    results: List[Dict[str, Any]] = []
+    try:
+        full = soup.get_text("|", strip=True)
+        # Split into Exercise sections — numbering restarts per exercise, so
+        # keys MUST stay scoped to their own section (a154048: Ex3 key is
+        # 1.C 2.D..., later exercises reuse 1-5 with different letters).
+        ex_marks = list(re.finditer(r"\bExercise\s*(\d+)", full, re.I))
+        sections = []
+        for i, m in enumerate(ex_marks):
+            end = ex_marks[i + 1].start() if i + 1 < len(ex_marks) else len(full)
+            sections.append((int(m.group(1)), full[m.start():end]))
+        subj = "english" if re.search(r"tieng-anh|english|anh-\d", source_url, re.I) \
+            else classify_subject(source_url)
+        seen_stems = set()
+        for _ex_num, sec in sections:
+            # Key within THIS section only: after "Đáp án:" in the section.
+            key_map: Dict[int, str] = {}
+            dm = re.search(r"Đáp án\s*:", sec, re.I)
+            if dm:
+                key_seg = sec[dm.end():]
+                for km in re.finditer(r"\|\s*(\d{1,2})\s*[.\):]\s*([A-D])(?=\s*\||\s|$)",
+                                      key_seg, re.I):
+                    num = int(km.group(1))
+                    if num not in key_map:
+                        key_map[num] = km.group(2).upper()
+            # Items: only the part BEFORE "Đáp án:" (the solution half repeats
+            # the same items with numbering that would double-count stems).
+            item_seg = sec[:dm.start()] if dm else sec
+            for m in re.finditer(
+                    r"(?:^|\|)\s*(\d{1,2})\s*[.\):]\s*([^|]+?)\|\s*"
+                    r"A\s*[.\):]\s*(.+?)(?=(?:^|\|)\s*\d{1,2}\s*[.\):]|\|\s*Đáp án|$)",
+                    item_seg, re.S):
+                num = int(m.group(1))
+                body = m.group(2).strip() + " A. " + m.group(3).strip()
+                m_a = re.search(r"\bA\s*[.\):]\s*", body)
+                if not m_a:
+                    continue
+                stem = re.sub(r"\s+", " ", body[:m_a.start()].strip())
+                opt_run = body[m_a.end():]
+                _emit_exercise_item(results, seen_stems, key_map, subj,
+                                    source_url, grade, num, stem, opt_run)
+                if len(results) >= 30:
+                    return results
+        # Lone shape (b): each <p> is "N. stem", options in the NEXT <p>.
+        # (Handled below on the raw <p> list.)
+        for p in soup.find_all("p"):
+            t = p.get_text("|", strip=True)
+            if "Đáp án" in t or re.match(r"^\s*Exercise\s*\d+", t, re.I):
+                continue
+            # Two live shapes:
+            #  (a) one <p> holds "1. stem|A. a B. b C. c D. d|2. ..." (multi-item);
+            #  (b) each <p> is a lone "N. stem" and options sit in the NEXT <p>
+            #      as "A. ... B. ... C. ... D. ..." (a154048 Exercise 3+).
+            lone = re.match(r"^\s*(\d{1,2})\s*[.\):]\s*(.+?)\s*$", t, re.S)
+            if lone and "A." not in t and len(lone.group(2).strip()) >= 5:
+                num = int(lone.group(1))
+                stem = re.sub(r"\s+", " ", lone.group(2).strip())
+                opt_run = ""
+                node = p.find_next_sibling()
+                hops = 0
+                while node is not None and hops < 3:
+                    hops += 1
+                    if getattr(node, "get_text", None) is None:
+                        node = node.find_next_sibling()
+                        continue
+                    n_text = node.get_text(" ", strip=True)
+                    if re.match(r"^\s*\d{1,2}\s*[.\):]", n_text):
+                        break
+                    if re.search(r"\bA\s*[.\):]", n_text):
+                        opt_run = n_text
+                        break
+                    node = node.find_next_sibling()
+                if opt_run:
+                    # Lone items share their exercise's key: find nearest
+                    # preceding "Đáp án:"-scoped map via section lookup.
+                    _emit_exercise_item(results, seen_stems, _section_key_for(
+                        full, p, sections), subj,
+                        source_url, grade, num, stem, opt_run)
+                continue
+    except Exception:
+        return results
+    return results
+
+
+def _section_key_for(full: str, p, sections: list) -> Dict[int, str]:
+    """Key map of the Exercise section containing paragraph *p* (best effort).
+
+    Falls back to {} when the paragraph sits outside any keyed section.
+    """
+    try:
+        anchor = p.get_text("|", strip=True)[:40]
+        pos = full.find(anchor)
+        best: Dict[int, str] = {}
+        for _ex_num, sec in sections:
+            start = full.find(sec[:60])
+            if start != -1 and start <= pos < start + len(sec):
+                dm = re.search(r"Đáp án\s*:", sec, re.I)
+                if dm:
+                    for km in re.finditer(
+                            r"\|\s*(\d{1,2})\s*[.\):]\s*([A-D])(?=\s*\||\s|$)",
+                            sec[dm.end():], re.I):
+                        num = int(km.group(1))
+                        if num not in best:
+                            best[num] = km.group(2).upper()
+                break
+        return best
+    except Exception:
+        return {}
+
+
+def _emit_exercise_item(results: List[Dict[str, Any]], seen_stems: set,
+                        key_map: Dict[int, str], subj: str, source_url: str,
+                        grade: int, num: int, stem: str, opt_run: str) -> None:
+    """Builds one MCQ payload from a stem + option-run string."""
+    opt_parts = re.split(r"\b([B-D])\s*[.\):]\s*", opt_run)
+    # opt_parts: [A_text, B, B_text, C, C_text, D, D_text]
+    if len(opt_parts) < 7:
+        return
+    opts_raw = [opt_parts[0], opt_parts[2], opt_parts[4], opt_parts[6]]
+    if len(stem) < 5 or len(stem) > 400:
+        return
+    options = []
+    for lid, oc in zip("ABCD", opts_raw):
+        oc = re.sub(r"[\s\xa0]+", " ", oc.strip())
+        if oc and len(oc) < 200:
+            options.append({"id": lid, "content": oc, "is_correct": False})
+    if len(options) < 2:
+        return
+    skey = re.sub(r"\s+", " ", stem.lower()).strip()
+    if skey in seen_stems:
+        return
+    seen_stems.add(skey)
+    correct_ans = key_map.get(num, options[0]["id"])
+    if correct_ans not in [o["id"] for o in options]:
+        correct_ans = options[0]["id"]
+    for o in options:
+        if o["id"] == correct_ans:
+            o["is_correct"] = True
+    candidate = {
+        "id": f"lgh_{uuid.uuid4().hex[:10]}",
+        "source_platform": "loigiaihay",
+        "source_url": source_url or "https://loigiaihay.com/",
+        "exam_name": "Lời Giải Hay - Bài tập Tiếng Anh có đáp án",
+        "grade": grade,
+        "subject": subj,
+        "topic": "Bài tập Lời Giải Hay",
+        "question_type": "single_choice",
+        "content_html": f"<p>{stem}</p>",
+        "content_text": stem,
+        "images": [],
+        "options": options,
+        "correct_answer": correct_ans,
+        "explanation": "",
+        "difficulty": "medium",
+    }
+    is_valid, _ = is_valid_question_payload(candidate)
+    if is_valid:
+        results.append(candidate)
