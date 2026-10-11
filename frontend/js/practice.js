@@ -515,6 +515,9 @@ function renderArenaQuestion() {
 function stripMathForSpeech(raw) {
   if (!raw) return "";
   let t = String(raw);
+  // Unwrap bare numbers first ($50$ -> "50") so speech reads the digits,
+  // not "cong thuc". Real formulas still become "cong thuc" below.
+  t = t.replace(/\$(\s*\d(?:[\d\s.,+\-*/=()<>]*\d)?\s*)\$/g, (m, inner) => (/[A-Za-z\\]/.test(inner) ? m : inner));
   t = t.replace(/\$\$[\s\S]*?\$\$/g, " công thức ");
   t = t.replace(/\$[^$\n]+?\$/g, " công thức ");
   t = t.replace(/\\\(([\s\S]*?)\\\)/g, " $1 ");

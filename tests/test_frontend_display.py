@@ -110,6 +110,35 @@ def test_real_formulas_untouched_by_escape():
         assert out == s, f"formula modified: {s!r} -> {out!r}"
 
 
+BS = chr(92)  # backslash — build formula literals without escaping pitfalls
+
+
+def test_bare_numbers_unwrapped_not_katex():
+    # Bug user bao: "$50$" hien nguyen dau $ tren man hinh.
+    # So le boc $ phai lot thanh text thuong, cong thuc that giu nguyen.
+    cases = [
+        ("Hoi dung $50$ ngay nua la thu may?", "Hoi dung 50 ngay nua la thu may?"),
+        ("Co $50$ hoc sinh, trong do $20$ nu.", "Co 50 hoc sinh, trong do 20 nu."),
+        ("Me mua gao gia $50000$ dong.", "Me mua gao gia 50000 dong."),
+        ("Tinh nham $48 + 27$", "Tinh nham 48 + 27"),
+    ]
+    for s, expected in cases:
+        out = _run_js(APP_JS, "stripBareNumberDelimiters", [s])
+        assert out == expected, f"bare number kept dollars: {s!r} -> {out!r}"
+        assert "$" not in str(out)
+
+
+def test_bare_number_strip_keeps_real_formulas():
+    cases = [
+        "Cach nhau $165" + BS + "text{ km}$ luc 7 gio.",
+        "Day lon $120" + BS + "text{ m}$, day be $" + BS + "frac{2}{3}$.",
+        "Tinh $A = " + BS + "frac{1}{2} + " + BS + "frac{1}{6}$.",
+    ]
+    for s in cases:
+        out = _run_js(APP_JS, "stripBareNumberDelimiters", [s])
+        assert out == s, f"real formula damaged: {s!r} -> {out!r}"
+
+
 def test_tts_short_text_single_chunk():
     out = _run_js(PRACTICE_JS, "splitIntoSpeechChunks", ["Câu 1. Hai cộng ba bằng mấy?", 180])
     assert out == ["Câu 1. Hai cộng ba bằng mấy?"]

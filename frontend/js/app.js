@@ -1,7 +1,7 @@
 // EduQuest Pro - Core Application & Router
 // Version hien thi duoc cap nhat dong tu /api/version (backend/version.py la nguon duy nhat).
 // APP_VERSION giu lam gia tri fallback khi backend chua san sang.
-let APP_VERSION = "v1.0.47";
+let APP_VERSION = "v1.0.48";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
@@ -315,6 +315,15 @@ function formatMathSymbols(str) {
   if (!str) return "";
   let s = String(str);
 
+  // BƯỚC -1: Lột dấu $ quanh số lẻ ($50$ -> 50). Dữ liệu sinh tự động bọc
+  // số thường trong math delimiter; giữ lại sẽ lộ "$50$" trên màn hình
+  // (cơ chế bảo vệ currency bên dưới khôi phục nguyên dấu $).
+  if (typeof stripBareNumberDelimiters === "function") {
+    s = stripBareNumberDelimiters(s);
+  } else {
+    s = s.replace(/\$(\s*\d(?:[\d\s.,+\-*/=()<>]*\d)?\s*)\$/g, (m, inner) => (/[A-Za-z\\]/.test(inner) ? m : inner));
+  }
+
   // ---------------------------------------------------------
   // BƯỚC 0: Nhận diện và bảo vệ ký hiệu tiền tệ ($3, $20, $ 50, 3$, ...)
   // Thay thế dấu $ tiền tệ thành <span class="currency-dollar">$</span> trước khi tìm khối toán học
@@ -437,6 +446,24 @@ window.formatMathSymbols = formatMathSymbols;
 const CURRENCY_TOKEN_OPEN = "";
 const CURRENCY_TOKEN_CLOSE = "";
 
+// Bare-number delimiters ($50$, $50000$) are plain numbers wrongly wrapped in
+// math delimiters by data generators. Render them as TEXT (drop the dollars),
+// never via KaTeX. Real formulas (contain a backslash or letters, e.g.
+// fractions, units, variables) still go through KaTeX untouched.
+//
+// Pure helper — kept out of renderMath so node tests can call it directly.
+function stripBareNumberDelimiters(str) {
+  if (!str || typeof str !== "string") return str || "";
+  // Match $...$ whose inner is ONLY digits/operators/spaces (no letters,
+  // no backslash, no ^_{}). $48 + 27$ -> text; $A$, $\frac{}{}$, $7^{2024}$,
+  // $165\text{ km}$ all keep their dollars for KaTeX.
+  return str.replace(/\$(\s*\d(?:[\d\s.,+\-*/=()<>]*\d)?\s*)\$/g, (m, inner) => {
+    // Safety: a letter or backslash inside means a real formula — keep it.
+    if (/[A-Za-z\\]/.test(inner)) return m;
+    return inner;
+  });
+}
+
 // Pure helper: replace currency $...$ (digits inside, no letters/backslash —
 // i.e. NOT a formula like $\frac{}{}$ or $\text{}$) with placeholder tokens.
 // Real formulas are returned byte-identical.
@@ -488,6 +515,9 @@ function renderMath(container) {
   }
 
   matchedNodes.forEach(node => {
+    // Lột $ quanh số lẻ TRƯỚC ($50$ -> 50 hiện text thường), rồi mới bảo vệ
+    // currency còn sót. Không có bước này, khôi phục currency trả nguyên $50$.
+    node.nodeValue = stripBareNumberDelimiters(node.nodeValue);
     node.nodeValue = escapeCurrencyForKatex(node.nodeValue);
   });
 
