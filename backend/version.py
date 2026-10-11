@@ -5,8 +5,8 @@ phải đọc từ đây thay vì hard-code số version rời rạc.
 """
 from __future__ import annotations
 
-APP_VERSION = "v1.0.44"
-APP_VERSION_NUMBER = "1.0.44"
-CACHE_BUSTER = "1.0.49"
+APP_VERSION = "v1.0.45"
+APP_VERSION_NUMBER = "1.0.45"
+CACHE_BUSTER = "1.0.50"
 EXT_VERSION = "v1.3.18"
 EXT_VERSION_NUMBER = "1.3.18"

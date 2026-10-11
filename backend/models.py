@@ -87,12 +87,14 @@ class ExamResponse(BaseModel):
 
 class ScrapeRequest(BaseModel):
     platform: str  # vioedu, tnmath
-    action: str  # login, fetch_rounds, fetch_questions
+    action: str  # login, fetch_rounds, fetch_questions, breadth
     username: Optional[str] = None
     password: Optional[str] = None
     token: Optional[str] = None
     round_id: Optional[str] = None
     grade: Optional[int] = 5
+    subject: Optional[str] = None  # breadth: "math,vietnamese,english" (None = all)
+    max_questions: Optional[int] = 12  # breadth: questions per skill
 
 class AutoExamGenerateRequest(BaseModel):
     subject: str = "math"

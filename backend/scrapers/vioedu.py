@@ -4,7 +4,7 @@ import uuid
 import asyncio
 import json
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 import httpx
 from bs4 import BeautifulSoup
 from backend.database import insert_or_update_question, log_collector_event, bulk_insert_questions
@@ -13,6 +13,32 @@ from backend.normalizer import normalize_question_payload, is_valid_question_pay
 VN_TZ = timezone(timedelta(hours=7)) # Chuẩn múi giờ Việt Nam UTC+7
 
 VIOEDU_BASE_URL = "https://vio.edu.vn"
+
+# Verified VioEdu subjectIds (extracted from vio.edu.vn JS bundle, probe 2026-10-11).
+# All three return live categories + skills via public GraphQL (no login).
+VIOEDU_SUBJECTS = {
+    "math": {"subject_id": "5b59371949ce6e0015c74cd9", "label": "Toán"},
+    "vietnamese": {"subject_id": "61e520ada47228001dfedb6b", "label": "Tiếng Việt"},
+    "english": {"subject_id": "66b96da2a1d5fb632d7aedab", "label": "Tiếng Anh"},
+}
+
+# Grades to sweep in breadth mode: focus grade 2 first, then expand 1-5.
+VIOEDU_BREADTH_GRADES = [2, 1, 3, 4, 5]
+
+
+def merge_vioedu_explanation(question: Dict[str, Any], explanation: str) -> Dict[str, Any]:
+    """Attach a separately-fetched loi giai to a question dict (pure helper).
+
+    The PracticeQuestionQuery packet carries answers but an empty explanation;
+    the solution arrives in a later getQuestionResultQuery packet. Keep the
+    first non-empty explanation; never overwrite an existing one with blank.
+    """
+    if not isinstance(question, dict):
+        return question
+    exp = (explanation or "").strip()
+    if exp and not (question.get("explanation") or "").strip():
+        question["explanation"] = exp
+    return question
 
 # Realistic User-Agent for headless requests
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -89,7 +115,7 @@ async def reset_vioedu_devices(username: str) -> bool:
         pass
     return False
 
-async def login_vioedu(username: str, password: str, log_func: Optional[Callable[[str, str], None]] = None) -> Dict[str, Any]:
+async def login_vioedu(username: str, password: str, log_func: Optional[Callable[..., None]] = None) -> Dict[str, Any]:
     """
     Direct HTTP authentication with VioEdu API endpoint (https://vio.edu.vn/login).
     Retrieves user profile, fixed grade, and session cookies.
@@ -209,7 +235,7 @@ def clean_vioedu_stem(raw_html: str) -> str:
     cleaned = re.sub(r'^(?:<[^>]+>|\s)*(?:<[bi]>)?(?:Câu|Bài)(?:\s+hỏi)?\s*(?:số)?\s*\d+\s*[:.]?\s*(?:<\/[bi]>)?(?:\s*<\/[^>]+>)?\s*', '', cleaned, flags=re.I)
     return cleaned.strip()
 
-def parse_vioedu_question_data(item: Dict[str, Any], exam_name: str = "Đấu trường VioEdu", grade: int = 5) -> Optional[Dict[str, Any]]:
+def parse_vioedu_question_data(item: Dict[str, Any], exam_name: str = "Đấu trường VioEdu", grade: int = 5, subject: str = "math") -> Optional[Dict[str, Any]]:
     """
     Parses a raw VioEdu question dict into standard EduQuest question schema.
     Extracts formulas, options, correct answers, and explanations across all question types:
@@ -341,7 +367,7 @@ def parse_vioedu_question_data(item: Dict[str, Any], exam_name: str = "Đấu tr
         if src not in images and not any(ic in src for ic in ["avatar", "icon", "logo", "btn", "arrow"]):
             images.append(src)
 
-    topic = item.get("skillName") or item.get("skill_name") or item.get("topic") or f"Toán học VioEdu Lớp {grade}"
+    topic = item.get("skillName") or item.get("skill_name") or item.get("topic") or f"{VIOEDU_SUBJECTS.get(subject, {}).get('label', 'Môn học')} VioEdu Lớp {grade}"
     clean_text = BeautifulSoup(raw_content, "html.parser").get_text(separator=" ").strip()
     clean_text = re.sub(r'\s+', ' ', clean_text)
     
@@ -353,7 +379,7 @@ def parse_vioedu_question_data(item: Dict[str, Any], exam_name: str = "Đấu tr
         "source_url": "https://vio.edu.vn",
         "exam_name": exam_name,
         "grade": grade,
-        "subject": "math",
+        "subject": subject,
         "topic": topic,
         "question_type": q_type,
         "content_html": raw_content,
@@ -620,6 +646,65 @@ async def fetch_vioedu_skills_in_grade(
             
     return discovered_skills
 
+async def crawl_vioedu_breadth(
+    grades: Optional[List[int]] = None,
+    subjects: Optional[List[str]] = None,
+    max_questions_per_skill: int = 12,
+    max_skills: Optional[int] = None,
+    cookies: Optional[Dict[str, str]] = None,
+    log_func: Optional[Callable[..., None]] = None,
+) -> Dict[str, Any]:
+    """Breadth sweep over the FULL VioEdu curriculum (public GraphQL, no login).
+
+    Iterates every category x skill for the requested grades x subjects and
+    fetches practice questions read-only. Grade 2 first, then 1/3/4/5.
+    Returns raw question dicts tagged with grade + subject for the caller
+    to normalize/insert (dedup by content downstream via content_hash).
+    """
+    grade_list = list(grades) if grades else list(VIOEDU_BREADTH_GRADES)
+    subject_list = list(subjects) if subjects else ["math", "vietnamese", "english"]
+    collected: List[Dict[str, Any]] = []
+    stats: Dict[str, int] = {}
+    total_skills = 0
+    try:
+        async with httpx.AsyncClient(timeout=12.0, cookies=cookies or {}, follow_redirects=True) as client:
+            for grade in grade_list:
+                for subj in subject_list:
+                    info = VIOEDU_SUBJECTS.get(subj)
+                    if not info:
+                        continue
+                    sid = info["subject_id"]
+                    # NOTE: fetch_vioedu_skills_in_grade opens its own client;
+                    # pass cookies through so an authed session (if any) is reused.
+                    discovered = await fetch_vioedu_skills_in_grade(
+                        grade=grade, cookies=cookies, subject_id=sid, log_func=None
+                    )
+                    if max_skills is not None:
+                        discovered = discovered[:max_skills]
+                    n_q = 0
+                    for s in discovered:
+                        total_skills += 1
+                        sqs = await fetch_vioedu_skill_practice_questions(
+                            skill_id=s["skill_id"], grade=grade,
+                            cookies=cookies, max_questions=max_questions_per_skill,
+                            log_func=None,
+                        )
+                        for raw in sqs:
+                            raw["grade"] = grade
+                            raw["_breadth_subject"] = subj
+                            raw["skillName"] = raw.get("skillName") or s.get("skill_name")
+                            collected.append(raw)
+                        n_q += len(sqs)
+                        await asyncio.sleep(0.2)
+                    stats[f"{subj}_g{grade}"] = n_q
+                    if log_func:
+                        log_func(f"📚 {info['label']} Lớp {grade}: {len(discovered)} bài, {n_q} câu.")
+                    _ = client  # keep client scope explicit; fetches use their own sessions
+    except Exception as e:
+        if log_func:
+            log_func(f"⚠️ Lỗi cào diện rộng VioEdu: {str(e)}")
+    return {"questions": collected, "stats": stats, "skills_visited": total_skills}
+
 # -------------------------------------------------------------
 # 5. Automated Headless Bot Crawler (Playwright Engine)
 # -------------------------------------------------------------
@@ -804,9 +889,9 @@ async def crawl_vioedu_rounds_headless(
                     cookies=session_cookies,
                     log_func=log_step
                 )
-                log_step(f"📋 Tìm thấy {len(discovered)} bài luyện tập Khối {effective_grade}. Đang cào các bài tiêu biểu...")
-                
-                for s in discovered[:4]:
+                log_step(f"📋 Tìm thấy {len(discovered)} bài luyện tập Khối {effective_grade}. Đang cào toàn bộ...")
+
+                for s in discovered:
                     s_id = s["skill_id"]
                     s_name = s["skill_name"]
                     log_step(f"  👉 Cào bài: {s_name} ({s_id})...")
@@ -876,8 +961,8 @@ async def crawl_vioedu_rounds_headless(
                     log_step(f"ℹ️ Đấu trường chính thức hiện ngoài khung giờ thi đấu. Bot tự động chuyển sang thu thập bài luyện tập Toán Khối {effective_grade}...")
                     discovered = await fetch_vioedu_skills_in_grade(grade=effective_grade, cookies=session_cookies, log_func=log_step)
                     if discovered:
-                        log_step(f"📋 Tìm thấy {len(discovered)} bài thực hành. Bắt đầu thu thập các bài trọng tâm...")
-                        for s in discovered[:3]:
+                        log_step(f"📋 Tìm thấy {len(discovered)} bài thực hành. Bắt đầu thu thập toàn bộ...")
+                        for s in discovered:
                             log_step(f"  👉 Thu thập bài: {s['skill_name']}...")
                             sqs = await fetch_vioedu_skill_practice_questions(
                                 skill_id=s["skill_id"],
@@ -942,7 +1027,10 @@ async def crawl_vioedu_rounds_headless(
         if target_info["type"] == "skill_practice" and raw_q.get("skillName"):
             item_exam = f"VioEdu Luyện tập - {raw_q['skillName']} (Lớp {item_grade})"
             
-        parsed = parse_vioedu_question_data(raw_q, exam_name=item_exam, grade=item_grade)
+        parsed = parse_vioedu_question_data(
+            raw_q, exam_name=item_exam, grade=item_grade,
+            subject=raw_q.get("_breadth_subject") or "math",
+        )
         if parsed:
             parsed["grade"] = item_grade
             key = re.sub(r'\s+', '', parsed["content_text"] or "").lower()[:80]

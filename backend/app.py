@@ -50,7 +50,8 @@ from backend.normalizer import normalize_question_payload
 from backend.docx_exporter import generate_exam_docx
 from backend.pdf_extractor import extract_questions_from_pdf, extract_questions_from_image, SUPPORTED_IMAGE_EXTENSIONS
 from backend.scrapers.vioedu import (
-    login_vioedu, fetch_vioedu_arena_questions, parse_vioedu_question_data, crawl_vioedu_rounds_headless
+    login_vioedu, fetch_vioedu_arena_questions, parse_vioedu_question_data, crawl_vioedu_rounds_headless,
+    crawl_vioedu_breadth,
 )
 from backend.scrapers.tnmath import login_tnmath, parse_tnmath_question_data
 
@@ -1619,6 +1620,37 @@ async def run_collector_task(req: ScrapeRequest):
             inserted = bulk_insert_questions(normalized_list)
             log_collector_event("vioedu", "success", f"Thu thập Đấu trường #{req.round_id}", inserted)
             return {"success": True, "count": inserted, "questions": normalized_list}
+        elif req.action == "breadth":
+            # Cào diện rộng toàn curriculum: không cần login (GraphQL public).
+            # subjects: ["math","vietnamese","english"]; grades vd [2] rồi mở rộng.
+            from backend.normalizer import normalize_question_payload as _norm, is_valid_question_payload as _valid
+            subjects = None
+            if isinstance(req.subject, str) and req.subject.strip():
+                subjects = [s.strip().lower() for s in req.subject.split(",") if s.strip()]
+            grades = [req.grade] if req.grade else None
+            max_q = req.max_questions or 12
+            log_collector_event(platform="vioedu", status="running",
+                message=f"Cào diện rộng VioEdu (môn={subjects or 'all'}, khối={grades or 'all'})", count=0)
+            sweep = await crawl_vioedu_breadth(grades=grades, subjects=subjects, max_questions_per_skill=max_q)
+            normalized_list = []
+            for raw in sweep.get("questions", []):
+                subj = raw.pop("_breadth_subject", "math")
+                parsed = parse_vioedu_question_data(
+                    raw, exam_name=f"VioEdu {subj} Lớp {raw.get('grade', req.grade or 2)}",
+                    grade=int(raw.get("grade") or req.grade or 2), subject=subj)
+                if parsed:
+                    try:
+                        norm_q = await _norm(parsed)
+                        valid, _ = _valid(norm_q)
+                        if valid:
+                            normalized_list.append(norm_q)
+                    except Exception:
+                        pass
+            inserted = bulk_insert_questions(normalized_list, skip_duplicates=True) if normalized_list else 0
+            log_collector_event("vioedu", "success",
+                f"Cào diện rộng VioEdu: {inserted} câu mới ({sweep.get('skills_visited', 0)} bài, {sweep.get('stats', {})})", inserted)
+            return {"success": True, "count": inserted, "stats": sweep.get("stats", {}),
+                    "skills_visited": sweep.get("skills_visited", 0)}
             
     elif platform == "tnmath":
         if req.action == "login":

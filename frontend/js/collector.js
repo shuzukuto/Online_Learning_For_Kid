@@ -1200,6 +1200,65 @@ async function runAutoScraper() {
   }
 }
 
+// Cào diện rộng VioEdu: toàn curriculum 3 môn (Toán/TV/Anh), không cần login.
+// Grade = khối đang chọn ở dropdown scraper-grade.
+async function runVioEduBreadth() {
+  const grade = parseInt(document.getElementById("scraper-grade").value) || 2;
+  const btn = document.getElementById("btn-vioedu-breadth");
+  const timeNow = getLogTimeVN();
+  scraperLogLines = [
+    `[${timeNow}] 🌐 Cào diện rộng VioEdu Khối ${grade} (Toán + Tiếng Việt + Tiếng Anh)...`,
+    `[${timeNow}] Không cần đăng nhập — dùng GraphQL công khai, quét toàn bộ bài luyện tập...`
+  ];
+  renderScraperLog();
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `⏳ Đang quét toàn bộ Khối ${grade}...`;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/collect/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        platform: "vioedu",
+        action: "breadth",
+        grade: grade,
+        subject: "math,vietnamese,english",
+        max_questions: 12
+      })
+    });
+    const data = await res.json();
+    const finishTime = getLogTimeVN();
+    if (data.success) {
+      const st = data.stats || {};
+      const detail = Object.entries(st).map(([k, v]) => `${k}: ${v}`).join(", ");
+      scraperLogLines.unshift(`[${finishTime}] ✅ Cào diện rộng xong: ${data.count} câu mới, ${data.skills_visited} bài (${detail})`);
+      showToast(`Đã thêm ${data.count} câu VioEdu mới Khối ${grade} (${data.skills_visited} bài)!`, "success");
+      if (typeof broadcastNewQuestions === "function" && data.count > 0) {
+        broadcastNewQuestions(data.count, `VioEdu Diện rộng (Lớp ${grade})`);
+      }
+      loadDashboardStats();
+      if (typeof State !== "undefined" && State.currentView === "bank") {
+        loadQuestions();
+      }
+    } else {
+      scraperLogLines.unshift(`[${finishTime}] ❌ Lỗi: ${data.error || "Không thể cào diện rộng."}`);
+      showToast(data.error || "Lỗi cào diện rộng VioEdu", "error");
+    }
+    renderScraperLog();
+  } catch (err) {
+    scraperLogLines.unshift(`[${getLogTimeVN()}] ❌ Ngoại lệ: ${err.message}`);
+    renderScraperLog();
+    showToast("Lỗi kết nối máy chủ: " + err.message, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "🌐 Cào diện rộng VioEdu (3 môn)";
+    }
+    loadCollectorLogs();
+  }
+}
+
 // Load Collector Logs
 async function loadCollectorLogs() {
   const listEl = document.getElementById("collector-logs-list");
