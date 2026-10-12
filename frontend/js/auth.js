@@ -120,8 +120,20 @@
   async function doRegister() {
     var u = (document.getElementById("auth-reg-user") || {}).value || "";
     var p = (document.getElementById("auth-reg-pass") || {}).value || "";
+    // Validate client-side (mirror backend/auth.py _valid_username +
+    // pass ≥4): chặn trước khi gọi API để user thấy lỗi ngay trong form,
+    // không tưởng "không gửi dữ liệu về máy chủ" (bug UX 2026-10-12).
+    var name = (u || "").trim();
+    if (!/^[A-Za-z0-9_.\-]{3,32}$/.test(name)) {
+      toast("Tên đăng nhập 3–32 ký tự (chữ, số, _, -, .), không khoảng trắng.", "error");
+      return;
+    }
+    if (!p || p.length < 4) {
+      toast("Mật khẩu tối thiểu 4 ký tự.", "error");
+      return;
+    }
     try {
-      var data = await callAuth("/api/auth/register", { username: u.trim(), password: p });
+      var data = await callAuth("/api/auth/register", { username: name, password: p });
       toast(data.message || "Đăng ký thành công! Chờ admin phê duyệt.", "success");
     } catch (e) { toast(e.message, "error"); }
   }
@@ -201,6 +213,15 @@
       if (!res.ok) throw new Error(data.detail || ("HTTP " + res.status));
       var users = data.users || [];
       var me = AuthStore.user() || {};
+      // Hàng chờ quên MK (bug UX 2026-10-12): reset_requests từng ghi DB
+      // mà không endpoint/UI nào đọc → yêu cầu rơi vào khoảng không.
+      // Lấy pending để admin thấy + xử lý 1 click ngay trên bảng này.
+      var pendingResets = [];
+      try {
+        var rRes = await fetch(apiBase() + "/api/auth/reset-requests", { headers: authHeaders() });
+        var rData = await rRes.json();
+        if (rRes.ok && rData) pendingResets = rData.pending || [];
+      } catch (e) { pendingResets = []; }
       if (!users.length) {
         boxes.forEach(function (box) {
           box.innerHTML = "<div style='color:#64748b;font-size:13px;'>Chưa có tài khoản.</div>";
@@ -240,7 +261,23 @@
           + (x.approved_by ? " • duyệt bởi: " + x.approved_by : "") + "</div></div>"
           + "<div style='display:flex;gap:6px;flex-wrap:wrap;'>" + btns + "</div></div>";
       }).join("");
-      boxes.forEach(function (box) { box.innerHTML = html; });
+      // Dải hàng chờ quên MK trên cùng bảng (escape username chống XSS).
+      var resetHtml = "";
+      if (pendingResets.length) {
+        resetHtml = "<div style='background:#fef9c3;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;'>"
+          + "<div style='font-weight:800;color:#92400e;margin-bottom:6px;'>🔑 Yêu cầu quên mật khẩu đang chờ (" + pendingResets.length + ")</div>"
+          + pendingResets.map(function (r) {
+            var un = String(r.username || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+            var when = r.created_at || "?";
+            return "<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #fde68a;flex-wrap:wrap;'>"
+              + "<div><b>" + un + "</b> <span style='color:#92400e;'>#" + r.id + " • " + when + "</span></div>"
+              + "<div style='display:flex;gap:6px;'>"
+              + "<button class='btn btn-secondary btn-sm' onclick=\"EduAuth.adminResetPassword('" + un + "')\" title='Cấp mật khẩu tạm'>🔑 Cấp pass tạm</button> "
+              + "<button class='btn btn-secondary btn-sm' onclick=\"EduAuth.resolveResetRequest(" + r.id + ")\" title='Đánh dấu đã xử lý'>✔ Xong</button>"
+              + "</div></div>";
+          }).join("") + "</div>";
+      }
+      boxes.forEach(function (box) { box.innerHTML = resetHtml + html; });
     } catch (e) {
       boxes.forEach(function (box) {
         box.innerHTML = "<div style='color:#dc2626;font-size:13px;'>" + e.message + "</div>";
@@ -251,6 +288,15 @@
   async function approve(username, status) {
     try {
       var data = await callAuth("/api/auth/approve", { username: username, status: status });
+      toast(data.message, "success");
+      loadAdminUsers();
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  // Đánh dấu yêu cầu quên MK đã xử lý (sau khi đã cấp pass tạm).
+  async function resolveResetRequest(reqId) {
+    try {
+      var data = await callAuth("/api/auth/reset-requests/resolve", { request_id: reqId });
       toast(data.message, "success");
       loadAdminUsers();
     } catch (e) { toast(e.message, "error"); }
@@ -384,6 +430,7 @@
     adminResetPassword: adminResetPassword,
     loadAdminUsers: loadAdminUsers,
     approve: approve,
+    resolveResetRequest: resolveResetRequest,
     refreshBadge: refreshBadge
   };
 

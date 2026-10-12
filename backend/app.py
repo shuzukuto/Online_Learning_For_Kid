@@ -2697,6 +2697,44 @@ async def auth_reset_password(request: Request, payload: dict):
     return {"success": True, "message": msg}
 
 
+@app.get("/api/auth/reset-requests")
+async def auth_list_reset_requests(request: Request):
+    """Admin xem hàng chờ quên mật khẩu (user gửi qua /forgot public).
+
+    Yêu cầu UX 2026-10-12: reset_requests từng ghi DB mà không endpoint/UI
+    nào đọc → yêu cầu rơi vào khoảng không, user tưởng reset không có chỗ
+    nhập tài khoản. Hàng chờ hiện trong loadAdminUsers() kèm nút 1 click
+    cấp pass tạm (qua /api/auth/reset) rồi đánh dấu done."""
+    from backend import auth as A
+    _require_admin(request)
+    conn = _auth_conn()
+    try:
+        reqs = A.list_reset_requests(conn)
+    finally:
+        conn.close()
+    pending = [r for r in reqs if (r.get("status") or "") == "pending"]
+    return {"success": True, "requests": reqs, "pending": pending}
+
+
+@app.post("/api/auth/reset-requests/resolve")
+async def auth_resolve_reset_request(request: Request, payload: dict):
+    """Admin đánh dấu yêu cầu quên MK đã xử lý (sau khi cấp pass tạm)."""
+    from backend import auth as A
+    me = _require_admin(request)
+    conn = _auth_conn()
+    try:
+        try:
+            req_id = int(payload.get("request_id", 0) or 0)
+        except (TypeError, ValueError):
+            req_id = 0
+        ok, msg = A.resolve_reset_request(conn, req_id, by=me["username"])
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
 # ----------------- Question Bank Contribution Endpoint -----------------
 
 @app.post("/api/contribute/upload")

@@ -107,7 +107,8 @@ def test_app_has_auth_endpoints():
     src = _read("backend/app.py")
     for ep in ["/api/auth/register", "/api/auth/login", "/api/auth/logout",
                "/api/auth/change-password", "/api/auth/users", "/api/auth/approve",
-               "/api/auth/forgot", "/api/auth/reset"]:
+               "/api/auth/forgot", "/api/auth/reset",
+               "/api/auth/reset-requests", "/api/auth/reset-requests/resolve"]:
         assert ep in src, f"missing endpoint {ep}"
 
 
@@ -190,7 +191,7 @@ global.localStorage = {
 global.window = global;
 global.fetch = async () => ({ ok:false, status:401, json: async () => ({detail:'x'}) });
 eval(fs.readFileSync(process.argv[2],'utf8'));
-const api = ['AuthStore','authHeaders','apiFetch','requireLogin','showLoginWall','hideLoginWall','openAdminView','setRole','deleteUser','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','doForgotPassword','adminResetPassword','switchAccount','loadAdminUsers','approve','refreshBadge'];
+const api = ['AuthStore','authHeaders','apiFetch','requireLogin','showLoginWall','hideLoginWall','openAdminView','setRole','deleteUser','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','doForgotPassword','adminResetPassword','switchAccount','loadAdminUsers','approve','resolveResetRequest','refreshBadge'];
 const missing = api.filter(k => typeof EduAuth[k] === 'undefined');
 if (missing.length) { console.log('MISSING: '+missing.join(',')); process.exit(1); }
 EduAuth.AuthStore.save('tok123',{username:'luanpt',role:'admin'});
@@ -501,3 +502,42 @@ def test_js_version_fallback_matches_backend():
     assert m, "APP_VERSION fallback missing in app.js"
     assert m.group(1) == APP_VERSION_NUMBER, \
         f"fallback v{m.group(1)} != backend v{APP_VERSION_NUMBER}"
+
+
+def test_register_validates_input_client_side():
+    # Bug UX 2026-10-12 (user + 2 ảnh): modal Đăng ký nhập test01 + MK
+    # 1 ký tự, bấm Đăng ký → thất bại. Ngưỡng server (user 3-32, pass ≥4)
+    # đã có trong backend/auth.py nhưng UI không chặn trước → user tưởng
+    # "không gửi dữ liệu về máy chủ". doRegister() phải validate
+    # client-side (user 3-32 ký tự hợp lệ + pass ≥4) trước khi gọi API,
+    # báo rõ ràng ngay trong form.
+    import re
+    js = _read("frontend/js/auth.js")
+    i = js.find("async function doRegister()")
+    assert i >= 0, "doRegister() missing from auth.js"
+    j = js.find("async function ", i + 1)
+    body = js[i:j if j > 0 else len(js)]
+    assert ".trim()" in body, "doRegister không trim username"
+    assert re.search(r"length\s*<\s*4|length\s*>=\s*4|minlength|tối thiểu 4", body), \
+        "doRegister không chặn mật khẩu ngắn (<4) trước khi gọi API"
+    assert re.search(r"3.*32|32.*3|_valid|hợp lệ", body), \
+        "doRegister không chặn username sai định dạng (3-32) trước khi gọi API"
+
+
+def test_admin_sees_pending_password_reset_requests():
+    # Bug UX 2026-10-12 (user): tab "Quên MK" có ô nhập (auth-forgot-user
+    # đã tồn tại) nhưng admin không có chỗ nào thấy yêu cầu — bảng
+    # reset_requests ghi DB mà không endpoint/UI nào đọc. Nếu admin không
+    # thấy hàng chờ, yêu cầu của user rơi vào khoảng không → user tưởng
+    # "Reset password không có phần nhập tài khoản". Phải có:
+    #  (a) GET /api/auth/reset-requests (chỉ admin) liệt kê hàng chờ,
+    #  (b) loadAdminUsers() render hàng chờ + nút xử lý (cấp pass tạm
+    #      rồi đánh dấu done qua resolve_reset_request).
+    app = _read("backend/app.py")
+    js = _read("frontend/js/auth.js")
+    assert '"/api/auth/reset-requests"' in app, \
+        "thiếu GET /api/auth/reset-requests (admin xem hàng chờ quên MK)"
+    assert "list_reset_requests" in app, \
+        "endpoint reset-requests chưa đọc bảng reset_requests"
+    assert "reset-requests" in js and "resolveResetRequest" in js, \
+        "loadAdminUsers chưa render hàng chờ quên MK + nút xử lý"
