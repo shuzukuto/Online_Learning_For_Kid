@@ -1287,7 +1287,21 @@ async function refreshVioEduHubStatus() {
     const last = jobs.length ? jobs[jobs.length - 1] : null;
     const lastTxt = last ? `Job gần nhất: ${last[0]} (${last[1].status}, +${last[1].count || 0} câu, ${last[1].skills_visited || 0} bài)` : "Chưa có job nào";
     const runTxt = (data.running_jobs || []).length ? ` | ⏳ Đang chạy: ${data.running_jobs.join(", ")}` : "";
-    txt.textContent = `${autoTxt} | 📒 Đã cào: ${data.ledger_skills || 0} bài | ${lastTxt}${runTxt}`;
+    // Heartbeat: scheduler tick mỗi vòng (kể cả khi TẮT/skip) → phân biệt
+    // "bot sống nhưng nhàn" với "bot chết". Quá 2×interval không tick = chết.
+    let hbTxt = " | 💓 Bot: chưa có tín hiệu";
+    try {
+      const hb = data.heartbeat || {};
+      if (hb.tick_at) {
+        const ageMin = Math.round((Date.now() - new Date(hb.tick_at).getTime()) / 60000);
+        const ivMin = Math.max(10, Math.round((parseInt(data.interval_sec) || 21600) / 60));
+        const alive = ageMin <= ivMin * 2 + 5;
+        hbTxt = alive
+          ? ` | 💓 Bot sống (tick ${ageMin} phút trước: ${hb.note || ""})`
+          : ` | 🔴 Bot mất tín hiệu ${ageMin} phút (tick cuối: ${hb.note || "?"})`;
+      }
+    } catch (e) { /* giữ text mặc định */ }
+    txt.textContent = `${autoTxt} | 📒 Đã cào: ${data.ledger_skills || 0} bài | ${lastTxt}${runTxt}${hbTxt}`;
     box.style.display = "block";
   } catch (e) { /* im lặng */ }
 }

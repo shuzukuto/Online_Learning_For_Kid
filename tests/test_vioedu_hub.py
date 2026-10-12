@@ -52,3 +52,33 @@ def test_scheduler_exists():
 def test_unified_plan_endpoint():
     app = _read_app()
     assert "/api/collect/vioedu-plan" in app, "missing unified /api/collect/vioedu-plan"
+
+
+def test_scheduler_records_heartbeat():
+    # 24/7 bot must leave a liveness trace: scheduler loop updates a
+    # heartbeat record every iteration (even when disabled or skipping),
+    # so the UI can tell "alive but idle" apart from "dead".
+    app = _read_app()
+    i = app.find("async def _schedule_vioedu_auto_crawl(")
+    assert i >= 0, "scheduler not found"
+    j = app.find("@app.post(\"/api/collect/run\")", i)
+    body = app[i:j if j > 0 else len(app)]
+    assert "heartbeat" in body.lower(), \
+        "scheduler loop never records a heartbeat tick"
+
+
+def test_plan_endpoint_exposes_heartbeat():
+    app = _read_app()
+    i = app.find("async def vioedu_plan_status(")
+    assert i >= 0, "vioedu_plan_status not found"
+    j = app.find("@app.get(\"/api/collect/logs\")", i)
+    body = app[i:j if j > 0 else len(app)]
+    assert "heartbeat" in body.lower(), \
+        "GET /api/collect/vioedu-plan does not expose scheduler heartbeat"
+
+
+def test_hub_ui_renders_heartbeat():
+    with open("frontend/js/collector.js", encoding="utf-8") as f:
+        js = f.read()
+    assert "heartbeat" in js.lower(), \
+        "hub status UI never renders scheduler heartbeat"

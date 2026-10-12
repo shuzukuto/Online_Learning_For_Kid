@@ -1605,6 +1605,17 @@ _BREADTH_JOBS: dict = {}
 # vioedu_auto_interval_sec (default 21600 = 6h), vioedu_auto_grades, vioedu_auto_subjects.
 VIOEDU_AUTO_DEFAULT_INTERVAL_SEC = 6 * 60 * 60
 
+# Scheduler liveness trace: updated on EVERY loop iteration (even when the
+# bot is disabled or skipping), so the hub UI can distinguish
+# "alive but idle" from "dead". In-memory by design (resets on restart —
+# absence right after boot is expected, absence after hours means dead).
+_VIOEDU_HEARTBEAT: dict = {"tick_at": None, "note": "scheduler chưa chạy vòng nào"}
+
+
+def _record_vioedu_heartbeat(note: str) -> None:
+    _VIOEDU_HEARTBEAT["tick_at"] = datetime.now(VN_TZ).isoformat()
+    _VIOEDU_HEARTBEAT["note"] = note
+
 
 async def _run_breadth_job(jid: str, grades, subjects, max_q: int, force: bool = False,
                            recrawl_days: int = 7, source: str = "manual"):
@@ -1649,6 +1660,7 @@ async def _schedule_vioedu_auto_crawl():
     First run 120s after startup so boot stays fast.
     """
     from backend.database import get_system_config
+    _record_vioedu_heartbeat("scheduler vừa khởi động, chờ vòng đầu (~2 phút)")
     await asyncio.sleep(120)
     while True:
         try:
@@ -1666,14 +1678,21 @@ async def _schedule_vioedu_auto_crawl():
                 jid = f"auto-{int(_t.time())}"
                 _BREADTH_JOBS[jid] = {"status": "running", "stats": {}, "count": 0, "skills_visited": 0, "source": "auto"}
                 log_collector_event("vioedu", "running", f"Tự động cào định kỳ [{jid}] (khối={grades})", 0)
+                _record_vioedu_heartbeat(f"đang cào {jid} (khối={grades})")
                 await _run_breadth_job(jid, grades, subjects, 12, force=False, recrawl_days=7, source="auto")
+                _record_vioedu_heartbeat(f"xong {jid} (+{_BREADTH_JOBS.get(jid, {}).get('count', 0)} câu)")
             else:
                 try:
                     interval = int(get_system_config("vioedu_auto_interval_sec", str(VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)) or VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)
                 except ValueError:
                     interval = VIOEDU_AUTO_DEFAULT_INTERVAL_SEC
+                busy = any(j.get("status") == "running" for j in _BREADTH_JOBS.values())
+                _record_vioedu_heartbeat(
+                    "TẮT (bật toggle để cào)" if not enabled
+                    else ("job khác đang chạy, chờ vòng sau" if busy else "không có bài cũ (ledger fresh), chờ vòng sau"))
         except Exception as e:
             print(f"[VioEdu Auto] lỗi vòng lặp: {e}")
+            _record_vioedu_heartbeat(f"lỗi vòng lặp: {str(e)[:100]}")
             interval = 3600
         await asyncio.sleep(max(600, interval))
 
@@ -1807,7 +1826,8 @@ async def vioedu_plan_status():
             "subjects": get_system_config("vioedu_auto_subjects", "math,vietnamese,english"),
             "ledger_skills": len(_load_skill_ledger()),
             "running_jobs": running,
-            "recent_jobs": recent}
+            "recent_jobs": recent,
+            "heartbeat": dict(_VIOEDU_HEARTBEAT)}
 
 @app.get("/api/collect/logs")
 async def get_logs(limit: int = 50):
