@@ -129,6 +129,8 @@ async function loadDashboardStats() {
         document.querySelectorAll(".app-version-badge").forEach(el => el.textContent = APP_VERSION);
         const sv = document.getElementById("sidebar-version-tag");
         if (sv) sv.textContent = `Phiên bản: ${APP_VERSION}`;
+        const ct = document.getElementById("sidebar-cache-tag");
+        if (ct && v.cache_buster) ct.textContent = `assets: v${v.cache_buster}`;
       }
     }).catch(() => {});
     const res = await fetch(`${API_BASE}/stats`);

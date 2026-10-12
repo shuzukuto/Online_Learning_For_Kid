@@ -198,6 +198,15 @@ def test_version_badges_match_backend_version():
             f"stale hard-coded badge {b} != backend v{APP_VERSION_NUMBER}"
 
 
+def test_sidebar_footer_shows_cache_buster():
+    # Footer must show the asset cache-buster (e.g. v1.0.60) so users can
+    # tell whether static assets are fresh — not just the app version.
+    src = _read("frontend/index.html")
+    assert "sidebar-cache-tag" in src, "footer lacks cache-buster tag"
+    jssrc = _read("frontend/js/app.js")
+    assert "cache_buster" in jssrc, "app.js never syncs cache_buster to footer"
+
+
 def test_harvest_by_grade_skips_interactive_sources():
     # harvest-by-grade must NOT fetch catalog entries tagged type=interactive
     # (VioEdu/TNMath/quiz-JS pages labelled "mở tay") — they are unauto-harvestable.
