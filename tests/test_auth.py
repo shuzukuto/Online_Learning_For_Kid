@@ -186,3 +186,30 @@ def test_auth_js_wiring_live_via_node():
             os.remove(probe)
     assert p.returncode == 0, f"node auth harness failed: {p.stderr[:300]}"
     assert "AUTH-UI-OK" in p.stdout, f"unexpected harness output: {p.stdout[:300]}"
+
+
+def test_auth_js_never_doubles_api_prefix():
+    # E2E 2026-10-12: login/register failed via browser with
+    # "Method Not Allowed" because auth.js built /api/api/auth/...
+    # (API_BASE already ends with /api, paths start with /api/).
+    # Runtime check: evaluate the real apiBase() from auth.js in node.
+    import re
+    import subprocess
+    src = _read("frontend/js/auth.js")
+    m = re.search(r"function apiBase\(\) \{(.*?)\n  \}", src, re.S)
+    assert m, "apiBase() missing from auth.js"
+    js = ("var API_BASE='https://demo.ngrok-free.dev/api';\n"
+          "function apiBase(){" + m.group(1) + "\n}\n"
+          "var out=[apiBase(),apiBase()+\"/api/auth/me\",apiBase()+\"/api/auth/login\"];\n"
+          "if(out.some(function(u){return u.indexOf('/api/api/')>=0;})){console.log('DOUBLE:'+JSON.stringify(out));process.exit(1);}\n"
+          "console.log('URL-OK:'+JSON.stringify(out));")
+    probe = os.path.join(PROJECT_ROOT, "tests", "_apibase_probe_tmp.js")
+    with open(probe, "w", encoding="utf-8") as f:
+        f.write(js)
+    try:
+        p = subprocess.run(["node", probe], capture_output=True, text=True, timeout=30)
+    finally:
+        if os.path.exists(probe):
+            os.remove(probe)
+    assert p.returncode == 0, f"apiBase() still doubles /api: {p.stdout[:300]}{p.stderr[:200]}"
+    assert "URL-OK" in p.stdout

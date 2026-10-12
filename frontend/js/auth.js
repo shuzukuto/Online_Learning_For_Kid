@@ -33,8 +33,12 @@
   };
 
   function apiBase() {
-    if (typeof API_BASE !== "undefined" && API_BASE) return API_BASE;
-    return (typeof window !== "undefined" && window.location && window.location.origin) || "";
+    // API_BASE (app.js) already ends with "/api" while every auth call site
+    // passes a full "/api/auth/..." path — strip the duplicate suffix once
+    // here so login/register/me/users/approve never hit /api/api/... (405).
+    var b = (typeof API_BASE !== "undefined" && API_BASE) ? API_BASE :
+      ((typeof window !== "undefined" && window.location && window.location.origin) || "");
+    return String(b).replace(/\/api$/, "");
   }
 
   function authHeaders() {
