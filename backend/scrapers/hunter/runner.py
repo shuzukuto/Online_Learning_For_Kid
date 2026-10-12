@@ -46,32 +46,38 @@ async def run_internet_question_hunter(
     for target_url in urls_to_scrape:
         web_q = await fetch_questions_from_web_url(target_url)
         for q in web_q:
-            if grade and grade > 0:
+            # Chỉ điền khi parser chưa gán (URL như olm.vn/lop-9 trả grade
+            # mặc định 5, k5/ixl grade-2...). Ép đè bừa làm 1887 câu lạc
+            # grade (hunter_math_g2_* nằm ở grade 6/9/12).
+            if grade and grade > 0 and not q.get("grade"):
                 q["grade"] = grade
-            if subject and subject != "all":
+            if subject and subject != "all" and not q.get("subject"):
                 q["subject"] = subject
         collected.extend(web_q)
         
     # 2. Harvest from curated repository and generate dynamic curriculum/Olympiad questions
     target_subjects = ["math", "vietnamese", "english", "science", "informatics"] if subject == "all" else [subject]
     for sub in target_subjects:
-        # Pull static repository items
+        # Pull static repository items (chỉ lấy đúng grade được yêu cầu —
+        # pool mở nhiều khối, ép grade bừa sẽ làm lạc grade như G2→G9).
         pool = OPEN_EXAM_REPOSITORY.get(sub, [])
         for item in pool:
-            if not grade or item.get("grade") == grade or subject != "all":
-                q = dict(item)
-                q["id"] = f"hunter_{sub}_{uuid.uuid4().hex[:8]}"
-                q["source_platform"] = "internet_hunter"
-                q["source_url"] = item.get("source_url") or "https://khoade.edu.vn"
-                if not q.get("source_detail"):
-                    from backend.database import compute_source_detail
-                    q["source_detail"] = compute_source_detail(q)
-                if grade and grade > 0:
-                    q["grade"] = grade
-                collected.append(q)
+            if grade and item.get("grade") not in (None, grade):
+                continue
+            q = dict(item)
+            q["id"] = f"hunter_{sub}_{uuid.uuid4().hex[:8]}"
+            q["source_platform"] = "internet_hunter"
+            q["source_url"] = item.get("source_url") or "https://khoade.edu.vn"
+            if not q.get("source_detail"):
+                from backend.database import compute_source_detail
+                q["source_detail"] = compute_source_detail(q)
+            if grade and grade > 0:
+                q["grade"] = grade
+            q["subject"] = sub
+            collected.append(q)
 
         # Specialized harvest for Grade 2 Math (English + Vietnamese + Olympic)
-        if sub == "math" and grade == 2:
+        if grade == 2 and (subject == "all" or subject == "math"):
             for g2_pool, def_detail, def_plat in [
                 (GRADE2_MATH_VN_POOLS, "VioEdu (FPT)", "vioedu"),
                 (GRADE2_MATH_EN_POOLS, "K5 Learning (US Math)", "k5learning"),
@@ -115,8 +121,15 @@ async def run_internet_question_hunter(
             # Re-verify after normalization
             is_valid_norm, _ = is_valid_question_payload(norm)
             if is_valid_norm:
-                insert_or_update_question(norm)
-                new_saved_count += 1
+                # insert_or_update_question() trả về dupe_id khi câu đã có
+                # (DB không tăng). Chỉ đếm new_saved khi id trả về trùng
+                # id vừa gửi — ngược lại là đếm ảo (sweep Văn/Anh G9 báo
+                # "lưu 65 câu" nhưng DB tăng 0).
+                rid = insert_or_update_question(norm)
+                if rid == norm.get("id"):
+                    new_saved_count += 1
+                else:
+                    skipped_dupe_count += 1
             else:
                 skipped_invalid_count += 1
 

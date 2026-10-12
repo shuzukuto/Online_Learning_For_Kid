@@ -201,3 +201,49 @@ def list_users(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
         "SELECT username, role, status, created_at, approved_by, approved_at"
         " FROM users ORDER BY created_at ASC").fetchall()
     return [dict(r) for r in rows]
+
+
+def set_user_role(conn: sqlite3.Connection, username: str, role: str,
+                  by: str) -> Tuple[bool, str]:
+    """Admin changes another account's role. Cannot change own role or the
+    seed admin's role (safety against self-demotion lockout)."""
+    actor = get_user(conn, by or "")
+    if actor is None or actor["role"] != "admin" or actor["status"] != "active":
+        return False, "Chỉ tài khoản admin đang hoạt động mới được phân quyền."
+    if role not in ("admin", "user"):
+        return False, "Quyền không hợp lệ (admin/user)."
+    target = get_user(conn, username or "")
+    if target is None:
+        return False, "Tài khoản không tồn tại."
+    if target["username"] == (by or ""):
+        return False, "Không thể tự đổi quyền của chính mình."
+    if target["username"] == ADMIN_USERNAME:
+        return False, "Không thể đổi quyền tài khoản admin gốc."
+    conn.execute("UPDATE users SET role = ? WHERE username = ?",
+                 (role, target["username"]))
+    if role != "admin":
+        # Demoted sessions keep working as user; admin sessions must re-login
+        # only when the account is banned (handled by set_user_status).
+        pass
+    conn.commit()
+    return True, f"Tài khoản {target['username']} giờ là {role}."
+
+
+def delete_user(conn: sqlite3.Connection, username: str,
+                by: str) -> Tuple[bool, str]:
+    """Admin deletes an account (sessions purged). Cannot delete self or the
+    seed admin."""
+    actor = get_user(conn, by or "")
+    if actor is None or actor["role"] != "admin" or actor["status"] != "active":
+        return False, "Chỉ tài khoản admin đang hoạt động mới được xóa tài khoản."
+    target = get_user(conn, username or "")
+    if target is None:
+        return False, "Tài khoản không tồn tại."
+    if target["username"] == (by or ""):
+        return False, "Không thể tự xóa chính mình."
+    if target["username"] == ADMIN_USERNAME:
+        return False, "Không thể xóa tài khoản admin gốc."
+    conn.execute("DELETE FROM sessions WHERE username = ?", (target["username"],))
+    conn.execute("DELETE FROM users WHERE username = ?", (target["username"],))
+    conn.commit()
+    return True, f"Đã xóa tài khoản {target['username']}."

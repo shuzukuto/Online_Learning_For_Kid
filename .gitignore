@@ -50,3 +50,8 @@ data/training/
 data/backup/
 # VioEdu skill ledger (runtime crawl state, lives beside questions.db) — never commit
 data/vioedu_skill_ledger.json
+# Runtime data (DB live, media, ledger, backups, model weights) — never commit
+# Code tu tao thu muc + DB + fallback khi thieu (db/base.py makedirs,
+# schema.py CREATE TABLE IF NOT EXISTS, OCR fallback RapidOCR). Docker mount
+# ./data:/app/data nen file tren may luon con nguyen sau khi untrack.
+data/

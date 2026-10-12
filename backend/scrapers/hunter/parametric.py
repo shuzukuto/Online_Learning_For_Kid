@@ -921,6 +921,10 @@ def generate_parametric_questions(
                         exam_name="Toán Lớp 12 - Phương pháp tọa độ trong không gian"
                     )
                 questions.append(q)
+
+    elif subject == "vietnamese":
+        # Nhánh Văn riêng (trước đây pool này nằm trong khối math nên
+        # sweep Văn rơi vào `else` informatics — bug 2026-10-12).
         proverbs = [
             ("Lá lành đùm lá ......", "rách", ["nát", "vụn", "tơi"], "Câu tục ngữ thể hiện tinh thần đùm bọc, tương thân tương ái: 'Lá lành đùm lá rách'."),
             ("Ăn quả nhớ ......", "kẻ trồng cây", ["người mua", "người hái", "người bán"], "Câu tục ngữ nhắc nhở lòng biết ơn cội nguồn: 'Ăn quả nhớ kẻ trồng cây'."),
@@ -942,6 +946,25 @@ def generate_parametric_questions(
         ]
         
         pool = proverbs + rhetoric + antonyms
+        if grade >= 6:
+            # Khối THCS/THPT cần stems riêng: pool tiểu học dùng chung mọi
+            # khối nên dedup content_hash ăn hết ở lần sweep thứ 2 (bug G9
+            # Văn 2026-10-12: API báo lưu nhưng DB tăng 0). Pool này bám
+            # chương trình GDPT 2018 cấp THCS/THPT.
+            pool = pool + [
+                ("Trong câu: 'Mặt trời xuống biển như hòn lửa.', tác giả sử dụng biện pháp nghệ thuật nào?", "So sánh", ["Nhân hóa", "Ẩn dụ", "Hoán dụ"], "Từ 'như' đối chiếu mặt trời với hòn lửa là biện pháp so sánh (Trần Đăng Khoa)."),
+                ("Dòng nào dưới đây chỉ gồm các từ láy?", "Rì rào — lao xao — xôn xao", ["Rừng núi — sông suối", "Bàn ghế — sách vở", "Đi đứng — ăn nói"], "Từ láy là từ có âm lặp lại gợi hình gợi thanh: rì rào, lao xao, xôn xao."),
+                ("Từ 'đầu' trong câu 'Đầu làng có một cây đa cổ thụ' được dùng theo nghĩa nào?", "Nghĩa chuyển (vị trí)", ["Nghĩa gốc", "Nghĩa bóng", "Nghĩa hẹp"], "'Đầu làng' chỉ vị trí khởi đầu của làng, là nghĩa chuyển từ nghĩa gốc 'đầu người'."),
+                ("Câu 'Tuy trời mưa to nhưng chúng em vẫn đến lớp đúng giờ.' thuộc kiểu câu ghép nào?", "Câu ghép chính phụ", ["Câu đơn", "Câu ghép đẳng lập", "Câu đặc biệt"], "Cặp quan hệ từ 'tuy... nhưng...' nối mệnh đề phụ thuộc với mệnh đề chính."),
+                ("Trong câu: 'Tre xung phong vào xe tăng, đại bác.', biện pháp nghệ thuật nào được sử dụng?", "Nhân hóa", ["So sánh", "Ẩn dụ", "Điệp ngữ"], "Cây tre được gán hành động 'xung phong' của con người (Thép Mới)."),
+                ("Thành ngữ nào dưới đây nói về lòng đoàn kết?", "Chung lưng đấu cật", ["Chân lấm tay bùn", "Một nắng hai sương", "Dãi nắng dầm mưa"], "'Chung lưng đấu cật' nghĩa là cùng gánh vác, đoàn kết một lòng."),
+                ("Từ nào dưới đây là từ Hán Việt?", "Sơn hà", ["Sông núi", "Non nước", "Đất trời"], "'Sơn hà' là từ Hán Việt (sơn = núi, hà = sông); các từ còn lại thuần Việt."),
+                ("Trong truyện 'Lão Hạc' (Nam Cao), chi tiết nào thể hiện tình phụ tử sâu sắc?", "Lão Hạc dành dụm tiền cho con trai", ["Lão Hạc bán chó Vàng", "Lão Hạc xin Binh Tư bả chó", "Lão Hạc chết bằng bả chó"], "Dù nghèo khổ, lão Hạc vẫn chắt chiu từng đồng gửi ông giáo giữ hộ con trai."),
+                ("Câu thơ 'Gạo đem vào giã bao đau đớn / Gạo giã xong rồi trắng tựa bông' (Hồ Chí Minh) gửi gắm triết lý nào?", "Gian khổ rèn luyện thành công", ["Lao động là vinh quang", "Nông dân vất vả", "Gạo trắng ngon cơm"], "Bài thơ 'Nghe tiếng giã gạo': gian nan như giã gạo mới cho hạt gạo trắng — con người phải rèn luyện mới thành công."),
+                ("Tác phẩm 'Truyện Kiều' của Nguyễn Du được viết bằng thể thơ nào?", "Lục bát", ["Song thất lục bát", "Thất ngôn bát cú", "Tự do"], "Truyện Kiều gồm 3254 câu thơ lục bát."),
+                ("Trong câu: 'Nắng rọi xuống sân như đổ lửa.', vị ngữ là gì?", "như đổ lửa", ["Nắng", "rọi xuống sân", "xuống sân"], "Vị ngữ nêu đặc điểm của chủ ngữ 'Nắng': 'rọi xuống sân như đổ lửa' — lõi so sánh 'như đổ lửa'."),
+                ("Cặp từ nào dưới đây là cặp từ đồng nghĩa?", "Siêng năng — Chăm chỉ", ["Thật thà — Dối trá", "Giàu có — Nghèo khổ", "Mạnh khỏe — Ốm yếu"], "Siêng năng và chăm chỉ cùng nghĩa cần cù chịu khó."),
+            ]
         random.shuffle(pool)
         for item in pool[:count]:
             stem, ans, dist, exp = item
@@ -966,6 +989,23 @@ def generate_parametric_questions(
             ("What is the opposite of the word <strong>'ancient'</strong>?", "modern", ["old", "historic", "huge"], "'Ancient' nghĩa là cổ kính, từ trái nghĩa là 'modern' (hiện đại)."),
             ("Choose the correct question word: '______ is your favorite subject?' — 'It is English.'", "What", ["Where", "When", "Who"], "Hỏi về môn học yêu thích dùng từ để hỏi 'What'.")
         ]
+        if grade >= 6:
+            # Như nhánh Văn: pool THCS dùng chung mọi khối nên dedup ăn hết
+            # từ lần sweep thứ 2. Bổ sung stems bám SGK Global Success 6-12.
+            en_items = en_items + [
+                ("Choose the correct answer: 'She ______ in Hanoi since 2019.'", "has lived", ["lives", "lived", "will live"], "Dấu hiệu 'since 2019' là thì hiện tại hoàn thành: has lived."),
+                ("Choose the correct passive form: 'This bridge ______ in 2020.'", "was built", ["is built", "builds", "has built"], "Hành động xây cầu đã hoàn tất trong quá khứ (2020) → bị động quá khứ đơn."),
+                ("Choose the correct conditional: 'If it ______ tomorrow, we will cancel the picnic.'", "rains", ["will rain", "rained", "would rain"], "Câu điều kiện loại 1: If + hiện tại đơn, will + V."),
+                ("Choose the word with a different stress pattern: 'happy — teacher — police — student'.", "police", ["happy", "teacher", "student"], "'Police' nhấn âm 2; các từ còn lại nhấn âm 1."),
+                ("Choose the correct reported speech: 'She said she ______ the film before.'", "had seen", ["sees", "saw", "will see"], "Câu tường thuật lùi thì: quá khứ đơn → quá khứ hoàn thành."),
+                ("Choose the correct phrasal verb: 'We will ______ the meeting until next Monday.'", "put off", ["put on", "put up", "put out"], "'Put off' nghĩa là hoãn lại; phù hợp ngữ cảnh dời cuộc họp."),
+                ("Choose the correct relative pronoun: 'The man ______ lives next door is a doctor.'", "who", ["which", "whom", "whose"], "Đại từ quan hệ chỉ người làm chủ ngữ → who."),
+                ("Choose the correct answer: '______ you ever been to Ha Long Bay?'", "Have", ["Did", "Are", "Do"], "Cấu trúc hiện tại hoàn thành với 'ever': Have you ever been...?"),
+                ("Choose the correct word form: 'English is a ______ subject at our school.'", "compulsory", ["compel", "compulsion", "compulsorily"], "Sau mạo từ 'a' + danh từ cần tính từ: compulsory (bắt buộc)."),
+                ("Choose the correct tag question: 'You like folk music, ______?'", "don't you", ["do you", "aren't you", "isn't it"], "Câu hỏi đuôi của 'like' (hiện tại đơn, chủ ngữ you) là don't you."),
+                ("Choose the synonym of 'enormous'.", "huge", ["tiny", "small", "little"], "'Enormous' nghĩa là khổng lồ, đồng nghĩa với huge."),
+                ("Choose the antonym of 'generous'.", "mean", ["kind", "brave", "polite"], "'Generous' (hào phóng) trái nghĩa với 'mean' (keo kiệt)."),
+            ]
         random.shuffle(en_items)
         for item in en_items[:count]:
             stem, ans, dist, exp = item

@@ -1,7 +1,7 @@
 // EduQuest Pro - Core Application & Router
 // Version hien thi duoc cap nhat dong tu /api/version (backend/version.py la nguon duy nhat).
 // APP_VERSION giu lam gia tri fallback khi backend chua san sang.
-let APP_VERSION = "v1.0.50";
+let APP_VERSION = "v1.0.59";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
@@ -88,7 +88,8 @@ function switchView(viewName) {
     practice: { title: "Đấu trường Luyện tập Trực tuyến", sub: "Làm bài thi tính giờ, chấm điểm tự động, phân tích năng lực & huy hiệu thành tích" },
     builder: { title: "Biên soạn & Trộn Đề thi", sub: "Tùy biến đề thi chuẩn format và xuất file Word (.docx)" },
     collector: { title: "Trung tâm Thu thập", sub: "Tiện ích Extension, Bóc tách PDF (TIMO, ASMO) & Cào tự động" },
-    manual: { title: "Soạn thảo Câu hỏi Mới", sub: "Trình soạn câu hỏi với hiển thị công thức LaTeX trực tiếp" }
+    manual: { title: "Soạn thảo Câu hỏi Mới", sub: "Trình soạn câu hỏi với hiển thị công thức LaTeX trực tiếp" },
+    "admin-users": { title: "Quản trị Tài khoản", sub: "Duyệt tài khoản • phân quyền admin/user • khóa & xóa (chỉ admin)" }
   };
 
   const headerInfo = titles[viewName] || { title: "EduQuest Pro", sub: "" };
@@ -101,6 +102,7 @@ function switchView(viewName) {
   if (viewName === "practice" && typeof initPracticeView === "function") initPracticeView();
   if (viewName === "builder") renderExamBuilderView();
   if (viewName === "collector") loadCollectorLogs();
+  if (viewName === "admin-users" && window.EduAuth) window.EduAuth.loadAdminUsers();
 }
 
 function viewAllQuestionsInBank() {
@@ -645,6 +647,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // Start real-time background sync
   startRealtimeSync();
 
-  // Load initial view
-  switchView("dashboard");
+  // Login wall: ai có link đều mở được trang, nhưng phải đăng nhập mới
+  // dùng được dữ liệu (backend gate 401 mọi /api/* trừ auth/version +
+  // extension-sync). Không login → tường che toàn màn hình ngay.
+  if (window.EduAuth && typeof window.EduAuth.requireLogin === "function") {
+    window.EduAuth.requireLogin().then(function (ok) {
+      if (ok) switchView("dashboard");
+    });
+  } else {
+    // Load initial view
+    switchView("dashboard");
+  }
 });

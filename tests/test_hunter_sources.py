@@ -47,6 +47,45 @@ def test_runner_grades_parametric_per_subject():
         "parametric generator not given the requested grade"
 
 
+def test_runner_never_overwrites_fetched_grade_subject():
+    # Bug 2026-10-12: sweep grade=9 ép `q["grade"]=9` lên MỌI câu fetch được,
+    # kể cả câu parametric G2 sinh từ URL sai grade → 1887 câu lạc grade
+    # (ID hunter_math_g2_* nằm ở grade 6/9/12). Runner chỉ được điền grade/
+    # subject khi câu fetch về còn thiếu, không ép đè giá trị đã có.
+    src = _read("backend/scrapers/hunter/runner.py")
+    head = src[:src.find("# 2. Harvest from curated")]
+    assert 'q["grade"] = grade' in head, "runner scrape-branch changed shape?"
+    assert 'not q.get("grade")' in head or "not q.get('grade')" in head, \
+        "runner van ep de grade: cau fetch tu URL sai grade se bi lac grade"
+    assert 'not q.get("subject")' in head or "not q.get('subject')" in head, \
+        "runner van ep de subject: cau fetch tu URL sai mon se bi lac mon"
+
+
+def test_runner_counts_only_real_inserts():
+    # Bug 2026-10-12: runner đếm new_saved++ ngay cả khi
+    # insert_or_update_question() trả về dupe_id (câu đã có) → API báo
+    # "lưu 65 câu mới" nhưng DB tăng 0 (sweep Văn/Anh G9). Chỉ được đếm
+    # khi id trả về trùng id câu vừa gửi (tức là insert thật).
+    src = _read("backend/scrapers/hunter/runner.py")
+    tail = src[src.find("# 3. Normalize and Save"):]
+    assert "insert_or_update_question(norm)" in tail, "runner save-branch changed shape?"
+    assert "== norm" in tail or "== q_data" in tail or "rid ==" in tail, \
+        "runner van dem ao new_saved: dem ca truong hop insert tra ve dupe_id"
+
+
+def test_parametric_upper_grades_have_own_stems():
+    # Bug 2026-10-12: pool parametric Văn/Anh cố định cho mọi khối (7 câu
+    # Anh dùng chung grade 2/5/9) → dedup content_hash ăn hết, khối sau
+    # sweep về 0 dù API báo có. Khối >=6 phải có câu riêng.
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.parametric import generate_parametric_questions
+    for subj in ("english", "vietnamese"):
+        low = {q["content_text"] for q in generate_parametric_questions(subject=subj, grade=2, count=30)}
+        high = {q["content_text"] for q in generate_parametric_questions(subject=subj, grade=9, count=30)}
+        assert high - low, f"parametric {subj} grade>=6 dung chung stems voi grade 2 → dedup an het"
+
+
 def test_parametric_math_covers_all_grades():
     src = _read("backend/scrapers/hunter/parametric.py")
     for g in range(1, 12):

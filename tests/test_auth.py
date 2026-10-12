@@ -156,7 +156,7 @@ global.localStorage = {
 global.window = global;
 global.fetch = async () => ({ ok:false, status:401, json: async () => ({detail:'x'}) });
 eval(fs.readFileSync(process.argv[2],'utf8'));
-const api = ['AuthStore','authHeaders','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','loadAdminUsers','approve','refreshBadge'];
+const api = ['AuthStore','authHeaders','apiFetch','requireLogin','showLoginWall','hideLoginWall','openAdminView','setRole','deleteUser','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','loadAdminUsers','approve','refreshBadge'];
 const missing = api.filter(k => typeof EduAuth[k] === 'undefined');
 if (missing.length) { console.log('MISSING: '+missing.join(',')); process.exit(1); }
 EduAuth.AuthStore.save('tok123',{username:'luanpt',role:'admin'});
@@ -213,3 +213,152 @@ def test_auth_js_never_doubles_api_prefix():
             os.remove(probe)
     assert p.returncode == 0, f"apiBase() still doubles /api: {p.stdout[:300]}{p.stderr[:200]}"
     assert "URL-OK" in p.stdout
+
+
+# Gate đăng nhập web (quyết định 2026-10-12 cùng user):
+# - Mọi /api/* (trừ auth/version + 4 endpoint extension-sync) PHẢI qua
+#   _require_session (401 khi không Bearer token).
+# - Extension sync KHÔNG cần login: /api/questions/bulk,
+#   /api/questions/bulk-update-grade, /api/collect/logs/sync, /api/stats
+#   giữ public để zero-click sync không gãy.
+# - Trang Quản trị riêng trong sidebar (view admin-users), chỉ admin thấy.
+_AUTH_PUBLIC_PATHS = {
+    "/api/version",
+    "/api/auth/register", "/api/auth/login", "/api/auth/logout",
+    # extension-sync relay (không token, không session):
+    "/api/questions/bulk", "/api/questions/bulk-update-grade",
+    "/api/collect/logs/sync", "/api/stats",
+}
+
+
+def test_auth_role_and_delete_guards():
+    import sqlite3
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend import auth as A
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    A.init_auth_tables(conn)
+    A.register_user(conn, "nv_a", "pass1234")
+    A.register_user(conn, "nv_b", "pass1234")
+    A.set_user_status(conn, "nv_a", "active", by="luanpt")
+    A.set_user_status(conn, "nv_b", "active", by="luanpt")
+    # user thường không phân quyền được
+    ok, _ = A.set_user_role(conn, "nv_b", "admin", by="nv_a")
+    assert not ok
+    # admin nâng nv_a lên admin
+    ok, _ = A.set_user_role(conn, "nv_a", "admin", by="luanpt")
+    assert ok
+    assert conn.execute("SELECT role FROM users WHERE username='nv_a'").fetchone()[0] == "admin"
+    # không tự đổi quyền chính mình / không đụng admin gốc
+    ok, _ = A.set_user_role(conn, "nv_a", "user", by="nv_a")
+    assert not ok
+    ok, _ = A.set_user_role(conn, "luanpt", "user", by="nv_a")
+    assert not ok
+    # admin hạ quyền + xóa
+    ok, _ = A.set_user_role(conn, "nv_a", "user", by="luanpt")
+    assert ok
+    ok, _ = A.delete_user(conn, "nv_b", by="luanpt")
+    assert ok
+    assert conn.execute("SELECT COUNT(*) FROM users WHERE username='nv_b'").fetchone()[0] == 0
+    # không tự xóa / không xóa admin gốc
+    ok, _ = A.delete_user(conn, "nv_a", by="nv_a")
+    assert not ok
+    ok, _ = A.delete_user(conn, "luanpt", by="nv_a")
+    assert not ok
+    conn.close()
+
+
+def test_app_has_role_delete_endpoints():
+    src = _read("backend/app.py")
+    assert '"/api/auth/role"' in src, "missing /api/auth/role"
+    assert '"/api/auth/delete"' in src, "missing /api/auth/delete"
+
+
+def _route_guarded(src: str, path_literal: str) -> bool:
+    # Gate là middleware (_auth_gate_middleware + _AUTH_GATE_PUBLIC +
+    # _AUTH_GATE_PUBLIC_PREFIX), không phải _require_session trong từng
+    # hàm — nên check tập public (exact + prefix).
+    import re as _re
+    m = _re.search(
+        r"_AUTH_GATE_PUBLIC\s*=\s*frozenset\(\{([^}]*)\}\)", src)
+    public = m.group(1) if m else ""
+    mp = _re.search(r"_AUTH_GATE_PUBLIC_PREFIX\s*=\s*\(([^)]*)\)", src)
+    prefixes = mp.group(1) if mp else ""
+    if f'"{path_literal}"' in public:
+        return False  # cố ý public (exact)
+    for pq in _re.findall(r'"([^"]+)"', prefixes):
+        if path_literal == pq or path_literal.startswith(pq + "/") or pq.startswith(path_literal + "/"):
+            return False  # cố ý public (prefix, cả 2 chiều: route con/cha)
+    i = src.find(f'"{path_literal}"')
+    if i < 0:
+        return True  # route lạ không liệt kê → middleware gate mặc định
+    fn = src.find("async def ", i)
+    if fn < 0:
+        return True
+    nxt = src.find("@app.", i)
+    body = src[fn:nxt if nxt > fn else len(src)]
+    if "_require_session" in body or "_require_admin" in body:
+        return True
+    # middleware gate mọi /api/ còn lại
+    return "_auth_gate_middleware" in src
+
+
+def test_web_api_requires_login_session():
+    import re
+    src = _read("backend/app.py")
+    paths = re.findall(r'@app\.(?:get|post|put|delete|patch)\("(/api/[^"{]+)"', src)
+    unguarded = [p for p in dict.fromkeys(paths)
+                 if p not in _AUTH_PUBLIC_PATHS and not _route_guarded(src, p)]
+    assert not unguarded, f"web API chua khoa dang nhap: {unguarded[:8]}"
+
+
+def test_extension_sync_stays_public():
+    src = _read("backend/app.py")
+    for p in ["/api/questions/bulk", "/api/questions/bulk-update-grade",
+              "/api/collect/logs/sync", "/api/stats"]:
+        assert not _route_guarded(src, p), f"{p} bi gate se gay extension sync"
+
+
+def test_gate_public_covers_subpaths_and_healthcheck():
+    # Healthcheck Docker gọi /api/stats/count (subpath của /api/stats public).
+    # Gate exact-match (`path not in _AUTH_GATE_PUBLIC`) trả 401 → container
+    # unhealthy. Middleware phải dùng helper prefix-match.
+    src = _read("backend/app.py")
+    assert "def _is_gate_public" in src, \
+        "thieu helper public-prefix: /api/stats/count (healthcheck) se bi 401"
+    body = src[src.find("async def _auth_gate_middleware"):]
+    nxt = body.find("\nasync def ", 1)
+    body = body[:nxt if nxt > 0 else len(body)]
+    assert "_is_gate_public(path)" in body, \
+        "middleware chua dung helper prefix-match cho public paths"
+
+
+def test_auth_gate_middleware_registered():
+    src = _read("backend/app.py")
+    assert "async def _auth_gate_middleware" in src, "thieu middleware gate"
+    assert 'app.middleware("http")(_auth_gate_middleware)' in src, \
+        "middleware gate chua duoc gan vao app"
+
+
+def test_sidebar_has_admin_view_and_login_wall():
+    html = _read("frontend/index.html")
+    assert 'data-view="admin-users"' in html or 'id="view-admin-users"' in html, \
+        "thieu view Quan tri rieng trong sidebar"
+    js = _read("frontend/js/auth.js")
+    assert "admin-users" in js, "auth.js chua dieu huong view Quan tri"
+    appjs = _read("frontend/js/app.js")
+    assert "login-wall" in appjs or "requireLogin" in appjs or "auth-wall" in appjs, \
+        "thieu tuong login chan dashboard khi chua dang nhap"
+
+
+def test_js_version_fallback_matches_backend():
+    import re
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.version import APP_VERSION_NUMBER
+    appjs = _read("frontend/js/app.js")
+    m = re.search(r'(?:let|const|var)\s+APP_VERSION\s*=\s*"v([\d.]+)"', appjs)
+    assert m, "APP_VERSION fallback missing in app.js"
+    assert m.group(1) == APP_VERSION_NUMBER, \
+        f"fallback v{m.group(1)} != backend v{APP_VERSION_NUMBER}"

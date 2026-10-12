@@ -138,6 +138,61 @@ async def _rate_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# Web login gate (quyết định 2026-10-12 cùng user): mọi /api/* đều yêu cầu
+# Bearer session, TRỪ auth/version + 4 endpoint extension-sync relay
+# (bulk, bulk-update-grade, logs/sync, stats) để zero-click sync không gãy.
+# Dạng middleware nên không cần sửa ~60 endpoint; test khóa ở test_auth.py.
+_AUTH_GATE_PUBLIC = frozenset({
+    "/api/version",
+    "/api/auth/register", "/api/auth/login", "/api/auth/logout",
+    "/api/questions/bulk", "/api/questions/bulk-update-grade",
+    "/api/collect/logs/sync", "/api/stats",
+})
+# Subpath read-only public: healthcheck Docker gọi /api/stats/count,
+# AGENTS.md smoke dùng curl -I .../api/stats/count. Exact-match sẽ 401 →
+# container unhealthy nên phải prefix-match nhóm này.
+_AUTH_GATE_PUBLIC_PREFIX = ("/api/stats", "/api/version")
+
+
+def _is_gate_public(path: str) -> bool:
+    if path in _AUTH_GATE_PUBLIC:
+        return True
+    return path.startswith(_AUTH_GATE_PUBLIC_PREFIX)
+
+
+def _session_user_for_gate(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    try:
+        from backend import auth as A
+        from backend.database import get_connection
+        conn = get_connection()
+        try:
+            return A.get_session_user(conn, auth[7:].strip())
+        finally:
+            conn.close()
+    except Exception:
+        return None
+
+
+async def _auth_gate_middleware(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/") and not _is_gate_public(path):
+        user = _session_user_for_gate(request)
+        if user is None:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Chưa đăng nhập hoặc phiên đã hết hạn."},
+            )
+        if user["status"] != "active":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Tài khoản chưa được duyệt hoặc đã bị khóa."},
+            )
+    return await call_next(request)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -274,6 +329,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-API-Token"],
 )
 app.middleware("http")(_rate_limit_middleware)
+app.middleware("http")(_auth_gate_middleware)
 
 # ----------------- Version (single source of truth) -----------------
 
@@ -1690,6 +1746,12 @@ async def _schedule_vioedu_auto_crawl():
                 _record_vioedu_heartbeat(
                     "TẮT (bật toggle để cào)" if not enabled
                     else ("job khác đang chạy, chờ vòng sau" if busy else "không có bài cũ (ledger fresh), chờ vòng sau"))
+                # Lịch sử tick vào collector_logs để restart không mất dấu vết
+                try:
+                    log_collector_event("vioedu", "info",
+                        f"💓 Bot heartbeat: {_VIOEDU_HEARTBEAT['note']}", 0)
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[VioEdu Auto] lỗi vòng lặp: {e}")
             _record_vioedu_heartbeat(f"lỗi vòng lặp: {str(e)[:100]}")
@@ -2569,6 +2631,37 @@ async def auth_approve_user(request: Request, payload: dict):
     try:
         ok, msg = A.set_user_status(conn, payload.get("username", ""),
                                     payload.get("status", "active"), by=me["username"])
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
+@app.post("/api/auth/role")
+async def auth_set_role(request: Request, payload: dict):
+    """Admin grants/revokes admin role on another account."""
+    from backend import auth as A
+    me = _require_admin(request)
+    conn = _auth_conn()
+    try:
+        ok, msg = A.set_user_role(conn, payload.get("username", ""),
+                                  payload.get("role", "user"), by=me["username"])
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
+@app.post("/api/auth/delete")
+async def auth_delete_user(request: Request, payload: dict):
+    """Admin deletes an account (sessions purged)."""
+    from backend import auth as A
+    me = _require_admin(request)
+    conn = _auth_conn()
+    try:
+        ok, msg = A.delete_user(conn, payload.get("username", ""), by=me["username"])
     finally:
         conn.close()
     if not ok:
