@@ -864,7 +864,12 @@ body {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 10000;
+  /* Bug UX 2026-10-12: toast "Đăng ký thành công" bị modal-auth (z 10001)
+     che kín nên user tưởng đăng ký không gửi về server. Toast phải nổi
+     TRÊN modal-auth (10001) + login-wall (10000), và pointer-events none
+     để không chặn click vào form bên dưới. */
+  z-index: 10002;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   gap: 8px;

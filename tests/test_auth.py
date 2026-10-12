@@ -541,3 +541,19 @@ def test_admin_sees_pending_password_reset_requests():
         "endpoint reset-requests chưa đọc bảng reset_requests"
     assert "reset-requests" in js and "resolveResetRequest" in js, \
         "loadAdminUsers chưa render hàng chờ quên MK + nút xử lý"
+
+
+def test_toast_visible_above_modal_and_wall():
+    # Bug UX 2026-10-12 (user): đăng ký đã gửi về server chờ duyệt (DB có
+    # row pending) nhưng user không thấy thông báo thành công/thất bại.
+    # Root cause: .toast-container z-index 10000 nằm DƯỚI modal-auth
+    # (inline z-index 10001 trong index.html) — toast "Đăng ký thành công"
+    # hiện sau lớp phủ modal nên bị che kín. Toast phải nổi TRÊN cả modal
+    # (10001) lẫn login-wall (10000, dựng động trong auth.js).
+    import re
+    css = _read("frontend/css/style.css")
+    m = re.search(r"\.toast-container\s*\{[^}]*z-index\s*:\s*(\d+)", css)
+    assert m, "không tìm thấy z-index của .toast-container trong style.css"
+    z = int(m.group(1))
+    assert z > 10001, \
+        f"toast z-index {z} <= modal-auth 10001 → thông báo bị modal che"
