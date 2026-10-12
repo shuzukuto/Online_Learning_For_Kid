@@ -352,6 +352,24 @@ def test_sidebar_has_admin_view_and_login_wall():
         "thieu tuong login chan dashboard khi chua dang nhap"
 
 
+def test_auth_modal_above_login_wall():
+    # Bug 2026-10-12 (user + ảnh): bấm "Đăng nhập / Đăng ký" trên tường
+    # login nhưng modal-auth mở ra nằm DƯỚI tường (z 9999 < 10000) nên
+    # tường như không biến mất, che khuất form đăng nhập.
+    import re
+    html = _read("frontend/index.html")
+    js = _read("frontend/js/auth.js")
+    m = re.search(r'id="modal-auth"[^>]*z-index:\s*(\d+)', html)
+    assert m, "modal-auth missing z-index"
+    modal_z = int(m.group(1))
+    wall_fn = js[js.find("function showLoginWall()"):]
+    w = re.search(r'z-index:(\d+)', wall_fn)
+    assert w, "login-wall missing z-index"
+    wall_z = int(w.group(1))
+    assert modal_z > wall_z, \
+        f"modal-auth (z={modal_z}) bi login-wall (z={wall_z}) de"
+
+
 def test_js_version_fallback_matches_backend():
     import re
     import sys
