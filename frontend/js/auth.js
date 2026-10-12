@@ -121,6 +121,32 @@
     } catch (e) { toast(e.message, "error"); }
   }
 
+  async function doForgotPassword() {
+    var u = (document.getElementById("auth-forgot-user") || {}).value || "";
+    if (!u.trim()) { toast("Nhập tên đăng nhập cần lấy lại mật khẩu.", "error"); return; }
+    try {
+      var data = await callAuth("/api/auth/forgot", { username: u.trim() });
+      toast(data.message || "Đã gửi yêu cầu. Admin duyệt sẽ cấp mật khẩu tạm.", "success");
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  async function adminResetPassword(username) {
+    try {
+      if (typeof window !== "undefined" && window.confirm &&
+          !window.confirm("Cấp mật khẩu TẠM mới cho '" + username + "'? Mật khẩu cũ mất hiệu lực ngay.")) return;
+    } catch (e) { /* headless: tiếp tục */ }
+    try {
+      var data = await callAuth("/api/auth/reset", { username: username });
+      var msg = data.message || "Đã cấp mật khẩu tạm.";
+      toast(msg, "success");
+      try {
+        if (typeof window !== "undefined" && window.prompt)
+          window.prompt("Báo mật khẩu tạm này cho user (họ đăng nhập rồi đổi ngay):", msg);
+      } catch (e) { /* ignore */ }
+      loadAdminUsers();
+    } catch (e) { toast(e.message, "error"); }
+  }
+
   async function doLogout() {
     try { await callAuth("/api/auth/logout", {}); } catch (e) { /* ignore */ }
     AuthStore.clear();
@@ -184,7 +210,8 @@
           btns += (x.role === "admin"
             ? "<button class='btn btn-secondary btn-sm' onclick=\"EduAuth.setRole('" + x.username + "','user')\" title='Hạ xuống user'>⬇ user</button> "
             : "<button class='btn btn-secondary btn-sm' onclick=\"EduAuth.setRole('" + x.username + "','admin')\" title='Nâng lên admin'>⬆ admin</button> ");
-          btns += "<button class='btn btn-secondary btn-sm' onclick=\"EduAuth.deleteUser('" + x.username + "')\" style='color:#b91c1c;border-color:#fecaca;' title='Xóa vĩnh viễn'>🗑 Xóa</button>";
+          btns += "<button class='btn btn-secondary btn-sm' onclick=\"EduAuth.deleteUser('" + x.username + "')\" style='color:#b91c1c;border-color:#fecaca;' title='Xóa vĩnh viễn'>🗑 Xóa</button>"; 
+          btns += "<button class='btn btn-secondary btn-sm' onclick=\"EduAuth.adminResetPassword('" + x.username + "')\" title='Cấp mật khẩu tạm mới (mật khẩu cũ mất hiệu lực ngay)'>🔑 Đặt lại MK</button>";
         } else {
           btns = "<span style='font-size:11px;color:#94a3b8;'>(bạn)</span>";
         }
@@ -330,6 +357,8 @@
     doRegister: doRegister,
     doLogout: doLogout,
     doChangePassword: doChangePassword,
+    doForgotPassword: doForgotPassword,
+    adminResetPassword: adminResetPassword,
     loadAdminUsers: loadAdminUsers,
     approve: approve,
     refreshBadge: refreshBadge

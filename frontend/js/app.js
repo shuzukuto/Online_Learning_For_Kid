@@ -1,7 +1,7 @@
 // EduQuest Pro - Core Application & Router
 // Version hien thi duoc cap nhat dong tu /api/version (backend/version.py la nguon duy nhat).
 // APP_VERSION giu lam gia tri fallback khi backend chua san sang.
-let APP_VERSION = "v1.0.60";
+let APP_VERSION = "v1.1.0";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";

@@ -75,6 +75,16 @@ def init_auth_tables(conn: sqlite3.Connection) -> None:
     );
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_username ON sessions (username);")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS reset_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT,
+        resolved_by TEXT,
+        resolved_at TEXT
+    );
+    """)
     row = cur.execute("SELECT username FROM users WHERE username = ?",
                       (ADMIN_USERNAME,)).fetchone()
     if row is None:
@@ -247,3 +257,54 @@ def delete_user(conn: sqlite3.Connection, username: str,
     conn.execute("DELETE FROM users WHERE username = ?", (target["username"],))
     conn.commit()
     return True, f"Đã xóa tài khoản {target['username']}."
+
+
+def admin_reset_password(conn: sqlite3.Connection, username: str,
+                         by: str) -> Tuple[bool, str]:
+    """Admin resets a user's password to a random temporary one (forgot-password
+    flow without mail infra). Sessions purged; user changes it after login."""
+    actor = get_user(conn, by or "")
+    if actor is None or actor["role"] != "admin" or actor["status"] != "active":
+        return False, "Chỉ tài khoản admin đang hoạt động mới được đặt lại mật khẩu."
+    target = get_user(conn, username or "")
+    if target is None:
+        return False, "Tài khoản không tồn tại."
+    temp = secrets.token_urlsafe(6)[:8]
+    conn.execute("UPDATE users SET password_hash = ? WHERE username = ?",
+                 (hash_password(temp), target["username"]))
+    conn.execute("DELETE FROM sessions WHERE username = ?", (target["username"],))
+    conn.commit()
+    return True, f"Mật khẩu tạm của {target['username']}: {temp} (đăng nhập rồi đổi ngay)."
+
+
+def request_password_reset(conn: sqlite3.Connection, username: str) -> Tuple[bool, str]:
+    """Public: user quên mật khẩu gửi yêu cầu (không cần login).
+    Trả lời chung chung để không lộ tài khoản nào tồn tại."""
+    u = get_user(conn, username or "")
+    if u is not None:
+        conn.execute("INSERT INTO reset_requests (username, status, created_at)"
+                     " VALUES (?, 'pending', ?)", (u["username"], _now_iso()))
+        conn.commit()
+    return True, "Đã gửi yêu cầu. Admin duyệt sẽ cấp mật khẩu tạm cho bạn."
+
+
+def list_reset_requests(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT id, username, status, created_at, resolved_by, resolved_at"
+        " FROM reset_requests ORDER BY id DESC").fetchall()
+    return [dict(r) for r in rows]
+
+
+def resolve_reset_request(conn: sqlite3.Connection, req_id: int, by: str) -> Tuple[bool, str]:
+    """Admin đánh dấu yêu cầu đã xử lý (sau khi cấp mật khẩu tạm)."""
+    actor = get_user(conn, by or "")
+    if actor is None or actor["role"] != "admin" or actor["status"] != "active":
+        return False, "Chỉ admin mới được xử lý yêu cầu."
+    row = conn.execute("SELECT * FROM reset_requests WHERE id = ?",
+                       (req_id,)).fetchone()
+    if row is None:
+        return False, "Yêu cầu không tồn tại."
+    conn.execute("UPDATE reset_requests SET status='done', resolved_by=?, resolved_at=?"
+                 " WHERE id = ?", (actor["username"], _now_iso(), req_id))
+    conn.commit()
+    return True, f"Đã xử lý yêu cầu #{req_id}."

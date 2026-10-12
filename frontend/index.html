@@ -14,16 +14,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
 
   <!-- Favicon & Brand Icons (EduQuest Pro) -->
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.0.65">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.0.65">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.0.65">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.0.65">
-  <link rel="shortcut icon" href="favicon.ico?v=1.0.65">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.1.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.1.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.1.0">
+  <link rel="shortcut icon" href="favicon.ico?v=1.1.0">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#2563eb">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.65">
+  <link rel="stylesheet" href="css/style.css?v=1.1.0">
 </head>
 <body>
   <div class="app-container">
@@ -34,7 +34,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.60</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.1.0</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -80,7 +80,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.0.60</span>
+          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.1.0</span>
         </div>
         <div style="margin-top: 2px; font-size: 10px; color: #64748b; text-align: right;">
           <span id="sidebar-cache-tag">assets: …</span>
@@ -2495,6 +2495,7 @@
         <button type="button" id="auth-tab-login" onclick="switchAuthTab('login')" style="flex: 1; border: none; background: none; padding: 12px 8px; font-size: 13px; font-weight: 700; color: #1d4ed8; cursor: pointer; border-bottom: 2px solid #1d4ed8;">🔑 Đăng nhập</button>
         <button type="button" id="auth-tab-register" onclick="switchAuthTab('register')" style="flex: 1; border: none; background: none; padding: 12px 8px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent;">📝 Đăng ký</button>
         <button type="button" id="auth-tab-password" onclick="switchAuthTab('password')" style="flex: 1; border: none; background: none; padding: 12px 8px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent;">🔄 Đổi mật khẩu</button>
+        <button type="button" id="auth-tab-forgot" onclick="switchAuthTab('forgot')" style="flex: 1; border: none; background: none; padding: 12px 8px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent;">❓ Quên MK</button>
       </div>
       <div style="padding: 22px; overflow-y: auto;">
         <div id="auth-panel-login">
@@ -2504,6 +2505,9 @@
           <div style="display: flex; gap: 8px;">
             <button type="button" class="btn btn-primary btn-sm" onclick="EduAuth.doLogin()" style="flex: 1; font-weight: 700; padding: 8px;">🔑 Đăng nhập</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="EduAuth.doLogout()" style="padding: 8px 14px;">Đăng xuất</button>
+          </div>
+          <div style="margin-top: 10px; text-align: center;">
+            <a href="javascript:void(0)" onclick="switchAuthTab('forgot')" style="font-size: 12.5px; color: #1d4ed8;">Quên mật khẩu?</a>
           </div>
         </div>
         <div id="auth-panel-register" style="display: none;">
@@ -2518,10 +2522,15 @@
           <input type="password" id="auth-new-pass" class="form-control" placeholder="Mật khẩu mới" autocomplete="new-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;" />
           <button type="button" class="btn btn-primary btn-sm" onclick="EduAuth.doChangePassword()" style="width: 100%; font-weight: 700; padding: 8px;">🔄 Đổi mật khẩu</button>
         </div>
+        <div id="auth-panel-forgot" style="display: none;">
+          <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #64748b;">Quên mật khẩu? Nhập tên đăng nhập, admin sẽ cấp mật khẩu tạm cho bạn (đăng nhập rồi đổi ngay).</p>
+          <input type="text" id="auth-forgot-user" class="form-control" placeholder="Tên đăng nhập của bạn" autocomplete="username" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;" onkeydown="if(event.key==='Enter')EduAuth.doForgotPassword()" />
+          <button type="button" class="btn btn-primary btn-sm" onclick="EduAuth.doForgotPassword()" style="width: 100%; font-weight: 700; padding: 8px;">📩 Gửi yêu cầu lấy lại mật khẩu</button>
+        </div>
       </div>
       <script>
       function switchAuthTab(which) {
-        var tabs = ["login", "register", "password"];
+        var tabs = ["login", "register", "password", "forgot"];
         tabs.forEach(function (t) {
           var btn = document.getElementById("auth-tab-" + t);
           var panel = document.getElementById("auth-panel-" + t);
@@ -2558,13 +2567,13 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.65"></script>
-  <script src="js/bank.js?v=1.0.65"></script>
-  <script src="js/auth.js?v=1.0.65"></script>
-  <script src="js/exam_builder.js?v=1.0.65"></script>
-  <script src="js/collector.js?v=1.0.65"></script>
-  <script src="js/practice.js?v=1.0.65"></script>
-  <script src="js/ai_agent_importer.js?v=1.0.65"></script>
+  <script src="js/app.js?v=1.1.0"></script>
+  <script src="js/bank.js?v=1.1.0"></script>
+  <script src="js/auth.js?v=1.1.0"></script>
+  <script src="js/exam_builder.js?v=1.1.0"></script>
+  <script src="js/collector.js?v=1.1.0"></script>
+  <script src="js/practice.js?v=1.1.0"></script>
+  <script src="js/ai_agent_importer.js?v=1.1.0"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>

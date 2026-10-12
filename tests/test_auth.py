@@ -106,8 +106,42 @@ def test_password_not_plaintext():
 def test_app_has_auth_endpoints():
     src = _read("backend/app.py")
     for ep in ["/api/auth/register", "/api/auth/login", "/api/auth/logout",
-               "/api/auth/change-password", "/api/auth/users", "/api/auth/approve"]:
+               "/api/auth/change-password", "/api/auth/users", "/api/auth/approve",
+               "/api/auth/forgot", "/api/auth/reset"]:
         assert ep in src, f"missing endpoint {ep}"
+
+
+def test_password_reset_flow_admin_only():
+    # Quên mật khẩu (không có hạ tầng gửi mail): user gửi yêu cầu public,
+    # admin cấp mật khẩu tạm 1 click; user đăng nhập rồi đổi ngay.
+    import re
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend import auth as A
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    A.init_auth_tables(conn)
+    A.register_user(conn, "quen_mk", "matkhau-cu")
+    A.set_user_status(conn, "quen_mk", "active", by="luanpt")
+    A.register_user(conn, "ke_la", "pass1234")
+    A.set_user_status(conn, "ke_la", "active", by="luanpt")
+    # user thường không reset được cho người khác
+    ok, _ = A.admin_reset_password(conn, "quen_mk", by="ke_la")
+    assert not ok
+    # admin reset → trả mật khẩu tạm, pass cũ chết, pass tạm sống
+    ok, msg = A.admin_reset_password(conn, "quen_mk", by="luanpt")
+    assert ok, msg
+    m = re.search(r": (\S+) \(", msg)
+    assert m, f"khong tim thay mat khau tam trong: {msg}"
+    temp = m.group(1)
+    tok, _ = A.login_user(conn, "quen_mk", "matkhau-cu")
+    assert tok is None, "mat khau cu van song sau reset"
+    tok, _ = A.login_user(conn, "quen_mk", temp)
+    assert tok, "mat khau tam khong dang nhap duoc"
+    # user không tồn tại → báo rõ, không crash
+    ok, _ = A.admin_reset_password(conn, "khong_co_ai", by="luanpt")
+    assert not ok
+    conn.close()
 
 
 def test_contribute_filename_embeds_account():
@@ -156,7 +190,7 @@ global.localStorage = {
 global.window = global;
 global.fetch = async () => ({ ok:false, status:401, json: async () => ({detail:'x'}) });
 eval(fs.readFileSync(process.argv[2],'utf8'));
-const api = ['AuthStore','authHeaders','apiFetch','requireLogin','showLoginWall','hideLoginWall','openAdminView','setRole','deleteUser','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','loadAdminUsers','approve','refreshBadge'];
+const api = ['AuthStore','authHeaders','apiFetch','requireLogin','showLoginWall','hideLoginWall','openAdminView','setRole','deleteUser','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','doForgotPassword','adminResetPassword','loadAdminUsers','approve','refreshBadge'];
 const missing = api.filter(k => typeof EduAuth[k] === 'undefined');
 if (missing.length) { console.log('MISSING: '+missing.join(',')); process.exit(1); }
 EduAuth.AuthStore.save('tok123',{username:'luanpt',role:'admin'});
@@ -225,10 +259,29 @@ def test_auth_js_never_doubles_api_prefix():
 _AUTH_PUBLIC_PATHS = {
     "/api/version",
     "/api/auth/register", "/api/auth/login", "/api/auth/logout",
+    "/api/auth/forgot",
     # extension-sync relay (không token, không session):
     "/api/questions/bulk", "/api/questions/bulk-update-grade",
     "/api/collect/logs/sync", "/api/stats",
 }
+# /api/auth/reset CỐ Ý KHÔNG public — chỉ admin (Bearer) được gọi,
+# middleware gate mặc định 401 khi không token. Không cho vào tập trên
+# để test_web_api_requires_login_session bắt đúng.
+
+
+def test_forgot_reset_contract_html_js_endpoints():
+    # Cross-layer contract: HTML ids/functions mà auth.js đọc/gọi phải
+    # tồn tại ở cả 2 phía (drift câm: caller gửi mà handler không đọc).
+    html = _read("frontend/index.html")
+    js = _read("frontend/js/auth.js")
+    app = _read("backend/app.py")
+    assert 'id="auth-forgot-user"' in html, "thieu o nhap quen MK"
+    assert "EduAuth.doForgotPassword" in html, "nut quen MK chua goi EduAuth"
+    assert "doForgotPassword" in js and "/api/auth/forgot" in js
+    assert "adminResetPassword" in js and "/api/auth/reset" in js
+    assert '"/api/auth/forgot"' in app and '"/api/auth/reset"' in app
+    assert '"/api/auth/forgot"' in app.split("_AUTH_GATE_PUBLIC")[1].split("})")[0], \
+        "forgot phai public qua gate (user chua login van gui duoc)"
 
 
 def test_auth_role_and_delete_guards():

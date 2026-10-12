@@ -145,6 +145,7 @@ async def _rate_limit_middleware(request: Request, call_next):
 _AUTH_GATE_PUBLIC = frozenset({
     "/api/version",
     "/api/auth/register", "/api/auth/login", "/api/auth/logout",
+    "/api/auth/forgot",
     "/api/questions/bulk", "/api/questions/bulk-update-grade",
     "/api/collect/logs/sync", "/api/stats",
 })
@@ -2662,6 +2663,33 @@ async def auth_delete_user(request: Request, payload: dict):
     conn = _auth_conn()
     try:
         ok, msg = A.delete_user(conn, payload.get("username", ""), by=me["username"])
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
+@app.post("/api/auth/forgot")
+async def auth_forgot_password(payload: dict):
+    """Public (qua gate): user quên mật khẩu gửi yêu cầu, admin cấp pass tạm."""
+    from backend import auth as A
+    conn = _auth_conn()
+    try:
+        ok, msg = A.request_password_reset(conn, (payload.get("username", "")))
+    finally:
+        conn.close()
+    return {"success": True, "message": msg}
+
+
+@app.post("/api/auth/reset")
+async def auth_reset_password(request: Request, payload: dict):
+    """Admin cấp mật khẩu tạm cho user (1 click). Trả pass tạm để báo user."""
+    from backend import auth as A
+    me = _require_admin(request)
+    conn = _auth_conn()
+    try:
+        ok, msg = A.admin_reset_password(conn, payload.get("username", ""), by=me["username"])
     finally:
         conn.close()
     if not ok:
