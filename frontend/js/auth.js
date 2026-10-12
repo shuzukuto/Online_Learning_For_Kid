@@ -61,6 +61,8 @@
   async function refreshBadge() {
     var badge = document.getElementById("auth-user-badge");
     var btnLogin = document.getElementById("btn-open-auth-modal");
+    var btnSwitch = document.getElementById("btn-switch-account");
+    var btnLogout = document.getElementById("btn-logout");
     var btnAdmin = document.getElementById("btn-open-admin-users");
     var me = AuthStore.user();
     // Validate token against server (cheap) — drop it if expired.
@@ -80,6 +82,9 @@
       }
     }
     if (btnLogin) btnLogin.style.display = (me && me.username) ? "none" : "";
+    var logged = !!((me && me.username));
+    if (btnSwitch) btnSwitch.style.display = logged ? "" : "none";
+    if (btnLogout) btnLogout.style.display = logged ? "" : "none";
     if (btnAdmin) btnAdmin.style.display = (me && me.role === "admin") ? "" : "none";
     var adminPanel = document.getElementById("admin-users-panel");
     if (adminPanel && !(me && me.role === "admin")) adminPanel.style.display = "none";
@@ -153,6 +158,20 @@
     toast("Đã đăng xuất.", "success");
     refreshBadge();
     showLoginWall();
+  }
+
+  async function switchAccount() {
+    // Đổi tài khoản: đăng xuất phiên hiện tại rồi mở ngay form đăng nhập
+    // (trên tường login) để nhập tài khoản khác — không cần tải lại trang.
+    try { await callAuth("/api/auth/logout", {}); } catch (e) { /* ignore */ }
+    AuthStore.clear();
+    try { refreshBadge(); } catch (e) {}
+    showLoginWall();
+    openAuthModal();
+    try {
+      if (typeof switchAuthTab === "function") switchAuthTab("login");
+    } catch (e) { /* modal tab mặc định đã là login */ }
+    toast("Mời đăng nhập tài khoản khác.", "success");
   }
 
   async function doChangePassword() {
@@ -297,8 +316,11 @@
     var me = AuthStore.user();
     if (!me || !AuthStore.token()) { showLoginWall(); return false; }
     try {
-      var data = await callAuth("/api/auth/me", {});
-      void data;
+      // /api/auth/me là route GET — phải fetch GET kèm Bearer (callAuth
+      // POST-only sẽ 405, xóa oan token, đá user ra sau reload — bug
+      // E2E 2026-10-12).
+      var res = await fetch(apiBase() + "/api/auth/me", { headers: authHeaders() });
+      if (!res.ok) throw new Error("HTTP " + res.status);
       hideLoginWall();
       return true;
     } catch (e) {
@@ -356,6 +378,7 @@
     doLogin: doLogin,
     doRegister: doRegister,
     doLogout: doLogout,
+    switchAccount: switchAccount,
     doChangePassword: doChangePassword,
     doForgotPassword: doForgotPassword,
     adminResetPassword: adminResetPassword,

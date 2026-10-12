@@ -190,7 +190,7 @@ global.localStorage = {
 global.window = global;
 global.fetch = async () => ({ ok:false, status:401, json: async () => ({detail:'x'}) });
 eval(fs.readFileSync(process.argv[2],'utf8'));
-const api = ['AuthStore','authHeaders','apiFetch','requireLogin','showLoginWall','hideLoginWall','openAdminView','setRole','deleteUser','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','doForgotPassword','adminResetPassword','loadAdminUsers','approve','refreshBadge'];
+const api = ['AuthStore','authHeaders','apiFetch','requireLogin','showLoginWall','hideLoginWall','openAdminView','setRole','deleteUser','openAuthModal','closeAuthModal','doLogin','doRegister','doLogout','doChangePassword','doForgotPassword','adminResetPassword','switchAccount','loadAdminUsers','approve','refreshBadge'];
 const missing = api.filter(k => typeof EduAuth[k] === 'undefined');
 if (missing.length) { console.log('MISSING: '+missing.join(',')); process.exit(1); }
 EduAuth.AuthStore.save('tok123',{username:'luanpt',role:'admin'});
@@ -282,6 +282,74 @@ def test_forgot_reset_contract_html_js_endpoints():
     assert '"/api/auth/forgot"' in app and '"/api/auth/reset"' in app
     assert '"/api/auth/forgot"' in app.split("_AUTH_GATE_PUBLIC")[1].split("})")[0], \
         "forgot phai public qua gate (user chua login van gui duoc)"
+
+
+def test_header_logout_switch_buttons_contract():
+    # Bug UX 2026-10-12 (user): nut Dang xuat chon trong modal dang nhap,
+    # header khong co nut nao -> khong dang xuat / doi tai khoan duoc.
+    html = _read("frontend/index.html")
+    js = _read("frontend/js/auth.js")
+    assert 'id="btn-logout"' in html, "thieu nut Dang xuat tren header"
+    assert "EduAuth.doLogout" in html, "nut Dang xuat header chua goi EduAuth"
+    assert 'id="btn-switch-account"' in html, "thieu nut Doi tai khoan tren header"
+    assert "EduAuth.switchAccount" in html, "nut Doi TK header chua goi EduAuth"
+    assert "switchAccount" in js, "auth.js thieu ham switchAccount"
+    assert "btn-switch-account" in js and "btn-logout" in js, \
+        "refreshBadge chua an/hien 2 nut header theo phien"
+
+
+def test_require_login_validates_session_with_get():
+    # Bug 2026-10-12 (E2E trinh duyet bat duoc): requireLogin() dung
+    # callAuth() (POST-only) goi /api/auth/me (route GET) -> 405 -> xoa
+    # token -> user vua login, tai lai trang la bi da ra. Phai GET.
+    import subprocess
+    harness = r"""
+const fs = require('fs');
+const els = {};
+function mkEl(id){ return { id, style:{display:''}, textContent:'', title:'', value:'', innerHTML:'', addEventListener:()=>{} }; }
+global.document = {
+  getElementById: (id) => els[id] || null,
+  createElement: (t) => mkEl('dyn'),
+  addEventListener: () => {},
+  querySelector: () => null,
+};
+global.document.body = { appendChild: (el) => { els[el.id] = el; } };
+global.window = global;
+const store = {};
+global.localStorage = {
+  getItem: (k) => (k in store ? store[k] : null),
+  setItem: (k,v) => { store[k]=String(v); },
+  removeItem: (k) => { delete store[k]; },
+};
+const calls = [];
+global.fetch = async (url, opts) => {
+  calls.push({ url: String(url), method: (opts && opts.method) || 'GET' });
+  return { ok: true, status: 200, json: async () => ({ user: { username: 'u', role: 'user' } }) };
+};
+eval(fs.readFileSync(process.argv[2],'utf8'));
+EduAuth.AuthStore.save('tok123', {username:'u', role:'user'});
+EduAuth.requireLogin().then((ok) => {
+  const me = calls.find((c) => c.url.includes('/api/auth/me'));
+  if (!me) { console.log('NO-ME-CALL'); process.exit(1); }
+  if (me.method !== 'GET') { console.log('WRONG-METHOD:' + me.method); process.exit(1); }
+  if (ok !== true) { console.log('NOT-OK'); process.exit(1); }
+  if (EduAuth.AuthStore.token() !== 'tok123') { console.log('TOKEN-CLEARED'); process.exit(1); }
+  console.log('REQUIRE-LOGIN-GET-OK');
+});
+""";
+    probe = os.path.join(PROJECT_ROOT, "tests", "_require_login_probe_tmp.js")
+    with open(probe, "w", encoding="utf-8") as f:
+        f.write(harness)
+    try:
+        p = subprocess.run(
+            ["node", probe, os.path.join(PROJECT_ROOT, "frontend", "js", "auth.js")],
+            capture_output=True, text=True, timeout=30,
+        )
+    finally:
+        if os.path.exists(probe):
+            os.remove(probe)
+    assert p.returncode == 0, f"requireLogin sai method: {p.stdout[:200]}{p.stderr[:200]}"
+    assert "REQUIRE-LOGIN-GET-OK" in p.stdout
 
 
 def test_auth_role_and_delete_guards():
