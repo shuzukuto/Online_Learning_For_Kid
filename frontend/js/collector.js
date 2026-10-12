@@ -16,6 +16,21 @@ let autoHunterTimer = null;
 let autoHunterCountdown = 300; // 5 minutes countdown
 let countdownInterval = null;
 
+// Auth-gate 2026-10-12: mọi /api/* (trừ auth/version + 4 endpoint
+// extension-sync) đều 401 khi thiếu Bearer session. Hub/bot VioEdu PHẢI qua
+// wrapper này — tự gắn token, mở tường login khi 401 — thay vì fetch trần.
+// Ưu tiên EduAuth.apiFetch (auth.js nạp trước file này); fallback fetch trần
+// khi auth.js chưa sẵn (không bao giờ xảy ra ở index.html hiện tại).
+async function apiFetch(path, options) {
+  try {
+    if (typeof EduAuth !== "undefined" && EduAuth && typeof EduAuth.apiFetch === "function") {
+      return await EduAuth.apiFetch(path, options);
+    }
+  } catch (e) { throw e; }
+  const base = (typeof API_BASE !== "undefined" && API_BASE) ? API_BASE : "";
+  return fetch(base + String(path).replace(/^\/api/, ""), options || {});
+}
+
 // ============================================================================
 // OCR Debug Live Log & Telemetry
 // ============================================================================
@@ -1136,7 +1151,7 @@ async function runAutoScraper() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/collect/run`, {
+    const res = await apiFetch(`/api/collect/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1217,7 +1232,7 @@ async function runVioEduBreadth() {
     btn.innerHTML = `⏳ Đang quét toàn bộ Khối ${grade}...`;
   }
   try {
-    const res = await fetch(`${API_BASE}/collect/vioedu-plan`, {
+    const res = await apiFetch(`/api/collect/vioedu-plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1279,7 +1294,7 @@ async function refreshVioEduHubStatus() {
   const txt = document.getElementById("vioedu-hub-status-text");
   if (!box || !txt) return;
   try {
-    const res = await fetch(`${API_BASE}/collect/vioedu-plan`);
+    const res = await apiFetch(`/api/collect/vioedu-plan`);
     const data = await res.json();
     if (!data.success) return;
     const autoTxt = data.auto_enabled ? "🟢 Tự động nền 24/7: BẬT" : "⚪ Tự động nền 24/7: TẮT";
@@ -1310,7 +1325,7 @@ async function refreshVioEduHubStatus() {
 async function pollBreadthStatus(jobId, tries = 0) {
   const MAX_TRIES = 80;
   try {
-    const res = await fetch(`${API_BASE}/collect/breadth-status?job_id=${encodeURIComponent(jobId)}`);
+    const res = await apiFetch(`/api/collect/breadth-status?job_id=${encodeURIComponent(jobId)}`);
     const data = await res.json();
     const st = data.status || "running";
     if (st === "done") {
@@ -1334,7 +1349,16 @@ async function pollBreadthStatus(jobId, tries = 0) {
       refreshVioEduHubStatus();
       return;
     }
-  } catch (e) { /* thử lại kỳ sau */ }
+  } catch (e) {
+    // Mất phiên (apiFetch ném lỗi 401 + đã mở tường login): dừng poll ngay,
+    // không retry mù 20 phút (mỗi lần retry lại mở tường).
+    if (/401|đăng nhập|hết hạn/i.test((e && e.message) || "")) {
+      scraperLogLines.unshift(`[${getLogTimeVN()}] 🔐 Phiên đăng nhập hết hạn — đã dừng theo dõi job ${jobId}. Đăng nhập lại rồi bấm Cào diện rộng để chạy job mới.`);
+      renderScraperLog();
+      return;
+    }
+    /* thử lại kỳ sau */
+  }
   if (tries < MAX_TRIES) {
     setTimeout(() => pollBreadthStatus(jobId, tries + 1), 15000);
   } else {
@@ -1349,7 +1373,7 @@ async function loadCollectorLogs() {
   if (!listEl) return;
 
   try {
-    const res = await fetch(`${API_BASE}/collect/logs`);
+    const res = await apiFetch(`/api/collect/logs`);
     const logs = await res.json();
 
     if (!logs || logs.length === 0) {
@@ -1375,7 +1399,7 @@ async function loadCollectorLogs() {
 
 async function copyCollectorLogs() {
   try {
-    const res = await fetch(`${API_BASE}/collect/logs`);
+    const res = await apiFetch(`/api/collect/logs`);
     const logs = await res.json();
     if (!logs || logs.length === 0) {
       showToast("Chưa có nhật ký nào để sao chép", "error");
@@ -1392,7 +1416,7 @@ async function copyCollectorLogs() {
 async function clearAllCollectorLogs() {
   if (!confirm("Bạn có chắc chắn muốn xóa sạch toàn bộ nhật ký hoạt động thu thập?")) return;
   try {
-    const res = await fetch(`${API_BASE}/collect/logs`, { method: "DELETE" });
+    const res = await apiFetch(`/api/collect/logs`, { method: "DELETE" });
     const data = await res.json();
     showToast(data.message || "Đã xóa toàn bộ nhật ký");
     loadCollectorLogs();
@@ -2005,7 +2029,7 @@ async function toggleBotAutoCrawl(enable) {
   stopBotAutoCrawlLoop();
   try {
     const grade = parseInt(document.getElementById("scraper-grade")?.value) || 2;
-    const res = await fetch(`${API_BASE}/collect/vioedu-plan`, {
+    const res = await apiFetch(`/api/collect/vioedu-plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "auto", grades: [grade],
@@ -2279,7 +2303,7 @@ function restoreCollectorSettings() {
   }
 
   // 4. Hub VioEdu: đồng bộ toggle theo scheduler backend (không chạy loop tab cũ)
-  fetch(`${API_BASE}/collect/vioedu-plan`).then(r => r.json()).then(st => {
+  apiFetch(`/api/collect/vioedu-plan`).then(r => r.json()).then(st => {
     const botToggle = document.getElementById("bot-auto-crawl-toggle");
     if (botToggle && st.success) {
       botToggle.checked = !!st.auto_enabled;

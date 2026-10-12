@@ -82,3 +82,61 @@ def test_hub_ui_renders_heartbeat():
         js = f.read()
     assert "heartbeat" in js.lower(), \
         "hub status UI never renders scheduler heartbeat"
+
+
+# Auth-gate (quyết định 2026-10-12): mọi /api/* trừ auth/version + 4 endpoint
+# extension-sync đều 401 khi thiếu Bearer. Hub/bot VioEdu từng dùng fetch
+# trần → sau khi bật tường login, nút "Bắt đầu cào", "Cào diện rộng",
+# toggle 24/7, trạng thái hub và nhật ký chết lặng với 401. Mọi điểm gọi
+# /collect/* trong collector.js PHẢI đi qua EduAuth.apiFetch (tự gắn token
+# + mở tường khi 401), cấm fetch trần tới /collect/.
+_HUB_BOT_CALLERS = [
+    "runAutoScraper",         # POST /collect/run (bot đăng nhập cào vòng thi)
+    "runVioEduBreadth",       # POST /collect/vioedu-plan (cào diện rộng)
+    "refreshVioEduHubStatus",  # GET  /collect/vioedu-plan (trạng thái hub)
+    "pollBreadthStatus",      # GET  /collect/breadth-status (poll job nền)
+    "loadCollectorLogs",      # GET  /collect/logs
+    "copyCollectorLogs",      # GET  /collect/logs
+    "clearAllCollectorLogs",  # DELETE /collect/logs
+    "toggleBotAutoCrawl",     # POST /collect/vioedu-plan (toggle 24/7)
+]
+
+
+def _collector_func_body(src: str, name: str) -> str:
+    i = src.find(f"async function {name}(")
+    if i < 0:
+        i = src.find(f"function {name}(")
+    assert i >= 0, f"{name}() missing from collector.js"
+    m = re.search(r"\n(?:async )?function \w+\(", src[i + 1:])
+    return src[i:i + 1 + m.start() if m else len(src)]
+
+
+def test_hub_bot_fetches_carry_auth_token():
+    with open("frontend/js/collector.js", encoding="utf-8") as f:
+        src = f.read()
+    bad = []
+    for name in _HUB_BOT_CALLERS:
+        body = _collector_func_body(src, name)
+        if "apiFetch" not in body or "fetch(`${API_BASE}/collect/" in body:
+            bad.append(name)
+    # Khối init đồng bộ toggle lúc nạp trang (không nằm trong function).
+    i = src.find("Hub VioEdu: đồng bộ toggle")
+    assert i >= 0, "hub init sync block missing from collector.js"
+    init_slice = src[i:i + 1200]
+    if "apiFetch" not in init_slice or "fetch(`${API_BASE}/collect/" in init_slice:
+        bad.append("<hub-init-sync>")
+    assert not bad, (
+        "hub/bot vẫn fetch trần (dính gate 401 sau khi bật login): "
+        + ", ".join(bad) + " — phải qua EduAuth.apiFetch"
+    )
+
+
+def test_breadth_poll_stops_on_auth_error():
+    # Poll job nền mỗi 15s × 80 lần: khi mất phiên (401) phải dừng ngay,
+    # không retry mù 20 phút (mỗi lần retry lại mở tường login).
+    with open("frontend/js/collector.js", encoding="utf-8") as f:
+        src = f.read()
+    body = _collector_func_body(src, "pollBreadthStatus")
+    assert "apiFetch" in body, "pollBreadthStatus chưa qua EduAuth.apiFetch"
+    assert re.search(r"401|đăng nhập|hết hạn", body), \
+        "pollBreadthStatus không có guard dừng retry khi mất phiên"
