@@ -14,16 +14,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
 
   <!-- Favicon & Brand Icons (EduQuest Pro) -->
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.0.59">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.0.59">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.0.59">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.0.59">
-  <link rel="shortcut icon" href="favicon.ico?v=1.0.59">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.0.60">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.0.60">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.0.60">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.0.60">
+  <link rel="shortcut icon" href="favicon.ico?v=1.0.60">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#2563eb">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.0.59">
+  <link rel="stylesheet" href="css/style.css?v=1.0.60">
 </head>
 <body>
   <div class="app-container">
@@ -34,7 +34,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.46</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.0.55</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -76,7 +76,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.0.46</span>
+          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.0.55</span>
         </div>
       </div>
     </aside>
@@ -2473,29 +2473,49 @@
         </div>
         <button type="button" onclick="EduAuth.closeAuthModal()" style="background: rgba(255,255,255,0.2); border: none; color: #ffffff; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer;">✕</button>
       </div>
-      <div style="padding: 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto;">
-        <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #374151; margin-bottom: 5px;">Đăng nhập</label>
+      <div style="padding: 0 22px; display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+        <button type="button" id="auth-tab-login" onclick="switchAuthTab('login')" style="flex: 1; border: none; background: none; padding: 12px 8px; font-size: 13px; font-weight: 700; color: #1d4ed8; cursor: pointer; border-bottom: 2px solid #1d4ed8;">🔑 Đăng nhập</button>
+        <button type="button" id="auth-tab-register" onclick="switchAuthTab('register')" style="flex: 1; border: none; background: none; padding: 12px 8px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent;">📝 Đăng ký</button>
+        <button type="button" id="auth-tab-password" onclick="switchAuthTab('password')" style="flex: 1; border: none; background: none; padding: 12px 8px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent;">🔄 Đổi mật khẩu</button>
+      </div>
+      <div style="padding: 22px; overflow-y: auto;">
+        <div id="auth-panel-login">
+          <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #64748b;">Đăng nhập để đóng góp đề thi đứng tên mình.</p>
           <input type="text" id="auth-login-user" class="form-control" placeholder="Tên đăng nhập" autocomplete="username" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 8px;" />
-          <input type="password" id="auth-login-pass" class="form-control" placeholder="Mật khẩu" autocomplete="current-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 8px;" onkeydown="if(event.key==='Enter')EduAuth.doLogin()" />
-          <button type="button" class="btn btn-primary btn-sm" onclick="EduAuth.doLogin()" style="font-weight: 700; padding: 6px 18px;">🔑 Đăng nhập</button>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="EduAuth.doLogout()" style="padding: 6px 14px;">Đăng xuất</button>
+          <input type="password" id="auth-login-pass" class="form-control" placeholder="Mật khẩu" autocomplete="current-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;" onkeydown="if(event.key==='Enter')EduAuth.doLogin()" />
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="EduAuth.doLogin()" style="flex: 1; font-weight: 700; padding: 8px;">🔑 Đăng nhập</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="EduAuth.doLogout()" style="padding: 8px 14px;">Đăng xuất</button>
+          </div>
         </div>
-        <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 0;" />
-        <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #374151; margin-bottom: 5px;">Đăng ký tài khoản mới (chỉ cần tên + mật khẩu, chờ admin duyệt)</label>
+        <div id="auth-panel-register" style="display: none;">
+          <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #64748b;">Chỉ cần tên + mật khẩu, chờ admin duyệt là dùng được.</p>
           <input type="text" id="auth-reg-user" class="form-control" placeholder="Tên đăng nhập mới (3–32 ký tự)" autocomplete="off" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 8px;" />
-          <input type="password" id="auth-reg-pass" class="form-control" placeholder="Mật khẩu (tối thiểu 4 ký tự)" autocomplete="new-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 8px;" />
-          <button type="button" class="btn btn-secondary btn-sm" onclick="EduAuth.doRegister()" style="font-weight: 700; padding: 6px 18px;">📝 Đăng ký</button>
+          <input type="password" id="auth-reg-pass" class="form-control" placeholder="Mật khẩu (tối thiểu 4 ký tự)" autocomplete="new-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;" />
+          <button type="button" class="btn btn-primary btn-sm" onclick="EduAuth.doRegister()" style="width: 100%; font-weight: 700; padding: 8px;">📝 Đăng ký tài khoản</button>
         </div>
-        <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 0;" />
-        <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; color: #374151; margin-bottom: 5px;">Đổi mật khẩu</label>
+        <div id="auth-panel-password" style="display: none;">
+          <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #64748b;">Đổi mật khẩu cho tài khoản đang đăng nhập.</p>
           <input type="password" id="auth-old-pass" class="form-control" placeholder="Mật khẩu cũ" autocomplete="current-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 8px;" />
-          <input type="password" id="auth-new-pass" class="form-control" placeholder="Mật khẩu mới" autocomplete="new-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 8px;" />
-          <button type="button" class="btn btn-secondary btn-sm" onclick="EduAuth.doChangePassword()" style="padding: 6px 14px;">🔄 Đổi mật khẩu</button>
+          <input type="password" id="auth-new-pass" class="form-control" placeholder="Mật khẩu mới" autocomplete="new-password" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;" />
+          <button type="button" class="btn btn-primary btn-sm" onclick="EduAuth.doChangePassword()" style="width: 100%; font-weight: 700; padding: 8px;">🔄 Đổi mật khẩu</button>
         </div>
       </div>
+      <script>
+      function switchAuthTab(which) {
+        var tabs = ["login", "register", "password"];
+        tabs.forEach(function (t) {
+          var btn = document.getElementById("auth-tab-" + t);
+          var panel = document.getElementById("auth-panel-" + t);
+          var active = (t === which);
+          if (panel) panel.style.display = active ? "block" : "none";
+          if (btn) {
+            btn.style.color = active ? "#1d4ed8" : "#64748b";
+            btn.style.borderBottom = active ? "2px solid #1d4ed8" : "2px solid transparent";
+          }
+        });
+      }
+      </script>
     </div>
   </div>
 
@@ -2520,13 +2540,13 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.0.59"></script>
-  <script src="js/bank.js?v=1.0.59"></script>
-  <script src="js/auth.js?v=1.0.59"></script>
-  <script src="js/exam_builder.js?v=1.0.59"></script>
-  <script src="js/collector.js?v=1.0.59"></script>
-  <script src="js/practice.js?v=1.0.59"></script>
-  <script src="js/ai_agent_importer.js?v=1.0.59"></script>
+  <script src="js/app.js?v=1.0.60"></script>
+  <script src="js/bank.js?v=1.0.60"></script>
+  <script src="js/auth.js?v=1.0.60"></script>
+  <script src="js/exam_builder.js?v=1.0.60"></script>
+  <script src="js/collector.js?v=1.0.60"></script>
+  <script src="js/practice.js?v=1.0.60"></script>
+  <script src="js/ai_agent_importer.js?v=1.0.60"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>

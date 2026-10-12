@@ -170,6 +170,47 @@ def test_hunter_run_accepts_single_url_alias():
         "/api/hunter/run ignores the single 'url' field"
 
 
+def test_auth_modal_uses_tab_navigation():
+    # Professional login UX: 3 tabs (login/register/change-password), one
+    # visible panel at a time — not 3 stacked forms + hr separators.
+    src = _read("frontend/index.html")
+    assert "auth-tab-login" in src and "auth-tab-register" in src \
+        and "auth-tab-password" in src, "auth modal lacks 3 tab buttons"
+    assert "auth-panel-login" in src and "auth-panel-register" in src \
+        and "auth-panel-password" in src, "auth modal lacks 3 tab panels"
+    assert "switchAuthTab" in src, "auth modal lacks tab-switch function"
+
+
+def test_version_badges_match_backend_version():
+    # Hard-coded sidebar/sidebar-footer badges drifted (v1.0.46 vs backend
+    # v1.0.54, reported 2026-10-12) — they must match backend/version.py.
+    import re
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.version import APP_VERSION_NUMBER, EXT_VERSION_NUMBER
+    src = _read("frontend/index.html")
+    badges = re.findall(r"v\d+\.\d+\.\d+", src.split("<script")[0])
+    assert badges, "no version badges found in index.html markup"
+    for b in badges:
+        if b == f"v{EXT_VERSION_NUMBER}":
+            continue  # extension badge is a separate version line
+        assert b == f"v{APP_VERSION_NUMBER}", \
+            f"stale hard-coded badge {b} != backend v{APP_VERSION_NUMBER}"
+
+
+def test_harvest_by_grade_skips_interactive_sources():
+    # harvest-by-grade must NOT fetch catalog entries tagged type=interactive
+    # (VioEdu/TNMath/quiz-JS pages labelled "mở tay") — they are unauto-harvestable.
+    import re
+    src = _read("backend/app.py")
+    m = re.search(r"async def harvest_math_by_grade\(.*?\n(?=@app\.|\ndef )",
+                  src, re.S)
+    assert m, "harvest_math_by_grade endpoint missing"
+    body = m.group(0)
+    assert "interactive" in body, \
+        "harvest-by-grade fetches interactive (manual-open) URLs, wasting time"
+
+
 # Grade 6-12 exam pages use a NEW layout (verified DOM 2026-10-12, a120884):
 # stem+options inline in one <p> ("Câu 1: ... A. ... B. ... C. ... D. ..."),
 # key in a <table> of "<N>. <X>" cells, solutions as "<p><strong>Câu N</strong></p>

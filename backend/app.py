@@ -2083,14 +2083,21 @@ async def harvest_math_by_grade(payload: dict):
     grade = max(1, min(12, grade))
     subject = payload.get("subject", "math")
     
-    # Dynamically extract target URLs from source catalog for this grade
+    # Dynamically extract target URLs from source catalog for this grade.
+    # Skip type=interactive entries (VioEdu/TNMath/quiz-JS "mở tay" pages):
+    # they need login/JS rendering and yield nothing via static fetch.
     catalog = get_grade_source_urls(grade)
     target_urls = []
+    skipped_interactive = 0
     for cat in catalog.get("categories", []):
         for s in cat.get("sources", []):
             u = s.get("url")
-            if u and u not in target_urls:
-                target_urls.append(u)
+            if not u or u in target_urls:
+                continue
+            if (s.get("type") or "").strip().lower() == "interactive":
+                skipped_interactive += 1
+                continue
+            target_urls.append(u)
 
     res = await run_internet_question_hunter(
         subject=subject,
@@ -2098,6 +2105,8 @@ async def harvest_math_by_grade(payload: dict):
         custom_urls=target_urls,
         limit=50
     )
+    if isinstance(res, dict):
+        res["skipped_interactive"] = skipped_interactive
     return res
 
 @app.post("/api/hunter/harvest-grade2")

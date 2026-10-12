@@ -1852,7 +1852,10 @@ async function harvestCurrentGradeMathQuick() {
     const finishTime = getLogTimeVN();
 
     if (data.success) {
-      const finishLine = `[${finishTime}] Thu thập thành công! Đã bóc tách và nạp ${data.total_harvested} câu hỏi Toán Khối ${grade} (Anh & Việt & Olympic) vào Ngân hàng.`;
+      const savedCount = (typeof data.new_saved === "number") ? data.new_saved : data.total_harvested;
+      const skipInfo = (typeof data.skipped_interactive === "number" && data.skipped_interactive > 0)
+        ? ` (bỏ qua ${data.skipped_interactive} nguồn mở-tay)` : "";
+      const finishLine = `[${finishTime}] Thu thập thành công! Đã lưu ${savedCount} câu hỏi mới Toán Khối ${grade}${skipInfo} (tổng thu ${data.total_harvested}, loại trùng ${data.skipped_duplicates || 0}).`;
       if (logBox) {
         if (logBox.textContent.includes(inProgressLine)) {
           logBox.textContent = logBox.textContent.replace(inProgressLine, finishLine);
@@ -1862,9 +1865,9 @@ async function harvestCurrentGradeMathQuick() {
         }
         localStorage.setItem("eduquest_hunter_log", logBox.textContent);
       }
-      showToast(`Tuyệt vời! Đã nạp thành công ${data.total_harvested} câu hỏi Toán Khối ${grade} (Anh & Việt & Olympic)!`);
+      showToast(`Đã lưu ${savedCount} câu hỏi mới Toán Khối ${grade}${skipInfo}!`);
       if (typeof broadcastNewQuestions === "function") {
-        broadcastNewQuestions(data.total_harvested, `Toán Khối ${grade} Đa Nguồn`);
+        broadcastNewQuestions(savedCount, `Toán Khối ${grade} Đa Nguồn`);
       }
       loadDashboardStats();
       loadCollectorLogs();
