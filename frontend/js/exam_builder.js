@@ -1,6 +1,18 @@
 // EduQuest Pro - Exam Builder, Auto Matrix Generator & Word Exporter
 let examQuestionsList = [];
 
+// Auth-gate 2026-10-12 (giống bank.js/collector.js): endpoint gated 401
+// khi thiếu Bearer → mọi điểm gọi PHẢI qua wrapper này.
+async function apiFetch(path, options) {
+  try {
+    if (typeof EduAuth !== "undefined" && EduAuth && typeof EduAuth.apiFetch === "function") {
+      return await EduAuth.apiFetch(path, options);
+    }
+  } catch (e) { throw e; }
+  const base = (typeof API_BASE !== "undefined" && API_BASE) ? API_BASE : "";
+  return fetch(base + String(path).replace(/^\/api/, ""), options || {});
+}
+
 // ==========================================
 // Auto Exam Matrix Generator Functions
 // ==========================================
@@ -65,7 +77,7 @@ async function autoGenerateExamByMatrix() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/exams/auto-generate`, {
+    const res = await apiFetch(`/api/exams/auto-generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -136,7 +148,7 @@ async function renderExamBuilderView(skipFetch = false) {
 
     try {
       const qIds = Array.from(State.selectedQuestionIds);
-      const fetchPromises = qIds.map(id => fetch(`${API_BASE}/questions/${id}`).then(r => r.json()));
+      const fetchPromises = qIds.map(id => apiFetch(`/api/questions/${id}`).then(r => r.json()));
       examQuestionsList = await Promise.all(fetchPromises);
     } catch (err) {
       console.error("Error preparing exam:", err);
@@ -149,7 +161,7 @@ async function renderExamBuilderView(skipFetch = false) {
   let divData = { diversity_score: 100, duplicate_count: 0, duplicate_question_ids: [], archetypes: {} };
   try {
     const qIds = examQuestionsList.map(q => q.id);
-    const divRes = await fetch(`${API_BASE}/exams/analyze-diversity`, {
+    const divRes = await apiFetch(`/api/exams/analyze-diversity`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question_ids: qIds })
@@ -362,7 +374,7 @@ async function autoDeduplicateAndDiversifyExam() {
   const qIds = Array.from(State.selectedQuestionIds);
 
   try {
-    const res = await fetch(`${API_BASE}/exams/diversify`, {
+    const res = await apiFetch(`/api/exams/diversify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question_ids: qIds, subject, grade })
@@ -397,7 +409,7 @@ async function swapQuestionInExam(qid) {
 
   showToast("⏳ Đang tìm câu hỏi khác dạng bài...", "info");
   try {
-    const res = await fetch(`${API_BASE}/exams/swap-question`, {
+    const res = await apiFetch(`/api/exams/swap-question`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target_id: qid, question_ids: qIds, subject, grade })
@@ -447,7 +459,7 @@ async function shuffleExamOptions() {
   if (qIds.length === 0) return;
 
   try {
-    const res = await fetch(`${API_BASE}/exams/shuffle`, {
+    const res = await apiFetch(`/api/exams/shuffle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question_ids: qIds, shuffle_order: false, shuffle_options: true })
@@ -468,7 +480,7 @@ async function shuffleExamBoth() {
   if (qIds.length === 0) return;
 
   try {
-    const res = await fetch(`${API_BASE}/exams/shuffle`, {
+    const res = await apiFetch(`/api/exams/shuffle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question_ids: qIds, shuffle_order: true, shuffle_options: true })
@@ -501,7 +513,7 @@ async function exportExamWordDocx() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/export/docx`, {
+    const res = await apiFetch(`/api/export/docx`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -615,7 +627,7 @@ async function exportExamPDF() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/export/pdf`, {
+    const res = await apiFetch(`/api/export/pdf`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)

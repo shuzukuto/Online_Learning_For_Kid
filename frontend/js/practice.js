@@ -19,6 +19,18 @@ let practiceState = {
   lastResult: null
 };
 
+// Auth-gate 2026-10-12 (giống bank.js/collector.js): endpoint gated 401
+// khi thiếu Bearer → mọi điểm gọi PHẢI qua wrapper này.
+async function apiFetch(path, options) {
+  try {
+    if (typeof EduAuth !== "undefined" && EduAuth && typeof EduAuth.apiFetch === "function") {
+      return await EduAuth.apiFetch(path, options);
+    }
+  } catch (e) { throw e; }
+  const base = (typeof API_BASE !== "undefined" && API_BASE) ? API_BASE : "";
+  return fetch(base + String(path).replace(/^\/api/, ""), options || {});
+}
+
 // 8 Gamification Badges definitions
 const BADGES_DEFINITIONS = [
   { id: "badge_first_step", title: "Khởi Đầu", desc: "Hoàn thành bài luyện tập đầu tiên", icon: "🌟" },
@@ -191,8 +203,8 @@ async function loadReviewDue() {
   const badge = document.getElementById("review-due-badge");
   try {
     const [dueRes, statsRes] = await Promise.all([
-      fetch(`${API_BASE}/practice/review-due?limit=50`),
-      fetch(`${API_BASE}/practice/review-stats`)
+      apiFetch(`/api/practice/review-due?limit=50`),
+      apiFetch(`/api/practice/review-stats`)
     ]);
     const dueData = dueRes.ok ? await dueRes.json() : { due: [], count: 0 };
     const statsData = statsRes.ok ? await statsRes.json() : { stats: {} };
@@ -240,7 +252,7 @@ async function startReviewSession() {
   let questions = [];
   try {
     for (const qid of ids.slice(0, 20)) {
-      const r = await fetch(`${API_BASE}/questions/${encodeURIComponent(qid)}`);
+      const r = await apiFetch(`/api/questions/${encodeURIComponent(qid)}`);
       if (r.ok) { const q = await r.json(); if (q && (q.id || q.content_text)) questions.push(q.item || q); }
     }
   } catch (err) { console.warn("fetch review questions failed:", err); }
@@ -270,7 +282,7 @@ async function startReviewSession() {
 
 async function refreshReviewBadge() {
   try {
-    const res = await fetch(`${API_BASE}/practice/review-stats`);
+    const res = await apiFetch(`/api/practice/review-stats`);
     if (!res.ok) return;
     const data = await res.json();
     const badge = document.getElementById("review-due-badge");
@@ -308,7 +320,7 @@ async function startPracticeSession() {
     let questions = [];
     let title = `Luyện tập ${getSubjectName(subject)} Khối ${grade}`;
 
-    const res = await fetch(`${API_BASE}/practice/generate`, {
+    const res = await apiFetch(`/api/practice/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -325,7 +337,7 @@ async function startPracticeSession() {
 
     // Fallback: If server returns empty, fetch directly from bank
     if (!questions || questions.length === 0) {
-      const qRes = await fetch(`${API_BASE}/questions?subject=${subject}&grade=${grade}&page_size=${count}`);
+      const qRes = await apiFetch(`/api/questions?subject=${subject}&grade=${grade}&page_size=${count}`);
       if (qRes.ok) {
         const qData = await qRes.json();
         if (qData.items && qData.items.length > 0) {
@@ -336,7 +348,7 @@ async function startPracticeSession() {
 
     // Ultimate fallback if bank has fewer questions
     if (!questions || questions.length === 0) {
-      const allQRes = await fetch(`${API_BASE}/questions?page_size=${count}`);
+      const allQRes = await apiFetch(`/api/questions?page_size=${count}`);
       if (allQRes.ok) {
         const allData = await allQRes.json();
         questions = allData.items || [];
@@ -825,7 +837,7 @@ async function submitPracticeExam(force = false) {
     let result = null;
 
     // Send to backend
-    const res = await fetch(`${API_BASE}/practice/submit`, {
+    const res = await apiFetch(`/api/practice/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -1230,7 +1242,7 @@ async function loadPracticeAnalytics() {
   let analyticsData = null;
 
   try {
-    const res = await fetch(`${API_BASE}/practice/analytics`);
+    const res = await apiFetch(`/api/practice/analytics`);
     if (res.ok) {
       const data = await res.json();
       analyticsData = data.analytics;
@@ -1438,7 +1450,7 @@ async function loadPracticeHistory() {
   let records = [];
 
   try {
-    const res = await fetch(`${API_BASE}/practice/history?limit=30`);
+    const res = await apiFetch(`/api/practice/history?limit=30`);
     if (res.ok) {
       const data = await res.json();
       records = data.records || data.history || [];

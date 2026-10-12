@@ -4,6 +4,32 @@ if (!State.batchSelectedIds) {
 }
 let cachedEditingQuestion = null;
 
+// Auth-gate 2026-10-12 (giống collector.js): mọi /api/* trừ auth/version +
+// 4 endpoint extension-sync đều 401 khi thiếu Bearer. bank.js PHẢI qua
+// wrapper này thay vì fetch trần. Ưu tiên EduAuth.apiFetch (auth.js nạp
+// trước); fallback fetch trần khi chưa sẵn.
+async function apiFetch(path, options) {
+  try {
+    if (typeof EduAuth !== "undefined" && EduAuth && typeof EduAuth.apiFetch === "function") {
+      return await EduAuth.apiFetch(path, options);
+    }
+  } catch (e) { throw e; }
+  const base = (typeof API_BASE !== "undefined" && API_BASE) ? API_BASE : "";
+  return fetch(base + String(path).replace(/^\/api/, ""), options || {});
+}
+
+// XSS guard (kiem toan 2026-10-12): truong text tu DB (cau doc tu web)
+// render vao innerHTML PHẢI qua day. content_html giu nguyen (rich text
+// + KaTeX; normalizer da strip <script> luc ingest).
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function loadQuestions() {
   const container = document.getElementById("questions-list-container");
   if (!container) return;
@@ -41,12 +67,12 @@ async function loadQuestions() {
   try {
     let data;
     if (!showAll) {
-      const res = await fetch(`${API_BASE}/questions?${params.toString()}`);
+      const res = await apiFetch(`/api/questions?${params.toString()}`);
       data = await res.json();
     } else {
       params.append("page", 1);
       params.append("page_size", FETCH_CHUNK);
-      const first = await (await fetch(`${API_BASE}/questions?${params.toString()}`)).json();
+      const first = await (await apiFetch(`/api/questions?${params.toString()}`)).json();
       const total = first.total || 0;
       const all = [...(first.items || [])];
       const totalPages = Math.min(Math.ceil(total / FETCH_CHUNK), 50); // tran 10k cau
@@ -54,7 +80,7 @@ async function loadQuestions() {
       for (let p = 2; p <= totalPages; p++) {
         if (progressEl) progressEl.textContent = `Đang tải toàn bộ... ${all.length}/${total} câu (trang ${p}/${totalPages})`;
         params.set("page", p);
-        const r = await (await fetch(`${API_BASE}/questions?${params.toString()}`)).json();
+        const r = await (await apiFetch(`/api/questions?${params.toString()}`)).json();
         all.push(...(r.items || []));
       }
       data = { items: all, total, page: 1, page_size: total || 1, total_pages: 1 };
@@ -201,7 +227,7 @@ function renderQuestionCard(q, idx) {
     } else if (sLower.includes("olympic")) {
       cls += " tag-source-olympic";
     }
-    sourceDetailHtml = `<span class="${cls}">🌐 ${rawDetail}</span>`;
+    sourceDetailHtml = `<span class="${cls}">🌐 ${escapeHtml(rawDetail)}</span>`;
   }
 
   // Options rendering
@@ -265,7 +291,7 @@ function renderQuestionCard(q, idx) {
           <span class="tag-grade">Lớp ${q.grade || 5}</span>
           <span class="tag-grade">${typeMap[q.question_type] || q.question_type}</span>
           <span class="tag-grade" style="background: #f1f5f9; color: #475569;">${diffMap[q.difficulty] || q.difficulty}</span>
-          <span class="tag-topic">${q.topic || q.exam_name || ""}</span>
+          <span class="tag-topic">${escapeHtml(q.topic || q.exam_name || "")}</span>
         </div>
         <div style="font-size: 12.5px; color: #1e3a8a; font-family: monospace; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           ${q.created_at ? `<span class="tag-timestamp">🕒 ${typeof formatDateTimeVN === 'function' ? formatDateTimeVN(q.created_at) : q.created_at}</span>` : ''}
@@ -374,7 +400,7 @@ async function confirmDeleteQuestion(qid, event) {
   const currentScrollY = window.scrollY;
 
   try {
-    const res = await fetch(`${API_BASE}/questions/${qid}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/questions/${qid}`, { method: "DELETE" });
     const data = await res.json();
     if (data.success) {
       showToast("Đã xóa câu hỏi thành công");
@@ -616,7 +642,7 @@ async function openEditQuestionModal(qid) {
   let q = State.cachedQuestions.find(item => item.id === qid);
   if (!q) {
     try {
-      const res = await fetch(`${API_BASE}/questions/${qid}`);
+      const res = await apiFetch(`/api/questions/${qid}`);
       q = await res.json();
     } catch (e) {
       showToast("Không tìm thấy thông tin câu hỏi", "error");
@@ -715,7 +741,7 @@ async function saveEditedQuestion() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/questions/${qid}`, {
+    const res = await apiFetch(`/api/questions/${qid}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -752,7 +778,7 @@ async function openDuplicatesModal() {
   `;
 
   try {
-    const res = await fetch(`${API_BASE}/questions/duplicates`);
+    const res = await apiFetch(`/api/questions/duplicates`);
     const data = await res.json();
 
     if (!data.success) {
@@ -791,7 +817,7 @@ async function openDuplicatesModal() {
           </span>
         </div>
         <div style="font-size: 13px; line-height: 1.5; color: #1e293b; background: #f8fafc; padding: 8px 12px; border-radius: 6px;">
-          ${grp.content_text_preview}
+          ${escapeHtml(grp.content_text_preview)}
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
           ${grp.items.map((item, iIdx) => `
@@ -839,7 +865,7 @@ async function cleanDuplicatesAuto() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/questions/duplicates/clean`, {
+    const res = await apiFetch(`/api/questions/duplicates/clean`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "keep_oldest" })
@@ -865,7 +891,7 @@ async function cleanDuplicatesAuto() {
 
 async function deleteSingleDuplicate(id) {
   try {
-    const res = await fetch(`${API_BASE}/questions/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/questions/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (data.success) {
       showToast("Đã xóa bản sao trùng lặp");
@@ -895,7 +921,7 @@ async function openDiagnosticsModal() {
   `;
 
   try {
-    const res = await fetch(`${API_BASE}/database/diagnostics`);
+    const res = await apiFetch(`/api/database/diagnostics`);
     const data = await res.json();
 
     if (!data.success) {
@@ -981,7 +1007,7 @@ async function runDbAutoFix() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/database/diagnostics/fix`, { method: "POST" });
+    const res = await apiFetch(`/api/database/diagnostics/fix`, { method: "POST" });
     const data = await res.json();
     if (data.success) {
       showToast(`Đã tự động sửa chữa CSDL thành công! Đã xóa ${data.details?.deleted_duplicates || 0} bản sao trùng lặp.`);
@@ -1096,7 +1122,7 @@ async function executeBulkDelete() {
   const idsToDelete = Array.from(State.batchSelectedIds);
 
   try {
-    const res = await fetch(`${API_BASE}/questions/bulk-delete`, {
+    const res = await apiFetch(`/api/questions/bulk-delete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question_ids: idsToDelete })
@@ -1160,7 +1186,7 @@ async function executeBulkUpdateGrade() {
   const idsToUpdate = Array.from(State.batchSelectedIds);
 
   try {
-    const res = await fetch(`${API_BASE}/questions/bulk-update-grade`, {
+    const res = await apiFetch(`/api/questions/bulk-update-grade`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question_ids: idsToUpdate, grade: targetGrade })
@@ -1291,7 +1317,7 @@ async function submitContributeFile() {
     if (author) formData.append("contributor_name", author);
     if (notes) formData.append("notes", notes);
 
-    const res = await fetch(`${API_BASE}/contribute/upload`, {
+    const res = await apiFetch(`/api/contribute/upload`, {
       method: "POST",
       headers: (window.EduAuth && window.EduAuth.authHeaders()) || {},
       body: formData

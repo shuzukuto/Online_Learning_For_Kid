@@ -557,3 +557,50 @@ def test_toast_visible_above_modal_and_wall():
     z = int(m.group(1))
     assert z > 10001, \
         f"toast z-index {z} <= modal-auth 10001 → thông báo bị modal che"
+
+
+def _js_func_body(src: str, name: str) -> str:
+    i = src.find(f"async function {name}(")
+    if i < 0:
+        i = src.find(f"function {name}(")
+    assert i >= 0, f"{name}() missing"
+    import re as _re
+    m = _re.search(r"\n(?:async )?function \w+\(", src[i + 1:])
+    return src[i:i + 1 + m.start() if m else len(src)]
+
+
+def test_bank_exam_practice_go_through_authed_fetch():
+    # Auth-gate 2026-10-12: mọi /api/* (trừ auth/version + 4 endpoint
+    # extension-sync) đều 401 khi thiếu Bearer. bank.js (14 fetch),
+    # exam_builder.js (9), practice.js (10) còn fetch trần → login xong
+    # mở Ngân hàng/Soạn đề/Luyện tập vẫn 0 câu. Mọi điểm gọi gated PHẢI
+    # qua wrapper gắn token (EduAuth.apiFetch), cấm fetch(`${API_BASE}/…)
+    # trần tới endpoint gated.
+    import re as _re
+    gated_markers = [
+        "/questions?", "/questions/", "/questions`",
+        "/exams/", "/export/", "/practice/",
+        "/database/", "/duplicates",
+    ]
+    public_markers = [
+        "/api/version", "/api/stats",
+        "/questions/bulk", "/bulk-update-grade", "/logs/sync",
+    ]
+    bad = []
+    for path in ["frontend/js/bank.js", "frontend/js/exam_builder.js",
+                 "frontend/js/practice.js"]:
+        src = _read(path)
+        for lineno, line in enumerate(src.splitlines(), 1):
+            s = line.strip()
+            if "fetch(" not in s or "API_BASE" not in s:
+                continue
+            if "apiFetch" in s or "EduAuth" in s:
+                continue
+            if any(p in s for p in public_markers):
+                continue
+            if any(g in s for g in gated_markers):
+                bad.append(f"{path}:{lineno}:{s[:90]}")
+    assert not bad, (
+        "fetch trần tới endpoint gated (dính gate 401 sau login):\n"
+        + "\n".join(bad) + "\n— phải qua EduAuth.apiFetch"
+    )

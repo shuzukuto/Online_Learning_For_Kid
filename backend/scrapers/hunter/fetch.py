@@ -6,7 +6,8 @@ import random
 import re
 import uuid
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+import ipaddress
 from bs4 import BeautifulSoup
 from backend.classifier import classify_subject
 from backend.database import insert_or_update_question, log_collector_event
@@ -62,11 +63,68 @@ def filter_loigiaihay_detail_urls(urls: List[str], category_url: str) -> List[st
     return sorted(urls, key=lambda u: (-score(u), u))
 
 
+def is_url_fetch_allowed(url: str) -> bool:
+    """SSRF blocklist (kiem toan 2026-10-12): chi cho phep http(s) toi host
+    cong khai. Chan localhost/loopback, IP rieng (10/8, 172.16/12,
+    192.168/16), link-local/metadata (169.254/16), scheme file/ftp/gopher,
+    va userinfo trong URL. Ten mien phai resolve ra IP cong khai moi qua."""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        parts = urlparse(url.strip())
+    except Exception:
+        return False
+    if parts.scheme not in ("http", "https"):
+        return False
+    if parts.username or parts.password:
+        return False
+    host = (parts.hostname or "").strip().lower().rstrip(".")
+    if not host:
+        return False
+    # Chan truc tiep theo ten/IP dang chu
+    if host in ("localhost",) or host.endswith(".localhost"):
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local \
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            return False
+        return True
+    except ValueError:
+        pass  # hostname — resolve kiem tra ben duoi
+    # Chan ten gian mao localhost noi bo
+    if host in ("localhost",) or host.endswith((".local", ".internal", ".lan", ".home", ".corp")):
+        return False
+    # Resolve DNS: bat ky A-record nao la IP khong cong khai → chan.
+    import socket
+    try:
+        infos = socket.getaddrinfo(host, None, family=socket.AF_UNSPEC,
+                                   type=socket.SOCK_STREAM)
+    except OSError:
+        return False
+    addrs = {info[4][0] for info in infos}
+    if not addrs:
+        return False
+    for a in addrs:
+        try:
+            ip = ipaddress.ip_address(str(a).split("%")[0])
+        except ValueError:
+            return False
+        if ip.is_private or ip.is_loopback or ip.is_link_local \
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            return False
+    return True
+
+
 async def fetch_questions_from_web_url(url: str) -> List[Dict[str, Any]]:
     """
     Crawls educational webpage URLs (CodeMath, Hành trang số, VioEdu, Trạng Nguyên, Vietjack, VnDoc, Facebook)
     and extracts structured curriculum questions and multiple-choice items automatically.
     """
+    # SSRF guard (kiem toan 2026-10-12): custom_url tu user — chan mang
+    # noi bo + metadata cloud truoc khi mo bat ky ket noi nao.
+    if not is_url_fetch_allowed(url):
+        return []
     url_lower = url.lower()
 
     # 1. Specialized Handler: CodeMath (hacodemath.com & codemath.vn) - TIMO, HKIMO, BBB, IKMC, FMO, ITMC, SASMO, SEAMO

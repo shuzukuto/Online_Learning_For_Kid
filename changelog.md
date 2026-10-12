@@ -2,6 +2,30 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.1.5] - 2026-10-12
+
+### Tong hop phan bien 3 AI & hoan thien (Phase 1 audit)
+- **Auth-fetch (BUG #1, ca 3 ban deu dung)**: bank.js 14 + exam_builder.js 9 +
+  practice.js 10 diem `fetch` tran → 401 sau auth-gate. Chuyen 33/33 sang
+  `EduAuth.apiFetch()` theo mau collector.js (khong patch window.fetch toan
+  cuc). Test khoa `test_bank_exam_practice_go_through_authed_fetch`.
+- **DOCX frac (BUG #2, dung 100%)**: `clean_for_docx` xoa `\frac` + `{}` khien
+  `\frac{1}{2}` → `12` trong de in. Regex `\\frac{a}{b}` → `a/b` truoc khi
+  strip. Test `tests/test_docx_export.py` (3 cases).
+- **FTS5 fallback (BUG #3, edge-case that)**: `cursor.execute()` ngoai try →
+  chuoi toan dau nhay crash 500. Boc execute count + query, fallback LIKE.
+  Test `tests/test_fts_fallback.py` (DB tam rieng).
+- **XSS Stored (High, ha tu Critical)**: helper `escapeHtml()` + boc 3 sink
+  text DB trong bank.js (preview nhom trung, source_detail, topic/exam_name).
+  `content_html` giu nguyen (rich text + KaTeX; normalizer strip script).
+  Test `tests/test_security_hardening.py` (9 cases).
+- **SSRF (Medium, can login)**: `is_url_fetch_allowed()` chan localhost/
+  IP rieng/metadata/file scheme + resolve DNS fail-closed; hunter fetch tra
+  `[]` khi bi chan.
+- **Loai 4 cao buoc sai**: CI-excluded (bia — ci.yml chay `pytest tests/ -q`),
+  conn-leak (sai — `conn.close()` day du), hash-router (khong ton tai),
+  doi DEFAULT_SERVER ngrok (dut phien user — popup da co o nhap URL).
+
 ## [v1.0.42] - 2026-10-10 17:00:00
 
 ### User Request [Q0004] & [Q0005]

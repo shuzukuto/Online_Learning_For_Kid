@@ -270,6 +270,8 @@ def get_questions(
             )
         """)
 
+    fts_used = False
+    fts_query = None
     if search:
         search_term = search.strip()
         num_match = re.search(r"^(?:câu\s*|#)?(\d+)$", search_term, re.IGNORECASE)
@@ -294,19 +296,44 @@ def get_questions(
                     )
                 """)
                 params.append(fts_query)
+                fts_used = True
             except Exception:
                 # Fallback to LIKE if FTS5 is not available
                 conditions.append("(content_text LIKE ? OR exam_name LIKE ? OR topic LIKE ? OR explanation LIKE ?)")
                 term = f"%{search_term}%"
                 params.extend([term, term, term, term])
-        
+
+    def _like_params(base_params, fts_query_value):
+        """Thay param FTS bang 4 param LIKE khi execute FTS crash."""
+        out = [p for p in base_params if p != fts_query_value]
+        term = f"%{search_term}%"
+        out.extend([term, term, term, term])
+        return out
+
+    def _to_like_where(base_where):
+        import re as _re
+        return _re.sub(
+            r"rowid\s+IN\s*\(\s*SELECT\s+rowid\s+FROM\s+questions_fts\s+WHERE\s+questions_fts\s+MATCH\s+\?\s*\)",
+            "(content_text LIKE ? OR exam_name LIKE ? OR topic LIKE ? OR explanation LIKE ?)",
+            base_where, flags=re.IGNORECASE | re.DOTALL,
+        )
+
     where_clause = ""
     if conditions:
         where_clause = "WHERE " + " AND ".join(conditions)
-        
-    # Count total
+
+    # Count total — FTS co the crash luc THUC THI (vd chuoi toan dau nhay
+    # vuot qua escape) → fallback LIKE thay vi 500 (3 ban AI 2026-10-12).
     count_sql = f"SELECT COUNT(*) FROM questions {where_clause}"
-    cursor.execute(count_sql, params)
+    try:
+        cursor.execute(count_sql, params)
+    except sqlite3.OperationalError:
+        if not fts_used:
+            raise
+        where_clause = _to_like_where(where_clause)
+        params = _like_params(params, fts_query)
+        count_sql = f"SELECT COUNT(*) FROM questions {where_clause}"
+        cursor.execute(count_sql, params)
     total = cursor.fetchone()[0]
     
     # Query items - default ordered by permanent q_number 1..N

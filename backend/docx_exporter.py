@@ -31,6 +31,9 @@ def clean_for_docx(text: str) -> str:
     clean = re.sub(r'<[^>]+>', '', text)
     # Simplify common LaTeX symbols to readable text if needed
     clean = clean.replace(r'\times', '×').replace(r'\div', '÷').replace(r'\le', '≤').replace(r'\ge', '≥')
+    # Bug su pham (3 ban phan bien AI 2026-10-12): chuyen \frac{a}{b} → a/b
+    # TRUOC khi strip '{}' — nguoc lai \frac{1}{2} → '12' trong de in.
+    clean = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'\1/\2', clean)
     clean = clean.replace(r'\frac', '').replace(r'\sqrt', '√')
     clean = clean.replace('\\', '').replace('$', '')
     clean = re.sub(r'[{}]', '', clean)
