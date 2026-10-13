@@ -604,3 +604,42 @@ def test_bank_exam_practice_go_through_authed_fetch():
         "fetch trần tới endpoint gated (dính gate 401 sau login):\n"
         + "\n".join(bad) + "\n— phải qua EduAuth.apiFetch"
     )
+
+
+def test_session_ttl_30_days_not_7():
+    # User 2026-10-13: ngan hang bao 0 cau vi phien 7 ngay het han —
+    # tang TTL len 30 ngay de giao vien/phu huynh do dang nhap lai.
+    import re as _re
+    src = _read("backend/auth.py")
+    m = _re.search(r"_SESSION_TTL_DAYS\s*=\s*(\d+)", src)
+    assert m, "khong tim thay _SESSION_TTL_DAYS trong auth.py"
+    assert int(m.group(1)) >= 30, \
+        f"TTL {m.group(1)} ngay qua ngan → user hay bi da ra, ngan hang bao 0 cau"
+
+
+def test_scheduler_rotates_grades_not_stuck_grade2():
+    # User 2026-10-13: gan 24h it cau moi — scheduler doc
+    # vioedu_auto_grades mac dinh "2" nen chi cao khoi 2 (ledger 386/386
+    # fresh → 0 cau). Scheduler phai xoay vong cac khoi mac dinh
+    # [2,1,3,4,5] de bot luon co viec.
+    import re as _re
+    src = _read("backend/app.py")
+    assert "vioedu_auto_grades" in src, "scheduler chua doc vioedu_auto_grades?"
+    # Default co the inline trong get_system_config(...) hoac qua hang
+    # VIOEDU_AUTO_DEFAULT_GRADES — uu tien hang (code moi truyen bien).
+    const_m = _re.search(
+        r'VIOEDU_AUTO_DEFAULT_GRADES\s*=\s*"([^"]+)"', src)
+    if const_m:
+        defaults = [const_m.group(1)]
+    else:
+        defaults = [d for d in _re.findall(
+            r'get_system_config\(\s*"vioedu_auto_grades"\s*,\s*"([^"]*)"', src)
+            if d.strip()]
+    assert defaults, "khong tim thay default vioedu_auto_grades"
+    grades = [g.strip() for g in defaults[0].split(",")]
+    assert len(grades) >= 3 and "2" in grades, \
+        f"scheduler mac dinh chi {defaults[0]!r} → ket o 1 khoi, it cau moi"
+    # Xoay vong: moi vong cao 1 khoi khac nhau (cursor), khong cao lai
+    # khoi vua fresh.
+    assert "CURSOR" in src or "cursor" in src.lower() or "xoay" in src.lower(), \
+        "scheduler chua xoay vong khoi — van cao lai khoi vua fresh → 0 cau"

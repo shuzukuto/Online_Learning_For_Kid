@@ -2,6 +2,19 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.1.6] - 2026-10-13
+
+### User: ngan hang bao 0 cau + it cau moi + dang ky 404
+- **Phien 7→30 ngay** (`auth.py _SESSION_TTL_DAYS`): het phien som khien ngan
+  hang bao "Chua dang nhap" du DB con nguyen. Test
+  `test_session_ttl_30_days_not_7`.
+- **Scheduler xoay khoi** (`VIOEDU_AUTO_DEFAULT_GRADES="2,1,3,4,5"` + cursor):
+  default chi khoi 2 → ledger 386/386 fresh, bot cao 0 cau gan 24h. Moi vong
+  cao 1 khoi khac nhau; admin cau hinh rieng van ton trong. Test
+  `test_scheduler_rotates_grades_not_stuck_grade2`.
+- **Dang ky 404**: tunnel ngrok chet (khong phai bug code) — khoi dong lai
+  tunnel, verify register local + ngrok deu ve server.
+
 ## [v1.1.5] - 2026-10-12
 
 ### Tong hop phan bien 3 AI & hoan thien (Phase 1 audit)

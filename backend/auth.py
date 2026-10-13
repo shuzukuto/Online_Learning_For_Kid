@@ -23,7 +23,9 @@ ADMIN_USERNAME = "luanpt"
 ADMIN_SEED_PASSWORD = os.environ.get("ADMIN_SEED_PASSWORD", "1122")
 
 _PBKDF2_ITERATIONS = 200_000
-_SESSION_TTL_DAYS = 7
+# User 2026-10-13: phien 7 ngay het → ngan hang bao 0 cau du DB con nguyen.
+# Tang len 30 ngay de giao vien/phu huynh do phai dang nhap lai.
+_SESSION_TTL_DAYS = 30
 
 
 def _now_iso() -> str:

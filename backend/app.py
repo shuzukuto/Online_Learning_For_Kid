@@ -1661,6 +1661,11 @@ _BREADTH_JOBS: dict = {}
 # Auto-crawl 24/7 config keys (system_config): vioedu_auto_crawl = on/off,
 # vioedu_auto_interval_sec (default 21600 = 6h), vioedu_auto_grades, vioedu_auto_subjects.
 VIOEDU_AUTO_DEFAULT_INTERVAL_SEC = 6 * 60 * 60
+# User 2026-10-13: default chi khoi 2 → ledger 386/386 fresh, bot cao 0 cau
+# gan 24h. Xoay vong mac dinh [2,1,3,4,5] (giong breadth) de moi vong cao
+# 1 khoi khac nhau, bot luon co viec.
+VIOEDU_AUTO_DEFAULT_GRADES = "2,1,3,4,5"
+_VIOEDU_AUTO_GRADE_CURSOR = {"idx": 0}
 
 # Scheduler liveness trace: updated on EVERY loop iteration (even when the
 # bot is disabled or skipping), so the hub UI can distinguish
@@ -1727,9 +1732,18 @@ async def _schedule_vioedu_auto_crawl():
                     interval = int(get_system_config("vioedu_auto_interval_sec", str(VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)) or VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)
                 except ValueError:
                     interval = VIOEDU_AUTO_DEFAULT_INTERVAL_SEC
-                grades_raw = (get_system_config("vioedu_auto_grades", "2") or "2").strip()
+                grades_raw = (get_system_config("vioedu_auto_grades", VIOEDU_AUTO_DEFAULT_GRADES) or VIOEDU_AUTO_DEFAULT_GRADES).strip()
                 subs_raw = (get_system_config("vioedu_auto_subjects", "math,vietnamese,english") or "math,vietnamese,english").strip()
-                grades = [int(g) for g in grades_raw.split(",") if g.strip().isdigit()] or [2]
+                grades_all = [int(g) for g in grades_raw.split(",") if g.strip().isdigit()] or [2]
+                # Xoay vong 1 khoi/vong khi dung default (tranh cao lai khoi
+                # vua fresh → 0 cau); admin cau hinh grades rieng thi ton
+                # trong nguyen (cao het cac khoi da chon moi vong).
+                grades_cfg = (get_system_config("vioedu_auto_grades", "") or "").strip()
+                if not grades_cfg and len(grades_all) > 1:
+                    grades = [grades_all[_VIOEDU_AUTO_GRADE_CURSOR["idx"] % len(grades_all)]]
+                    _VIOEDU_AUTO_GRADE_CURSOR["idx"] += 1
+                else:
+                    grades = grades_all
                 subjects = [s.strip().lower() for s in subs_raw.split(",") if s.strip()] or ["math", "vietnamese", "english"]
                 import time as _t
                 jid = f"auto-{int(_t.time())}"
