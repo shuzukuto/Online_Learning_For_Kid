@@ -2,6 +2,24 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.1.7] - 2026-10-14 (app) / ext v1.3.19
+
+### User: xoay 1-12 bang TK dang nhap + quet Facebook
+- **Xoay tua 1-12** (`VIOEDU_AUTO_DEFAULT_GRADES`): mo tu [2,1,3,4,5] ra du
+  1-12. Moi vong 6h cao 1 khoi khac nhau; LGH/VJ/OLM/Khan co mapping san
+  1-12 nen moi khoi deu co URL moi.
+- **Cao bang TK dang nhap**: `POST /api/collect/vioedu-login` (admin-only,
+  mat khau KHONG luu — chi cookies phien vao `vioedu_session_cookies`) +
+  `GET /api/collect/vioedu-login` trang thai. Scheduler truyen cookies vao
+  `crawl_vioedu_breadth` (fallback anonymous khi chua co). UI: nut
+  "🔑 Lưu phiên TK (bot 24/7)" + dong trang thai TK trong hub status.
+- **Quet Facebook qua extension** (bot server bi FB chan 100% request
+  khong-login — da probe mbasic/page/oEmbed/Graph): `isFacebookEduPost`
+  (keyword TIMO/HKIMO/ASMO/Trang Nguyen/VioEdu + dau hieu cau hoi, match ca
+  co dau/khong dau) + `extractGradeFromText` + `scanFacebookPosts` (toi da 5
+  post/lan, text truoc — anh OCR sau, giu images cho OCR). Manifest cho phep
+  `facebook.com/fb.com`. Test `test_facebook_source.py` 3 cases.
+
 ## [v1.1.6] - 2026-10-13
 
 ### User: ngan hang bao 0 cau + it cau moi + dang ky 404

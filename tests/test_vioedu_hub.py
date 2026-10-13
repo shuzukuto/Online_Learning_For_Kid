@@ -99,6 +99,7 @@ _HUB_BOT_CALLERS = [
     "copyCollectorLogs",      # GET  /collect/logs
     "clearAllCollectorLogs",  # DELETE /collect/logs
     "toggleBotAutoCrawl",     # POST /collect/vioedu-plan (toggle 24/7)
+    "saveVioEduSession",      # POST /collect/vioedu-login (luu phien TK)
 ]
 
 
@@ -140,3 +141,44 @@ def test_breadth_poll_stops_on_auth_error():
     assert "apiFetch" in body, "pollBreadthStatus chưa qua EduAuth.apiFetch"
     assert re.search(r"401|đăng nhập|hết hạn", body), \
         "pollBreadthStatus không có guard dừng retry khi mất phiên"
+
+
+def test_vioedu_login_endpoint_exists():
+    # User 2026-10-14: xoay khoi 1-12 dung "tai khoan dang nhap cao du lieu".
+    # Admin nhap TK VioEdu 1 lan → server login, luu cookies vao system_config
+    # (key vioedu_session_cookies) de scheduler dung. Endpoint chi admin.
+    with open("backend/app.py", encoding="utf-8") as f:
+        src = f.read()
+    assert "vioedu-login" in src or "vioedu_login" in src, \
+        "chua co endpoint luu phien dang nhap VioEdu (admin nhap TK 1 lan)"
+    assert "vioedu_session_cookies" in src, \
+        "chua luu cookies phien VioEdu vao system_config"
+
+
+def test_scheduler_uses_saved_vioedu_session():
+    # Scheduler 24/7 phai doc cookies da luu (neu co) va truyen vao ham cao,
+    # fallback anonymous khi chua co — khong doi hanh vi hien tai.
+    with open("backend/app.py", encoding="utf-8") as f:
+        src = f.read()
+    assert "vioedu_session_cookies" in src, \
+        "scheduler chua doc phien VioEdu da luu"
+    with open("backend/scrapers/vioedu.py", encoding="utf-8") as f:
+        vsrc = f.read()
+    assert "cookies" in vsrc, \
+        "ham cao VioEdu chua nhan cookies (khong dung duoc TK dang nhap)"
+
+
+def test_vioedu_login_requires_admin_not_passthrough():
+    # POST /api/collect/vioedu-login luu phien TK → user thuong KHONG duoc
+    # goi (ke ca local pass-through): phai _require_admin, khong phai
+    # require_api_token (rong = cho qua o local).
+    with open("backend/app.py", encoding="utf-8") as f:
+        src = f.read()
+    i = src.find('"/api/collect/vioedu-login"')
+    assert i >= 0, "endpoint vioedu-login missing"
+    post_i = src.rfind("@app.post(", 0, i)
+    assert post_i >= 0
+    body = src[post_i:src.find("\n@app.", i)]
+    assert "_require_admin" in body, \
+        "POST vioedu-login chua _require_admin (user thuong luu phien TK tuy y)"
+    assert "require_api_token" not in body or "_require_admin" in body

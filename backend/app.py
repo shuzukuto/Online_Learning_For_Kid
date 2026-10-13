@@ -1661,10 +1661,10 @@ _BREADTH_JOBS: dict = {}
 # Auto-crawl 24/7 config keys (system_config): vioedu_auto_crawl = on/off,
 # vioedu_auto_interval_sec (default 21600 = 6h), vioedu_auto_grades, vioedu_auto_subjects.
 VIOEDU_AUTO_DEFAULT_INTERVAL_SEC = 6 * 60 * 60
-# User 2026-10-13: default chi khoi 2 → ledger 386/386 fresh, bot cao 0 cau
-# gan 24h. Xoay vong mac dinh [2,1,3,4,5] (giong breadth) de moi vong cao
-# 1 khoi khac nhau, bot luon co viec.
-VIOEDU_AUTO_DEFAULT_GRADES = "2,1,3,4,5"
+# User 2026-10-14: mo rong xoay tua 1-12 (tieu hoc → THPT).
+# Moi vong 6h cao 1 khoi khac nhau; hunter-internet (LGH/VJ/OLM) co mapping
+# san cho 1-12 nen moi khoi deu co URL moi → bot luon co viec.
+VIOEDU_AUTO_DEFAULT_GRADES = "1,2,3,4,5,6,7,8,9,10,11,12"
 _VIOEDU_AUTO_GRADE_CURSOR = {"idx": 0}
 
 # Scheduler liveness trace: updated on EVERY loop iteration (even when the
@@ -1679,6 +1679,25 @@ def _record_vioedu_heartbeat(note: str) -> None:
     _VIOEDU_HEARTBEAT["note"] = note
 
 
+VIOEDU_SESSION_COOKIES_KEY = "vioedu_session_cookies"
+
+
+def _get_vioedu_session_cookies():
+    # User 2026-10-14: xoay 1-12 dung "tai khoan dang nhap cao du lieu".
+    # Admin nhap TK VioEdu 1 lan (POST /api/collect/vioedu-login) → cookies
+    # luu JSON tai day. Chua co → None = anonymous nhu cu (khong doi hanh vi).
+    try:
+        from backend.database import get_system_config
+        import json as _json
+        raw = (get_system_config(VIOEDU_SESSION_COOKIES_KEY, "") or "").strip()
+        if not raw:
+            return None
+        data = _json.loads(raw)
+        return data if isinstance(data, dict) and data else None
+    except Exception:
+        return None
+
+
 async def _run_breadth_job(jid: str, grades, subjects, max_q: int, force: bool = False,
                            recrawl_days: int = 7, source: str = "manual"):
     """Shared breadth sweep runner: crawl -> normalize -> insert -> log.
@@ -1688,7 +1707,8 @@ async def _run_breadth_job(jid: str, grades, subjects, max_q: int, force: bool =
     from backend.normalizer import normalize_question_payload as _norm, is_valid_question_payload as _valid
     try:
         sweep = await crawl_vioedu_breadth(grades=grades, subjects=subjects,
-            max_questions_per_skill=max_q, force=force, recrawl_days=recrawl_days)
+            max_questions_per_skill=max_q, force=force, recrawl_days=recrawl_days,
+            cookies=_get_vioedu_session_cookies())
         fallback_grade = (grades or [2])[0] if grades else 2
         normalized_list = []
         for raw in sweep.get("questions", []):
@@ -1889,6 +1909,43 @@ async def vioedu_plan(req: VioEduPlanRequest):
             "message": "Đã chạy nền. Poll /api/collect/breadth-status để xem tiến độ."}
 
 
+@app.post("/api/collect/vioedu-login")
+async def vioedu_login(payload: dict, request: Request):
+    """Admin nhap TK VioEdu 1 lan → server login, luu cookies phien vao
+    system_config (vioedu_session_cookies) de scheduler 24/7 cao bang tai
+    khoan dang nhap (mo noi dung can login, quota cao hon anonymous).
+    Mat khau KHONG luu — chi giu cookies phien."""
+    _require_admin(request)
+    import json as _json
+    from backend.database import set_system_config
+    username = (payload.get("username") or "").strip()
+    password = (payload.get("password") or "").strip()
+    if not username or not password:
+        raise HTTPException(status_code=422, detail="Thiếu username/password VioEdu")
+    result = await login_vioedu(username, password)
+    if not result.get("success"):
+        raise HTTPException(status_code=401, detail=result.get("error") or "Đăng nhập VioEdu thất bại")
+    cookies = result.get("cookies") or {}
+    set_system_config(VIOEDU_SESSION_COOKIES_KEY, _json.dumps(cookies))
+    set_system_config("vioedu_session_user", result.get("student_name") or username)
+    log_collector_event("vioedu", "success",
+        f"Đã lưu phiên đăng nhập VioEdu ({result.get('student_name') or username}) — scheduler dùng TK này để cào", 0)
+    return {"success": True,
+            "student_name": result.get("student_name") or username,
+            "grade": result.get("grade"),
+            "message": f"Đã lưu phiên VioEdu ({result.get('student_name') or username}) — bot cào bằng tài khoản này."}
+
+
+@app.get("/api/collect/vioedu-login")
+async def vioedu_login_status():
+    """Trang thai phien VioEdu: co TK dang nhap hay dang anonymous."""
+    from backend.database import get_system_config
+    has = bool(_get_vioedu_session_cookies())
+    who = (get_system_config("vioedu_session_user", "") or "") if has else ""
+    return {"success": True, "logged_in": has, "student_name": who,
+            "message": f"Đang cào bằng TK {who}" if has else "Đang cào anonymous (chưa nhập TK VioEdu)"}
+
+
 @app.get("/api/collect/vioedu-plan")
 async def vioedu_plan_status():
     """Trạng thái cụm: scheduler auto on/off + 5 job gần nhất + ledger size."""
@@ -1904,6 +1961,8 @@ async def vioedu_plan_status():
             "ledger_skills": len(_load_skill_ledger()),
             "running_jobs": running,
             "recent_jobs": recent,
+            "vioedu_logged_in": bool(_get_vioedu_session_cookies()),
+            "vioedu_account": (get_system_config("vioedu_session_user", "") or ""),
             "heartbeat": dict(_VIOEDU_HEARTBEAT)}
 
 @app.get("/api/collect/logs")

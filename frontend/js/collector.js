@@ -1316,7 +1316,11 @@ async function refreshVioEduHubStatus() {
           : ` | 🔴 Bot mất tín hiệu ${ageMin} phút (tick cuối: ${hb.note || "?"})`;
       }
     } catch (e) { /* giữ text mặc định */ }
-    txt.textContent = `${autoTxt} | 📒 Đã cào: ${data.ledger_skills || 0} bài | ${lastTxt}${runTxt}${hbTxt}`;
+    // User 2026-10-14: hien TK VioEdu bot dang dung (hay anonymous).
+    const sessTxt = data.vioedu_logged_in
+      ? ` | 🔑 TK VioEdu: ${data.vioedu_account || "?"}`
+      : " | ⚪ Chưa nhập TK VioEdu (cào anonymous)";
+    txt.textContent = `${autoTxt} | 📒 Đã cào: ${data.ledger_skills || 0} bài | ${lastTxt}${runTxt}${hbTxt}${sessTxt}`;
     box.style.display = "block";
   } catch (e) { /* im lặng */ }
 }
@@ -2045,6 +2049,37 @@ async function toggleBotAutoCrawl(enable) {
     if (toggle) toggle.checked = false;
     if (badge) badge.style.display = "none";
     showToast("Không kết nối được server để bật/tắt tự động cào.", "error");
+  }
+  refreshVioEduHubStatus();
+}
+
+// User 2026-10-14: xoay 1-12 dung "tai khoan dang nhap cao du lieu".
+// Admin nhap TK VioEdu (form san co) 1 lan → server login, luu cookies phien
+// → scheduler 24/7 cao bang TK nay. Mat khau KHONG luu tren server.
+async function saveVioEduSession() {
+  const user = document.getElementById("scraper-username")?.value?.trim();
+  const pass = document.getElementById("scraper-password")?.value?.trim();
+  if (!user || !pass) {
+    showToast("Nhập Tài khoản + Mật khẩu VioEdu ở form trên trước khi lưu phiên.", "warning");
+    return;
+  }
+  showToast("⏳ Đang đăng nhập VioEdu, lưu phiên cho bot 24/7...", undefined);
+  try {
+    const res = await apiFetch(`/api/collect/vioedu-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const pw = document.getElementById("scraper-password");
+      if (pw) pw.value = "";  // khong giu mat khau trong DOM sau khi luu
+      showToast(`✅ ${data.message || "Đã lưu phiên VioEdu — bot cào bằng TK này."}`, "success");
+    } else {
+      showToast(`❌ ${data.detail || data.message || "Đăng nhập VioEdu thất bại."}`, "error");
+    }
+  } catch (e) {
+    showToast("Không kết nối được server để lưu phiên VioEdu.", "error");
   }
   refreshVioEduHubStatus();
 }

@@ -622,6 +622,7 @@ def test_scheduler_rotates_grades_not_stuck_grade2():
     # vioedu_auto_grades mac dinh "2" nen chi cao khoi 2 (ledger 386/386
     # fresh → 0 cau). Scheduler phai xoay vong cac khoi mac dinh
     # [2,1,3,4,5] de bot luon co viec.
+    # User 2026-10-14: mo rong xoay tua 1-12 (khuyen hoc den THPT).
     import re as _re
     src = _read("backend/app.py")
     assert "vioedu_auto_grades" in src, "scheduler chua doc vioedu_auto_grades?"
@@ -637,8 +638,8 @@ def test_scheduler_rotates_grades_not_stuck_grade2():
             if d.strip()]
     assert defaults, "khong tim thay default vioedu_auto_grades"
     grades = [g.strip() for g in defaults[0].split(",")]
-    assert len(grades) >= 3 and "2" in grades, \
-        f"scheduler mac dinh chi {defaults[0]!r} → ket o 1 khoi, it cau moi"
+    assert len(grades) >= 12 and set(grades) >= {str(g) for g in range(1, 13)}, \
+        f"scheduler mac dinh {defaults[0]!r} → chua xoay du 1-12"
     # Xoay vong: moi vong cao 1 khoi khac nhau (cursor), khong cao lai
     # khoi vua fresh.
     assert "CURSOR" in src or "cursor" in src.lower() or "xoay" in src.lower(), \

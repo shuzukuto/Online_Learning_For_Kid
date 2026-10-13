@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EduQuest Collector - Thu thập Đề thi Tự động",
-  "version": "1.3.18",
+  "version": "1.3.19",
   "description": "Tiện ích tự động bắt và thu thập câu hỏi từ VioEdu, Trạng Nguyên, Hành trang số, CodeMath, Vietjack, OLM, K5 Learning, IXL, Khan Academy, Kangaroo về EduQuest Pro.",
   "permissions": [
     "activeTab",
@@ -9,6 +9,8 @@
     "scripting"
   ],
   "host_permissions": [
+    "https://*.facebook.com/*",
+    "https://*.fb.com/*",
     "https://*.vio.edu.vn/*",
     "https://*.tnmath.edu.vn/*",
     "https://*.trangnguyen.edu.vn/*",
@@ -45,6 +47,8 @@
   "content_scripts": [
     {
       "matches": [
+        "https://*.facebook.com/*",
+        "https://*.fb.com/*",
         "https://*.vio.edu.vn/*",
         "https://*.tnmath.edu.vn/*",
         "https://*.trangnguyen.edu.vn/*",

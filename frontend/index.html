@@ -14,16 +14,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
 
   <!-- Favicon & Brand Icons (EduQuest Pro) -->
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.1.6">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.1.6">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.1.6">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.1.6">
-  <link rel="shortcut icon" href="favicon.ico?v=1.1.6">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.1.7">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.1.7">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.1.7">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.1.7">
+  <link rel="shortcut icon" href="favicon.ico?v=1.1.7">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#2563eb">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.1.6">
+  <link rel="stylesheet" href="css/style.css?v=1.1.7">
 </head>
 <body>
   <div class="app-container">
@@ -34,7 +34,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.1.6</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.1.7</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -80,7 +80,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.1.6</span>
+          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.1.7</span>
         </div>
         <div style="margin-top: 2px; font-size: 10px; color: #64748b; text-align: right;">
           <span id="sidebar-cache-tag">assets: …</span>
@@ -501,12 +501,12 @@
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 24px;">🔌</span>
                 <div>
-                  <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.18</span></h3>
+                  <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.19</span></h3>
                   <span style="font-size: 12px; color: #10b981; font-weight: 600;">● Tự động bắt trọn 100% đề thi VioEdu & Trạng Nguyên</span>
                 </div>
               </div>
-              <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.18 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
-                📁 Vị trí thư mục Extension (v1.3.18)
+              <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.19 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
+                📁 Vị trí thư mục Extension (v1.3.19)
               </button>
             </div>
             <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 14px;">
@@ -514,7 +514,7 @@
             </p>
 
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6;">
-              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.18):</strong><br/>
+              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.19):</strong><br/>
               1. Mở Chrome/Edge, vào: <code>chrome://extensions</code><br/>
               2. Bật công tắc <strong>Developer mode (Chế độ cho nhà phát triển)</strong> ở góc trên bên phải.<br/>
               3. Nhấn <strong>Load unpacked (Tải tiện ích đã giải nén)</strong> hoặc bấm 🔄 Làm mới tiện ích đã nạp:
@@ -766,6 +766,9 @@
               <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; align-items: center;">
                 <button class="btn btn-primary" id="btn-run-scraper" onclick="runAutoScraper()">
                   🚀 Cào theo tài khoản (vòng thi)
+                </button>
+                <button class="btn" id="btn-vioedu-save-session" onclick="saveVioEduSession()" style="background: #7c3aed; color: #fff;" title="Đăng nhập VioEdu 1 lần bằng TK trên, server lưu phiên — bot nền 24/7 dùng TK này để cào (mở nội dung cần login, quota cao hơn). Mật khẩu KHÔNG lưu.">
+                  🔑 Lưu phiên TK (bot 24/7)
                 </button>
                 <button class="btn" id="btn-vioedu-breadth" onclick="runVioEduBreadth()" style="background: #059669; color: #fff;" title="Quét toàn bộ bài luyện tập VioEdu Khối đang chọn (Toán + Tiếng Việt + Tiếng Anh), không cần đăng nhập. Bài mới cào trong 7 ngày sẽ bỏ qua.">
                   🌐 Cào diện rộng (3 môn)
@@ -2573,13 +2576,13 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.1.6"></script>
-  <script src="js/bank.js?v=1.1.6"></script>
-  <script src="js/auth.js?v=1.1.6"></script>
-  <script src="js/exam_builder.js?v=1.1.6"></script>
-  <script src="js/collector.js?v=1.1.6"></script>
-  <script src="js/practice.js?v=1.1.6"></script>
-  <script src="js/ai_agent_importer.js?v=1.1.6"></script>
+  <script src="js/app.js?v=1.1.7"></script>
+  <script src="js/bank.js?v=1.1.7"></script>
+  <script src="js/auth.js?v=1.1.7"></script>
+  <script src="js/exam_builder.js?v=1.1.7"></script>
+  <script src="js/collector.js?v=1.1.7"></script>
+  <script src="js/practice.js?v=1.1.7"></script>
+  <script src="js/ai_agent_importer.js?v=1.1.7"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>
