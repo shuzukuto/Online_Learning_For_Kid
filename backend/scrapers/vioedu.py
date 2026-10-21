@@ -870,6 +870,10 @@ async def crawl_vioedu_breadth(
                         fresh_skipped = before - len(discovered)
                     if max_skills is not None:
                         discovered = discovered[:max_skills]
+                    if log_func and len(discovered) > 0:
+                        log_func(f"⏳ Bắt đầu quét {info['label']} Khối {grade}: {len(discovered)} bài cần cào...")
+                    elif log_func and fresh_skipped > 0:
+                        log_func(f"ℹ️ {info['label']} Khối {grade}: {fresh_skipped} bài đều còn mới (bỏ qua theo ledger)")
                     n_q = 0
                     for s in discovered:
                         total_skills += 1

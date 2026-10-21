@@ -190,3 +190,22 @@ def test_vioedu_login_requires_admin_not_passthrough():
     assert "_require_admin" in body, \
         "POST vioedu-login chua _require_admin (user thuong luu phien TK tuy y)"
     assert "require_api_token" not in body or "_require_admin" in body
+
+
+def test_collector_logs_platform_filter():
+    from backend.db.logs_config import get_collector_logs
+    import inspect
+    sig = inspect.signature(get_collector_logs)
+    assert "platform" in sig.parameters, "get_collector_logs missing platform filter param"
+
+
+def test_plan_status_exposes_next_grade():
+    app = _read_app()
+    assert "next_grade" in app, "vioedu_plan_status does not expose next_grade in rotation"
+
+
+def test_collector_ui_has_sync_scraper_logs():
+    with open("frontend/js/collector.js", encoding="utf-8") as f:
+        js = f.read()
+    assert "syncScraperLiveLogsFromServer" in js, \
+        "frontend collector.js missing syncScraperLiveLogsFromServer to bridge background auto logs"

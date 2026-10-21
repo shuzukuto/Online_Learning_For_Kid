@@ -26,10 +26,13 @@ def log_collector_event(platform: str, status: str, message: str, count: int = 0
 
 
 
-def get_collector_logs(limit: int = 50) -> List[Dict[str, Any]]:
+def get_collector_logs(limit: int = 50, platform: Optional[str] = None) -> List[Dict[str, Any]]:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM collector_logs ORDER BY id DESC LIMIT ?", (limit,))
+    if platform:
+        cursor.execute("SELECT * FROM collector_logs WHERE platform = ? ORDER BY id DESC LIMIT ?", (platform, limit))
+    else:
+        cursor.execute("SELECT * FROM collector_logs ORDER BY id DESC LIMIT ?", (limit,))
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return rows

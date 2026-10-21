@@ -2,6 +2,24 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.2.6] - 2026-10-21 (app) / ext v1.3.23
+
+### Đồng Bộ Log Trực Tiếp Bot Nền 24/7 Vào Giao Diện & Khắc Phục Xoay Tua Khối 1-12
+- **Đồng bộ hóa Nhật ký Bot Tự động 24/7 lên Giao diện Trực tiếp (`#scraper-live-log`)**:
+  - Khắc phục triệt để tình trạng màn hình Live Log bị "đóng băng" ở nhật ký cào thủ công từ sáng: bổ sung cơ chế `syncScraperLiveLogsFromServer()` tự động kéo các sự kiện cào nền của server daemon (`auto-*`) từ bảng `collector_logs` lên khung xem trực tiếp.
+  - Bổ sung bộ phân loại và làm đẹp thông điệp log: hiển thị rõ ràng icon trạng thái (`🚀`, `✅`, `ℹ️`), mốc thời gian VN chuẩn, thông báo chi tiết khi cào thành công (+1,156 câu) hoặc khi kích hoạt Adaptive Ledger Cooldown (bảo vệ tài khoản, tránh cào lặp bài đã làm).
+  - Tự động kích hoạt chu kỳ cập nhật (polling 15s) khi người dùng mở tab Thu thập dữ liệu (Collector).
+  - Thêm nút "🔄 Làm mới" trên thanh công cụ Live Log để xem ngay trạng thái mới nhất từ server.
+- **Sửa Lỗi Kẹt Cố Định Khối 2 & Mở Rộng Xoay Tua Toàn Diện 12 Khối Lớp (`1 -> 12`)**:
+  - Phát hiện nguyên nhân gốc rễ: khi bật toggle cào nền 24/7, frontend truyền giá trị Khối dạng `[2]` thay vì danh sách 12 khối, dẫn đến `vioedu_auto_grades` bị ghi đè chỉ có Khối 2. Sau khi đã cào 1,156 câu ở Khối 2 vào lúc 14:23, các vòng lặp sau đều gặp ledger cooldown và trả về 0 câu.
+  - Cập nhật cấu hình hệ thống: chuyển `vioedu_auto_grades` sang `"1,2,3,4,5,6,7,8,9,10,11,12"`, thiết lập con trỏ `vioedu_auto_cursor` sang Khối 3 cho lượt quét kế tiếp.
+  - Backend `vioedu-plan` và Frontend `toggleBotAutoCrawl()` đảm bảo mặc định xoay tua cả 12 khối lớp theo đúng chuẩn GDPT 2018.
+- **Hỗ Trợ Lọc Nhật Ký Theo Nền Tảng Trong API**:
+  - Bổ sung tham số `platform: Optional[str] = None` cho hàm `get_collector_logs()` và endpoint `GET /api/collect/logs?platform=vioedu` để truy xuất nhanh nhật ký chuyên biệt của từng bot.
+- **Kiểm thử & Đồng bộ phiên bản**:
+  - Bổ sung 3 unit test mới trong `tests/test_vioedu_hub.py`, toàn bộ 148 bài kiểm thử tự động đều đạt 100% Passed.
+  - Đồng bộ phiên bản: `v1.2.6` (app) / `v1.3.23` (ext).
+
 ## [v1.2.5] - 2026-10-21 (app) / ext v1.3.23
 
 ### Nâng Cấp Extension Thu Thập Đề Thi & Tự Động Tải Ảnh Facebook Về data/media/

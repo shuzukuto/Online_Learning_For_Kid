@@ -112,9 +112,16 @@ async def _run_breadth_job(jid: str, grades, subjects, max_q: int, force: bool =
     background scheduler."""
     from backend.normalizer import normalize_question_payload as _norm, is_valid_question_payload as _valid
     try:
+        def _log_breadth_progress(msg: str):
+            try:
+                log_collector_event("vioedu", "info", f"[{jid}] {msg}", 0)
+            except Exception:
+                pass
+
         sweep = await crawl_vioedu_breadth(grades=grades, subjects=subjects,
             max_questions_per_skill=max_q, force=force, recrawl_days=recrawl_days,
-            cookies=_get_vioedu_session_cookies())
+            cookies=_get_vioedu_session_cookies(),
+            log_func=_log_breadth_progress)
         fallback_grade = (grades or [2])[0] if grades else 2
         normalized_list = []
         for raw in sweep.get("questions", []):
@@ -332,11 +339,17 @@ async def vioedu_plan(req: VioEduPlanRequest):
             set_system_config("vioedu_auto_crawl", "on" if req.auto_enabled else "off")
         if req.interval_sec:
             set_system_config("vioedu_auto_interval_sec", str(max(600, req.interval_sec)))
-        set_system_config("vioedu_auto_grades", ",".join(str(g) for g in grades))
+        if req.grades and len(req.grades) > 0 and (len(req.grades) > 1 or req.grades != [2]):
+            set_system_config("vioedu_auto_grades", ",".join(str(g) for g in req.grades))
+        else:
+            current_g = get_system_config("vioedu_auto_grades", "")
+            if not current_g:
+                set_system_config("vioedu_auto_grades", VIOEDU_AUTO_DEFAULT_GRADES)
         set_system_config("vioedu_auto_subjects", ",".join(subjects))
         on = (get_system_config("vioedu_auto_crawl", "off") or "off") == "on"
+        grades_cfg = get_system_config("vioedu_auto_grades", VIOEDU_AUTO_DEFAULT_GRADES)
         return {"success": True, "mode": "auto", "enabled": on,
-                "grades": grades, "subjects": subjects,
+                "grades": grades_cfg, "subjects": subjects,
                 "message": "Đã BẬT tự động cào nền 24/7." if on else "Đã TẮT tự động cào nền."}
     jid = f"{mode}-{int(_t.time())}"
     _BREADTH_JOBS[jid] = {"status": "running", "stats": {}, "count": 0, "skills_visited": 0, "source": mode}
@@ -391,10 +404,16 @@ async def vioedu_plan_status():
     from backend.scrapers.vioedu import _load_skill_ledger
     recent = dict(list(_BREADTH_JOBS.items())[-5:])
     running = [jid for jid, j in _BREADTH_JOBS.items() if j.get("status") == "running"]
+    grades_raw = (get_system_config("vioedu_auto_grades", VIOEDU_AUTO_DEFAULT_GRADES) or VIOEDU_AUTO_DEFAULT_GRADES).strip()
+    cursor_idx = int(get_system_config("vioedu_auto_cursor", "0") or "0")
+    grades_all = [int(g) for g in grades_raw.split(",") if g.strip().isdigit()] or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    next_grade = grades_all[cursor_idx % len(grades_all)] if grades_all else 2
     return {"success": True,
             "auto_enabled": (get_system_config("vioedu_auto_crawl", "off") or "off") == "on",
             "interval_sec": get_system_config("vioedu_auto_interval_sec", str(VIOEDU_AUTO_DEFAULT_INTERVAL_SEC)),
-            "grades": get_system_config("vioedu_auto_grades", "2"),
+            "grades": grades_raw,
+            "cursor_idx": cursor_idx,
+            "next_grade": next_grade,
             "subjects": get_system_config("vioedu_auto_subjects", "math,vietnamese,english"),
             "ledger_skills": len(_load_skill_ledger()),
             "running_jobs": running,
@@ -509,8 +528,8 @@ async def vioedu_diagnostics():
 
 
 @router.get("/api/collect/logs")
-async def get_logs(limit: int = 50):
-    return get_collector_logs(limit)
+async def get_logs(limit: int = 50, platform: Optional[str] = None):
+    return get_collector_logs(limit, platform=platform)
 
 @router.post("/api/collect/logs/sync")
 async def sync_collector_log(payload: dict):

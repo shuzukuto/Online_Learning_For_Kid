@@ -1059,6 +1059,63 @@ function unSquishLogLines(rawText) {
 }
 
 let scraperLogLines = [];
+let isManualScrapeActive = false;
+
+// Tự động đồng bộ các bản ghi nhật ký của Bot nền 24/7 từ máy chủ vào màn hình live log
+async function syncScraperLiveLogsFromServer() {
+  if (isManualScrapeActive) return;
+  const logBox = document.getElementById("scraper-live-log");
+  const toolbar = document.getElementById("scraper-log-toolbar");
+  if (!logBox) return;
+
+  try {
+    const res = await apiFetch(`/api/collect/logs?platform=vioedu&limit=25`);
+    const logs = await res.json();
+    if (!logs || !Array.isArray(logs) || logs.length === 0) return;
+
+    const formatted = [];
+    for (const item of logs) {
+      let timeStr = "";
+      if (item.created_at) {
+        try {
+          timeStr = getLogTimeVN(new Date(item.created_at));
+        } catch (e) {
+          timeStr = String(item.created_at).slice(11, 19);
+        }
+      }
+      let icon = "ℹ️";
+      if (item.status === "success") icon = "✅";
+      else if (item.status === "running") icon = "🚀";
+      else if (item.status === "error") icon = "⚠️";
+
+      const prefix = timeStr ? `[${timeStr}] ` : "";
+      const isAuto = (item.message || "").includes("[auto") || (item.message || "").includes("Tự động cào") || (item.message || "").includes("auto-");
+      const tag = isAuto ? "🤖 [TỰ ĐỘNG NỀN 24/7] " : "";
+
+      let extra = "";
+      if ((item.message || "").includes("0 câu mới") && isAuto) {
+        extra = "\n   💡 Ghi chú: Kích hoạt Adaptive Ledger Cooldown — các bài đã cào trước đó được giữ nguyên, tránh cào lặp.";
+      } else if (item.items_count > 0) {
+        extra = `\n   🎉 Thu hoạch thành công: Đã lưu +${item.items_count} câu hỏi mới vào Ngân hàng đề!`;
+      }
+
+      formatted.push(`${prefix}${icon} ${tag}${item.message}${extra}`);
+    }
+
+    if (formatted.length > 0) {
+      const fullText = formatted.join("\n\n");
+      logBox.textContent = fullText;
+      logBox.style.display = "block";
+      if (toolbar) toolbar.style.display = "flex";
+      try {
+        localStorage.setItem("eduquest_scraper_log", fullText);
+      } catch (e) {}
+    }
+  } catch (err) {
+    // network failure ignored
+  }
+}
+window.syncScraperLiveLogsFromServer = syncScraperLiveLogsFromServer;
 
 function renderScraperLog() {
   const logBox = document.getElementById("scraper-live-log");
@@ -1141,6 +1198,7 @@ async function runAutoScraper() {
 
   const logBox = document.getElementById("scraper-live-log");
   const toolbar = document.getElementById("scraper-log-toolbar");
+  isManualScrapeActive = true;
   if (logBox) logBox.style.display = "block";
   if (toolbar) toolbar.style.display = "flex";
 
@@ -1215,6 +1273,7 @@ async function runAutoScraper() {
     renderScraperLog();
     showToast("Lỗi kết nối máy chủ cào dữ liệu: " + err.message, "error");
   } finally {
+    isManualScrapeActive = false;
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = "🚀 Cào theo tài khoản (vòng thi)";
@@ -1235,6 +1294,7 @@ async function runVioEduBreadth() {
 
   const logBox = document.getElementById("scraper-live-log");
   const toolbar = document.getElementById("scraper-log-toolbar");
+  isManualScrapeActive = true;
   if (logBox) logBox.style.display = "block";
   if (toolbar) toolbar.style.display = "flex";
 
@@ -1276,6 +1336,7 @@ async function runVioEduBreadth() {
       return;
     }
     if (data.success) {
+      isManualScrapeActive = false;
       const st = data.stats || {};
       const detail = Object.entries(st).map(([k, v]) => `${k}: ${v}`).join(", ");
       scraperLogLines.unshift(`[${finishTime}] ✅ Cào diện rộng xong: ${data.count} câu mới, ${data.skills_visited} bài (${detail})`);
@@ -1288,11 +1349,13 @@ async function runVioEduBreadth() {
         loadQuestions();
       }
     } else {
+      isManualScrapeActive = false;
       scraperLogLines.unshift(`[${finishTime}] ❌ Lỗi: ${data.error || "Không thể cào diện rộng."}`);
       showToast(data.error || "Lỗi cào diện rộng VioEdu", "error");
     }
     renderScraperLog();
   } catch (err) {
+    isManualScrapeActive = false;
     scraperLogLines.unshift(`[${getLogTimeVN()}] ❌ Ngoại lệ: ${err.message}`);
     renderScraperLog();
     showToast("Lỗi kết nối máy chủ: " + err.message, "error");
@@ -1318,7 +1381,8 @@ async function refreshVioEduHubStatus() {
       box.style.display = "block";
       return;
     }
-    const autoTxt = data.auto_enabled ? "🟢 Tự động nền 24/7: BẬT" : "⚪ Tự động nền 24/7: TẮT";
+    const nextGradeTxt = (data.auto_enabled && data.next_grade) ? ` | 🎯 Kế tiếp: Khối ${data.next_grade}/12` : "";
+    const autoTxt = data.auto_enabled ? `🟢 Tự động nền 24/7: BẬT${nextGradeTxt}` : "⚪ Tự động nền 24/7: TẮT";
     const jobs = Object.entries(data.recent_jobs || {});
     const last = jobs.length ? jobs[jobs.length - 1] : null;
     const lastTxt = last ? `Job gần nhất: ${last[0]} (${last[1].status}, +${last[1].count || 0} câu, ${last[1].skills_visited || 0} bài)` : "Chưa có job nào";
@@ -1343,6 +1407,19 @@ async function refreshVioEduHubStatus() {
       : " | ⚪ Chưa nhập TK VioEdu (cào anonymous)";
     txt.textContent = `${autoTxt} | 📒 Đã cào: ${data.ledger_skills || 0} bài | ${lastTxt}${runTxt}${hbTxt}${sessTxt}`;
     box.style.display = "block";
+
+    // Đồng bộ trạng thái giao diện Toggle & Badge
+    const botToggle = document.getElementById("bot-auto-crawl-toggle");
+    const botBadge = document.getElementById("bot-auto-crawl-badge");
+    const botCountdown = document.getElementById("bot-countdown-display");
+    if (botToggle) botToggle.checked = !!data.auto_enabled;
+    if (botBadge) botBadge.style.display = data.auto_enabled ? "inline-flex" : "none";
+    if (botCountdown) {
+      botCountdown.innerText = data.auto_enabled ? `Khối ${data.next_grade || 2}` : "Đã dừng";
+    }
+
+    // Tự động kéo nhật ký cào nền mới nhất từ server vào live log
+    syncScraperLiveLogsFromServer();
   } catch (e) {
     if (txt) {
       txt.textContent = "⚪ Trung tâm thu thập: Vui lòng đăng nhập tài khoản quản trị để đồng bộ.";
@@ -1359,6 +1436,7 @@ async function pollBreadthStatus(jobId, tries = 0) {
     const data = await res.json();
     const st = data.status || "running";
     if (st === "done") {
+      isManualScrapeActive = false;
       const detail = Object.entries(data.stats || {}).map(([k, v]) => `${k}: ${v}`).join(", ");
       scraperLogLines.unshift(`[${getLogTimeVN()}] ✅ Cào diện rộng xong: ${data.count} câu mới, ${data.skills_visited} bài (${detail})`);
       showToast(`Đã thêm ${data.count} câu VioEdu mới (${data.skills_visited} bài)!`, "success");
@@ -1372,6 +1450,7 @@ async function pollBreadthStatus(jobId, tries = 0) {
       return;
     }
     if (st === "error") {
+      isManualScrapeActive = false;
       scraperLogLines.unshift(`[${getLogTimeVN()}] ❌ Cào diện rộng lỗi: ${data.error || "?"}`);
       showToast("Cào diện rộng lỗi: " + (data.error || "?"), "error");
       renderScraperLog();
@@ -1383,6 +1462,7 @@ async function pollBreadthStatus(jobId, tries = 0) {
     // Mất phiên (apiFetch ném lỗi 401 + đã mở tường login): dừng poll ngay,
     // không retry mù 20 phút (mỗi lần retry lại mở tường).
     if (/401|đăng nhập|hết hạn/i.test((e && e.message) || "")) {
+      isManualScrapeActive = false;
       scraperLogLines.unshift(`[${getLogTimeVN()}] 🔐 Phiên đăng nhập hết hạn — đã dừng theo dõi job ${jobId}. Đăng nhập lại rồi bấm Cào diện rộng để chạy job mới.`);
       renderScraperLog();
       return;
@@ -1392,6 +1472,7 @@ async function pollBreadthStatus(jobId, tries = 0) {
   if (tries < MAX_TRIES) {
     setTimeout(() => pollBreadthStatus(jobId, tries + 1), 15000);
   } else {
+    isManualScrapeActive = false;
     scraperLogLines.unshift(`[${getLogTimeVN()}] ℹ️ Job ${jobId} quá 20 phút — xem kết quả ở Nhật ký Thu thập.`);
     renderScraperLog();
   }
@@ -2980,18 +3061,25 @@ async function toggleBotAutoCrawl(enable) {
   const toggle = document.getElementById("bot-auto-crawl-toggle");
   stopBotAutoCrawlLoop();
   try {
-    const grade = parseInt(document.getElementById("scraper-grade")?.value) || 2;
+    const gradeVal = document.getElementById("scraper-grade")?.value || "all";
+    const grades = (gradeVal === "all" || !gradeVal)
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [parseInt(gradeVal) || 2];
     const res = await apiFetch(`/api/collect/vioedu-plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "auto", grades: [grade],
-        subjects: ["math", "vietnamese", "english"], auto_enabled: !!enable })
+      body: JSON.stringify({
+        mode: "auto",
+        grades: grades,
+        subjects: ["math", "vietnamese", "english"],
+        auto_enabled: !!enable
+      })
     });
     const data = await res.json();
     const on = !!(data.success && data.enabled);
     if (toggle) toggle.checked = on;
     if (badge) badge.style.display = on ? "inline-flex" : "none";
-    showToast(on ? "Đã BẬT tự động cào nền 24/7 (server tự quét, không cần mở tab)!"
+    showToast(on ? "Đã BẬT tự động cào nền 24/7 (server tự xoay tua 1-12, không cần mở tab)!"
                  : "Đã TẮT tự động cào nền.", on ? "success" : undefined);
   } catch (e) {
     if (toggle) toggle.checked = false;
@@ -3363,6 +3451,21 @@ function restoreCollectorSettings() {
   try {
     refreshOcrLexiconCountBadge();
   } catch (e) {}
+
+  // 9. Đồng bộ nhật ký bot nền 24/7 trực tiếp từ server
+  try {
+    syncScraperLiveLogsFromServer();
+  } catch (e) {}
+
+  // 10. Định kỳ 15s tự động cập nhật trạng thái bot nền và logs khi đang xem trang Collector
+  if (!window._collectorPollInterval) {
+    window._collectorPollInterval = setInterval(() => {
+      if (typeof State !== "undefined" && State.currentView === "collector") {
+        refreshVioEduHubStatus();
+        loadCollectorLogs();
+      }
+    }, 15000);
+  }
 }
 
 // ============================================================================
