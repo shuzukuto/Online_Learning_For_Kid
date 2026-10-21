@@ -34,7 +34,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.2.6</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.2.7</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -80,7 +80,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.2.6</span>
+          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.2.7</span>
         </div>
         <div style="margin-top: 2px; font-size: 10px; color: #64748b; text-align: right;">
           <span id="sidebar-cache-tag">assets: …</span>
@@ -648,11 +648,14 @@
           </div>
 
           <!-- Hunter Live Log Header with Copy & Clear buttons -->
-          <div id="hunter-log-toolbar" style="display: none; justify-content: space-between; align-items: center; margin-top: 14px; margin-bottom: 4px;">
+          <div id="hunter-log-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; margin-bottom: 4px;">
             <span style="font-size: 12px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 6px;">
               <span>📋</span> Nhật ký Săn câu hỏi (Mới nhất trên đầu):
             </span>
             <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="syncHunterLiveLogsFromServer()" title="Đồng bộ nhật ký mới nhất từ server" style="font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                🔄 Làm mới
+              </button>
               <button type="button" class="btn btn-secondary btn-sm" onclick="copyHunterLiveLog()" title="Sao chép toàn bộ nhật ký săn câu hỏi" style="font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
                 📋 Sao chép Log
               </button>
@@ -662,7 +665,7 @@
             </div>
           </div>
 
-          <pre id="hunter-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 14px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; word-break: break-word;"></pre>
+          <pre id="hunter-live-log" style="background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 14px; border-radius: 8px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; word-break: break-word;">[Hệ thống] Sẵn sàng săn câu hỏi Internet...</pre>
         </div>
 
         <!-- Scraper Bot & Activity Logs Grid -->
@@ -2592,13 +2595,13 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.2.6"></script>
-  <script src="js/bank.js?v=1.2.6"></script>
-  <script src="js/auth.js?v=1.2.6"></script>
-  <script src="js/exam_builder.js?v=1.2.6"></script>
-  <script src="js/collector.js?v=1.2.6"></script>
-  <script src="js/practice.js?v=1.2.6"></script>
-  <script src="js/ai_agent_importer.js?v=1.2.6"></script>
+  <script src="js/app.js?v=1.2.7"></script>
+  <script src="js/bank.js?v=1.2.7"></script>
+  <script src="js/auth.js?v=1.2.7"></script>
+  <script src="js/exam_builder.js?v=1.2.7"></script>
+  <script src="js/collector.js?v=1.2.7"></script>
+  <script src="js/practice.js?v=1.2.7"></script>
+  <script src="js/ai_agent_importer.js?v=1.2.7"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>

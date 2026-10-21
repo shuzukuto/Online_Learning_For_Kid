@@ -1104,6 +1104,7 @@ async function syncScraperLiveLogsFromServer() {
 
     if (formatted.length > 0) {
       const fullText = formatted.join("\n\n");
+      scraperLogLines = formatted;
       logBox.textContent = fullText;
       logBox.style.display = "block";
       if (toolbar) toolbar.style.display = "flex";
@@ -1116,6 +1117,53 @@ async function syncScraperLiveLogsFromServer() {
   }
 }
 window.syncScraperLiveLogsFromServer = syncScraperLiveLogsFromServer;
+
+let isManualHunterActive = false;
+
+// Tự động đồng bộ các bản ghi nhật ký Săn câu hỏi Internet từ máy chủ vào màn hình live log
+async function syncHunterLiveLogsFromServer() {
+  if (isManualHunterActive) return;
+  const logBox = document.getElementById("hunter-live-log");
+  const toolbar = document.getElementById("hunter-log-toolbar");
+  if (!logBox) return;
+
+  try {
+    const res = await apiFetch(`/api/collect/logs?platform=internet_hunter&limit=25`);
+    const logs = await res.json();
+    if (!logs || !Array.isArray(logs) || logs.length === 0) return;
+
+    const formatted = [];
+    for (const item of logs) {
+      let timeStr = "";
+      if (item.created_at) {
+        try {
+          timeStr = getLogTimeVN(new Date(item.created_at));
+        } catch (e) {
+          timeStr = String(item.created_at).slice(11, 19);
+        }
+      }
+      let icon = "🌐";
+      if (item.status === "success") icon = "✅";
+      else if (item.status === "error") icon = "⚠️";
+
+      const prefix = timeStr ? `[${timeStr}] ` : "";
+      formatted.push(`${prefix}${icon} ${item.message}`);
+    }
+
+    if (formatted.length > 0) {
+      const fullText = formatted.join("\n\n");
+      logBox.textContent = fullText;
+      logBox.style.display = "block";
+      if (toolbar) toolbar.style.display = "flex";
+      try {
+        localStorage.setItem("eduquest_hunter_log", fullText);
+      } catch (e) {}
+    }
+  } catch (err) {
+    // network failure ignored
+  }
+}
+window.syncHunterLiveLogsFromServer = syncHunterLiveLogsFromServer;
 
 function renderScraperLog() {
   const logBox = document.getElementById("scraper-live-log");
@@ -2395,6 +2443,7 @@ async function runInternetHunter(isAuto = false) {
 
   if (logBox) logBox.style.display = "block";
   if (toolbar) toolbar.style.display = "flex";
+  isManualHunterActive = true;
   if (!isAuto && btn) {
     btn.disabled = true;
     btn.innerText = isAllGrades ? "⏳ Đang cào tuần tự Khối 1-12..." : "⏳ Đang quét internet...";
@@ -2513,6 +2562,7 @@ async function runInternetHunter(isAuto = false) {
       }
       if (!isAuto) showToast("Lỗi khi cào tuần tự các khối", "error");
     } finally {
+      isManualHunterActive = false;
       if (!isAuto && btn) {
         btn.disabled = false;
         btn.innerText = "⚡ Bắt đầu Săn câu hỏi từ Internet";
@@ -2609,6 +2659,7 @@ async function runInternetHunter(isAuto = false) {
     }
     if (!isAuto) showToast("Lỗi khi săn câu hỏi Internet", "error");
   } finally {
+    isManualHunterActive = false;
     if (!isAuto && btn) {
       btn.disabled = false;
       btn.innerText = "⚡ Bắt đầu Săn câu hỏi từ Internet";
@@ -3457,14 +3508,23 @@ function restoreCollectorSettings() {
     syncScraperLiveLogsFromServer();
   } catch (e) {}
 
-  // 10. Định kỳ 15s tự động cập nhật trạng thái bot nền và logs khi đang xem trang Collector
+  // 10. Đồng bộ nhật ký săn câu hỏi Internet trực tiếp từ server
+  try {
+    syncHunterLiveLogsFromServer();
+  } catch (e) {}
+
+  // 11. Định kỳ 5s tự động cập nhật trạng thái bot nền và logs khi đang xem trang Collector
   if (!window._collectorPollInterval) {
     window._collectorPollInterval = setInterval(() => {
-      if (typeof State !== "undefined" && State.currentView === "collector") {
+      const isCollectorActive = (typeof State !== "undefined" && State.currentView === "collector") ||
+                                (document.getElementById("view-collector") && document.getElementById("view-collector").classList.contains("active"));
+      if (isCollectorActive) {
+        syncScraperLiveLogsFromServer();
+        syncHunterLiveLogsFromServer();
         refreshVioEduHubStatus();
         loadCollectorLogs();
       }
-    }, 15000);
+    }, 5000);
   }
 }
 

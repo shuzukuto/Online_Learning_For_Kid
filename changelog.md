@@ -2,6 +2,21 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.2.7] - 2026-10-22 (app) / ext v1.3.23
+
+### Tự Động Làm Mới Đồng Thời 2 Màn Hình Live Log (Internet Hunter & Bot 24/7) Chu Kỳ 5 Giây
+- **Tự động làm mới Live Log Internet Hunter (`#hunter-live-log`)**:
+  - Bổ sung hàm `syncHunterLiveLogsFromServer()` tự động đồng bộ tất cả nhật ký săn câu hỏi Internet từ CSDL (`platform=internet_hunter`) lên màn hình với định dạng thời gian VN, icon trạng thái (`🌐`, `✅`, `⚠️`).
+  - Thêm nút "🔄 Làm mới" trên thanh công cụ của Nhật ký Săn câu hỏi.
+  - Hiển thị trực quan khung nhật ký Hunter thay vì ẩn mặc định (`display: none`).
+- **Nâng cấp Chu kỳ Tự động Làm mới (Polling 5 Giây) & Đồng bộ Trạng thái**:
+  - Tăng tần suất cập nhật tự động từ 15s lên 5s (`_collectorPollInterval = 5000ms`), kiểm tra linh hoạt cả `State.currentView` lẫn trạng thái DOM class `.active` để đảm bảo không bao giờ bị nghẽn.
+  - Đồng bộ ngay lập tức cả 2 live log và trạng thái VioEdu Hub khi người dùng chuyển sang tab Thu thập dữ liệu trong `app.js`.
+  - Khắc phục lỗi `PRAGMA journal_mode = WAL;` trên môi trường Docker Linux gắn ổ đĩa Windows mount (`DOCKER_CONTAINER=1`), đảm bảo kết nối CSDL trơn tru tuyệt đối.
+- **Kiểm thử & Đồng bộ phiên bản**:
+  - Bổ sung kiểm thử tự động xác thực sự tồn tại của cả hai hàm đồng bộ log trong `tests/test_vioedu_hub.py`, 148/148 bài kiểm thử đạt 100% Passed.
+  - Đồng bộ phiên bản: `v1.2.7` (app) / `v1.3.23` (ext).
+
 ## [v1.2.6] - 2026-10-21 (app) / ext v1.3.23
 
 ### Đồng Bộ Log Trực Tiếp Bot Nền 24/7 Vào Giao Diện & Khắc Phục Xoay Tua Khối 1-12

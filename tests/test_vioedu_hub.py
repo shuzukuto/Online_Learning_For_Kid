@@ -209,3 +209,5 @@ def test_collector_ui_has_sync_scraper_logs():
         js = f.read()
     assert "syncScraperLiveLogsFromServer" in js, \
         "frontend collector.js missing syncScraperLiveLogsFromServer to bridge background auto logs"
+    assert "syncHunterLiveLogsFromServer" in js, \
+        "frontend collector.js missing syncHunterLiveLogsFromServer to bridge internet hunter logs"

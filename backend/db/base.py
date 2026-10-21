@@ -49,7 +49,13 @@ def get_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("PRAGMA journal_mode = WAL;")
+    # In Docker on Windows volume mounts, WAL mode fails because shared memory (-shm)
+    # cannot be memory-mapped over filesystem bind mounts. Use default/DELETE.
+    if not os.environ.get("DOCKER_CONTAINER"):
+        try:
+            cursor.execute("PRAGMA journal_mode = WAL;")
+        except Exception:
+            pass
     cursor.execute("PRAGMA busy_timeout = 30000;")
     cursor.close()
     return conn
