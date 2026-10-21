@@ -21,7 +21,12 @@ def _read_vioedu():
 
 def _read_app():
     with open("backend/app.py", encoding="utf-8") as f:
-        return f.read()
+        content = f.read()
+    import glob
+    for rf in sorted(glob.glob("backend/routers/*.py")):
+        with open(rf, encoding="utf-8") as f:
+            content += "\n" + f.read()
+    return content
 
 
 def test_breadth_does_not_block_request():

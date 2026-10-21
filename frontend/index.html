@@ -14,16 +14,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
 
   <!-- Favicon & Brand Icons (EduQuest Pro) -->
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.1.7">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.1.7">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.1.7">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.1.7">
-  <link rel="shortcut icon" href="favicon.ico?v=1.1.7">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.2.3">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1.2.3">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1.2.3">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.2.3">
+  <link rel="shortcut icon" href="favicon.ico?v=1.2.3">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#2563eb">
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=1.1.7">
+  <link rel="stylesheet" href="css/style.css?v=1.2.3">
 </head>
 <body>
   <div class="app-container">
@@ -34,7 +34,7 @@
         <div class="brand-text">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <h1>EduQuest Pro</h1>
-            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.1.7</span>
+            <span class="app-version-badge" style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.2.5</span>
           </div>
           <p>Ngân hàng Câu hỏi Thi</p>
         </div>
@@ -80,7 +80,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #94a3b8;">
           <span>VioEdu • Trạng Nguyên</span>
-          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.1.7</span>
+          <span style="color: #38bdf8; font-weight: 600;" id="sidebar-version-tag">Phiên bản: v1.2.5</span>
         </div>
         <div style="margin-top: 2px; font-size: 10px; color: #64748b; text-align: right;">
           <span id="sidebar-cache-tag">assets: …</span>
@@ -272,6 +272,7 @@
               <option value="Kho Đề Mở">Kho Đề Mở (Online)</option>
               <option value="Olympic">Olympic chung (IOE/TIMO)</option>
               <option value="VietJack">VietJack / VnDoc</option>
+              <option value="Facebook">🌐 Facebook (Nhóm học tập)</option>
               <option value="Soạn thủ công">Soạn thủ công</option>
             </select>
 
@@ -477,11 +478,12 @@
           <div style="display: flex; align-items: center; gap: 10px;">
             <label style="font-size: 13px; font-weight: 700; color: #334155;">Khối lớp mặc định:</label>
             <select id="global-default-grade" class="form-control" style="width: 140px; font-weight: 700;" onchange="setDefaultGrade(this.value)">
+              <option value="all">🌟 Tất cả (Khối 1 - 12)</option>
               <option value="1">Khối lớp 1</option>
-              <option value="2">Khối lớp 2</option>
+              <option value="2" selected>Khối lớp 2</option>
               <option value="3">Khối lớp 3</option>
               <option value="4">Khối lớp 4</option>
-              <option value="5" selected>Khối lớp 5</option>
+              <option value="5">Khối lớp 5</option>
               <option value="6">Khối lớp 6</option>
               <option value="7">Khối lớp 7</option>
               <option value="8">Khối lớp 8</option>
@@ -501,12 +503,12 @@
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 24px;">🔌</span>
                 <div>
-                  <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.19</span></h3>
+                  <h3 style="font-size: 16px; font-weight: 700;">Tiện ích Chrome/Edge Extension <span style="font-size: 11px; background: #0284c7; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 700;">v1.3.23</span></h3>
                   <span style="font-size: 12px; color: #10b981; font-weight: 600;">● Tự động bắt trọn 100% đề thi VioEdu & Trạng Nguyên</span>
                 </div>
               </div>
-              <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.19 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
-                📁 Vị trí thư mục Extension (v1.3.19)
+              <button class="btn btn-primary btn-sm" onclick="showToast('Thư mục Extension v1.3.23 đã sẵn sàng tại g:\\Mina\\Online_Learning\\extension')">
+                📁 Vị trí thư mục Extension (v1.3.23)
               </button>
             </div>
             <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 14px;">
@@ -514,7 +516,7 @@
             </p>
 
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6;">
-              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.19):</strong><br/>
+              <strong>Cách cập nhật / cài đặt nhanh (Unpacked Extension v1.3.23):</strong><br/>
               1. Mở Chrome/Edge, vào: <code>chrome://extensions</code><br/>
               2. Bật công tắc <strong>Developer mode (Chế độ cho nhà phát triển)</strong> ở góc trên bên phải.<br/>
               3. Nhấn <strong>Load unpacked (Tải tiện ích đã giải nén)</strong> hoặc bấm 🔄 Làm mới tiện ích đã nạp:
@@ -556,11 +558,12 @@
             <div class="form-group">
               <label class="form-label">Chọn Khối lớp</label>
               <select id="hunter-grade" class="form-control" onchange="onGradeSelectChanged(this.value)">
+                <option value="all">🌟 Tất cả (Cào tuần tự Khối 1 - 12)</option>
                 <option value="1">Khối lớp 1</option>
-                <option value="2">Khối lớp 2</option>
+                <option value="2" selected>Khối lớp 2</option>
                 <option value="3">Khối lớp 3</option>
                 <option value="4">Khối lớp 4</option>
-                <option value="5" selected>Khối lớp 5</option>
+                <option value="5">Khối lớp 5</option>
                 <option value="6">Khối lớp 6</option>
                 <option value="7">Khối lớp 7</option>
                 <option value="8">Khối lớp 8</option>
@@ -588,72 +591,36 @@
 
           <!-- Quick Presets / Gợi ý nguồn cào nhanh Toán theo Khối Lớp & Đa bộ môn (Tự động cập nhật theo Khối) -->
           <div id="hunter-grade-presets-container" style="margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
-            <!-- Category 1: Toán Tiếng Việt -->
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;" id="preset-cat-vn">
-              <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;" id="preset-label-vn">🇻🇳 Toán Tiếng Việt:</span>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=0&classes=2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
-                📘 Hành trang số (SGK Toán)
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vio.edu.vn/skill-list')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">
-                📐 VioEdu Luyện tập
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://tnmath.edu.vn/')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;">
-                📖 Trạng Nguyên Toán
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://olm.vn/lop-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fdf2f8; color: #9d174d; border: 1px solid #fbcfe8;">
-                🎓 OLM.vn Toán
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vndoc.com/toan-lop-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4;">
-                📝 VnDoc Phiếu Toán
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vietjack.com/toan-2-kn/index.jsp')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fafaf9; color: #44403c; border: 1px solid #e7e5e4;">
-                📚 VietJack Toán
-              </button>
-            </div>
-
-            <!-- Category 2: Toán Tiếng Anh -->
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;" id="preset-cat-en">
-              <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;" id="preset-label-en">🇬🇧 Math (English):</span>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.k5learning.com/free-math-worksheets/second-grade-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fefce8; color: #a16207; border: 1px solid #fef08a;">
-                📑 K5 Learning Worksheets
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.ixl.com/math/grade-2')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
-                🎯 IXL Math Skills
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.khanacademy.org/math/cc-2nd-grade-math')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;">
-                🌱 Khan Academy Math
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.commoncoresheets.com')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;">
-                📋 Common Core Math
-              </button>
-            </div>
-
-            <!-- Category 3: Toán Olympic Song ngữ -->
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;" id="preset-cat-olympiad">
-              <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;" id="preset-label-olympiad">🏆 Olympic Song ngữ:</span>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://kangaroo-math.vn')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;">
-                🦘 Kangaroo Math (IKMC)
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/timo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
-                🏅 TIMO Primary Song ngữ
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/sasmo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
-                🥇 SASMO Singapore Math
-              </button>
+            <div style="font-size: 12px; color: #64748b; font-style: italic; padding: 10px 14px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">
+              ⏳ Đang nạp danh mục nguồn cào gợi ý theo Khối lớp...
             </div>
           </div>
 
           <!-- Danh sách các web/link đã lưu để cào dữ liệu -->
           <div style="margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 12.5px; font-weight: 700; color: #334155;">
-                📋 Danh sách các web để cào dữ liệu: <span id="hunter-urls-count" style="background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 12px; font-size: 11.5px; font-weight: 700;">0</span>
-              </span>
-              <button type="button" id="btn-clear-hunter-urls" onclick="clearAllHunterTargetUrls()" style="display: none; background: none; border: none; font-size: 11.5px; color: #ef4444; cursor: pointer; text-decoration: underline;">
-                Xóa tất cả nguồn
-              </button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 12.5px; font-weight: 700; color: #334155;">
+                  📋 Danh sách các web để cào dữ liệu: <span id="hunter-urls-count" style="background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 12px; font-size: 11.5px; font-weight: 700;">0</span>
+                </span>
+                <span id="hunter-urls-active-count" style="font-size: 11.5px; color: #16a34a; font-weight: 600;">(Đang bật cào: 0)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <button type="button" id="btn-toggle-all-hunter-urls-on" class="hunter-btn-select-all" onclick="toggleAllHunterUrls(true)" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px; color: #0f172a; padding: 3px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Bật cào tất cả các link web trong danh sách">
+                  ☑️ Bật tất cả
+                </button>
+                <button type="button" id="btn-toggle-all-hunter-urls-off" class="hunter-btn-deselect-all" onclick="toggleAllHunterUrls(false)" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px; color: #64748b; padding: 3px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Tạm dừng cào tất cả các link">
+                  ⏸️ Tắt tất cả
+                </button>
+                <button type="button" id="btn-reset-default-hunter-urls" class="hunter-btn-reset-default" onclick="resetHunterUrlsToDefault()" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 11px; color: #1d4ed8; font-weight: 700; padding: 3px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Khôi phục danh sách các web cào mặc định chuẩn Bộ GD&ĐT & Quốc tế cho khối lớp hiện tại">
+                  🔄 Nạp mặc định Khối <span id="hunter-reset-grade-badge">2</span>
+                </button>
+                <button type="button" id="btn-clear-hunter-urls" onclick="clearAllHunterTargetUrls()" style="display: none; background: none; border: none; font-size: 11.5px; color: #ef4444; cursor: pointer; text-decoration: underline;">
+                  Xóa tất cả nguồn
+                </button>
+              </div>
             </div>
-            <div id="hunter-urls-container" style="display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; padding: 2px;">
+            <div id="hunter-urls-container" style="display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; padding: 2px;">
               <!-- Rendered dynamically by JS -->
             </div>
           </div>
@@ -743,11 +710,12 @@
                 <div class="form-group">
                   <label class="form-label">Khối lớp (Tự động theo tài khoản VioEdu cố định)</label>
                   <select id="scraper-grade" class="form-control" onchange="onGradeSelectChanged(this.value)">
+                    <option value="all">🌟 Tất cả các khối (Khối 1 - 12)</option>
                     <option value="1">Khối 1</option>
-                    <option value="2">Khối 2</option>
+                    <option value="2" selected>Khối 2</option>
                     <option value="3">Khối 3</option>
                     <option value="4">Khối 4</option>
-                    <option value="5" selected>Khối 5</option>
+                    <option value="5">Khối 5</option>
                     <option value="6">Khối 6</option>
                     <option value="7">Khối 7</option>
                     <option value="8">Khối 8</option>
@@ -770,6 +738,9 @@
                 <button class="btn" id="btn-vioedu-save-session" onclick="saveVioEduSession()" style="background: #7c3aed; color: #fff;" title="Đăng nhập VioEdu 1 lần bằng TK trên, server lưu phiên — bot nền 24/7 dùng TK này để cào (mở nội dung cần login, quota cao hơn). Mật khẩu KHÔNG lưu.">
                   🔑 Lưu phiên TK (bot 24/7)
                 </button>
+                <button class="btn btn-secondary" id="btn-vioedu-check-session" onclick="checkVioEduSessionLive()" style="background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1;" title="Kiểm tra kết nối và tính hợp lệ của tài khoản/mật khẩu VioEdu">
+                  🔍 Kiểm tra tài khoản
+                </button>
                 <button class="btn" id="btn-vioedu-breadth" onclick="runVioEduBreadth()" style="background: #059669; color: #fff;" title="Quét toàn bộ bài luyện tập VioEdu Khối đang chọn (Toán + Tiếng Việt + Tiếng Anh), không cần đăng nhập. Bài mới cào trong 7 ngày sẽ bỏ qua.">
                   🌐 Cào diện rộng (3 môn)
                 </button>
@@ -778,14 +749,14 @@
                   Cào lại bài cũ
                 </label>
               </div>
-              <div id="vioedu-hub-status" style="display: none; margin-top: 8px; font-size: 12px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; line-height: 1.6;">
-                <span id="vioedu-hub-status-text">—</span>
+              <div id="vioedu-hub-status" style="margin-top: 8px; font-size: 12px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; line-height: 1.6;">
+                <span id="vioedu-hub-status-text">Đang kết nối trung tâm thu thập...</span>
               </div>
 
               <!-- Scraper Live Log Header with Copy & Clear buttons -->
-              <div id="scraper-log-toolbar" style="display: none; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 4px;">
+              <div id="scraper-log-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 4px;">
                 <span style="font-size: 12px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 6px;">
-                  <span>📋</span> Nhật ký trực tiếp (Mới nhất trên đầu):
+                  <span>📋</span> Tiến trình cào chi tiết (Theo thứ tự thực hiện):
                 </span>
                 <div style="display: flex; gap: 6px;">
                   <button type="button" class="btn btn-secondary btn-sm" onclick="copyScraperLiveLog()" title="Sao chép toàn bộ nhật ký của Bot" style="font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
@@ -797,7 +768,7 @@
                 </div>
               </div>
 
-              <pre id="scraper-live-log" style="display: none; background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 12px; border-radius: 8px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; word-break: break-word;"></pre>
+              <pre id="scraper-live-log" style="background: #0f172a; color: #38bdf8; font-family: 'Fira Code', Consolas, monospace; font-size: 11.5px; padding: 12px; border-radius: 8px; max-height: 240px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; word-break: break-word;">[Hệ thống] Bot sẵn sàng. Nhập tài khoản VioEdu và nhấn "🚀 Cào theo tài khoản" hoặc "🌐 Cào diện rộng (3 môn)" để bắt đầu.</pre>
             </div>
           </div>
 
@@ -815,6 +786,48 @@
             <div id="collector-logs-list" style="display: flex; flex-direction: column; max-height: 280px; overflow-y: auto;">
               <!-- Filled by JS -->
             </div>
+          </div>
+        </div>
+
+        <!-- Facebook Educational Post Hunter Card (Extension-driven) -->
+        <div style="margin-top: 24px; background: white; border: 1px solid var(--color-slate-200); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">🌐</span>
+              <div>
+                <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: #1e293b;">Săn câu hỏi từ Mạng xã hội Facebook (Nhóm Học tập & Luyện thi)</h3>
+                <span style="font-size: 12px; color: #64748b;">Thu thập đề thi thực tế từ các hội nhóm phụ huynh & thầy cô chia sẻ qua Tiện ích EduQuest Extension</span>
+              </div>
+            </div>
+            <span style="background: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">Chrome Extension Engine</span>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 12.5px; color: #334155; line-height: 1.6;">
+            💡 <strong>Tại sao cào Facebook qua Extension?</strong> Facebook áp dụng tường bảo vệ nghiêm ngặt (chặn mọi request server ẩn danh). Do đó, EduQuest Pro sử dụng <strong>Tiện ích Trình duyệt Chrome</strong> chạy trực tiếp trong phiên đăng nhập an toàn của bạn:
+            <ul style="margin: 6px 0 0 18px; padding: 0;">
+              <li><strong>Tự động nhận diện đề thi:</strong> Lọc bài viết có chứa từ khóa kỳ thi (TIMO, HKIMO, ASMO, Trạng Nguyên, VioEdu...) và dấu hiệu câu hỏi (Câu N, công thức, đáp án).</li>
+              <li><strong>Lọc sạch spam:</strong> Tự động loại bỏ các bài đăng bán hàng, quảng cáo.</li>
+              <li><strong>Giữ nguyên hình ảnh:</strong> Tự động bóc tách ảnh sơ đồ, hình học trong bài đăng và lưu kèm câu hỏi.</li>
+              <li><strong>Đẩy thẳng vào CSDL:</strong> Lưu trực tiếp vào Ngân hàng EduQuest Pro với nhãn nguồn <code>Facebook</code>.</li>
+            </ul>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <span style="font-size: 12.5px; font-weight: 700; color: #475569;">Gợi ý các nhóm Facebook luyện thi:</span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openFacebookGroup('https://www.facebook.com/groups/toantieuhoc')" style="font-size: 11.5px; padding: 5px 12px; border-radius: 6px; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-weight: 600;">
+                📘 Nhóm Toán Tiểu Học
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openFacebookGroup('https://www.facebook.com/groups/onthitimo')" style="font-size: 11.5px; padding: 5px 12px; border-radius: 6px; background: #fefce8; color: #854d0e; border: 1px solid #fef08a; font-weight: 600;">
+                🏆 Hội Ôn thi Olympic (TIMO / HKIMO / ASMO)
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openFacebookGroup('https://www.facebook.com/groups/trangnguyentv')" style="font-size: 11.5px; padding: 5px 12px; border-radius: 6px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; font-weight: 600;">
+                📖 Hội Luyện thi Trạng Nguyên & VioEdu
+              </button>
+            </div>
+            <a href="javascript:void(0)" onclick="switchView('bank'); State.filters.source_detail = 'Facebook'; loadQuestions();" style="font-size: 12.5px; color: #2563eb; font-weight: 700; text-decoration: underline;">
+              👉 Xem các câu hỏi Facebook đã thu thập trong Ngân hàng
+            </a>
           </div>
         </div>
       </main>
@@ -2576,13 +2589,13 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
 
   <!-- Application Modules -->
-  <script src="js/app.js?v=1.1.7"></script>
-  <script src="js/bank.js?v=1.1.7"></script>
-  <script src="js/auth.js?v=1.1.7"></script>
-  <script src="js/exam_builder.js?v=1.1.7"></script>
-  <script src="js/collector.js?v=1.1.7"></script>
-  <script src="js/practice.js?v=1.1.7"></script>
-  <script src="js/ai_agent_importer.js?v=1.1.7"></script>
+  <script src="js/app.js?v=1.2.5"></script>
+  <script src="js/bank.js?v=1.2.5"></script>
+  <script src="js/auth.js?v=1.2.5"></script>
+  <script src="js/exam_builder.js?v=1.2.5"></script>
+  <script src="js/collector.js?v=1.2.5"></script>
+  <script src="js/practice.js?v=1.2.5"></script>
+  <script src="js/ai_agent_importer.js?v=1.2.5"></script>
 
   <!-- Manual Question Live Preview & Batch Flow Script -->
   <script>

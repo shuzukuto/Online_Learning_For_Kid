@@ -15,6 +15,71 @@ QUESTION_NUMBER_REGEX = re.compile(
     re.IGNORECASE
 )
 
+def clean_unwanted_dollars(text: str) -> str:
+    """
+    Strips accidental $ signs wrapping bare numbers (e.g. '$2$' -> '2', '$ 28$' -> '28', '$ 32.$' -> '32.')
+    or simple Vietnamese text/units ('$3 giờ$' -> '3 giờ', '$15l$' -> '15l'), while strictly preserving
+    genuine currency notation ($6, $8, $28) and real LaTeX/KaTeX math formulas.
+    """
+    if not text or '$' not in text:
+        return text
+
+    has_currency_context = bool(re.search(r'\b(?:dollar|dollars|đô\s*la|đô-la|usd)\b', text, re.IGNORECASE))
+    currency_tokens = {}
+    if has_currency_context:
+        def save_currency(m):
+            token = f"__CURRENCY_USD_TOKEN_{len(currency_tokens)}__"
+            currency_tokens[token] = m.group(0)
+            return token
+        text = re.sub(r'(?<!\$)\$(?!\$)\s*\d+(?:\.\d+)?\b(?!\$)', save_currency, text)
+
+    def replace_formula(match):
+        full = match.group(0)
+        inner = match.group(1)
+        trimmed = inner.strip()
+
+        if not trimmed:
+            return ""
+
+        if '\\' in trimmed:
+            return full
+
+        if '^' in trimmed or '_' in trimmed:
+            return full
+
+        if re.match(r'^[a-zA-Z]$', trimmed):
+            return full
+
+        if re.search(r'[a-zA-Z]', trimmed) and re.search(r'[=><+\-*/]', trimmed):
+            if not re.search(r'[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]', trimmed):
+                return full
+
+        m_num = re.match(r'^(\d+(?:[.,]\d+)?)\s*([.,;:])?$', trimmed)
+        if m_num:
+            num_part = m_num.group(1)
+            punct_part = m_num.group(2) or ""
+            return num_part + punct_part
+
+        if trimmed in ('+', '-', '=', '<', '>', '≤', '≥', '±', '×', '÷', ':'):
+            return trimmed
+
+        if re.match(r'^\d+.*[a-zA-Zàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]', trimmed):
+            if not re.search(r'[+\-*/=><^_{}\\]', trimmed):
+                return trimmed
+
+        if re.search(r'[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]', trimmed):
+            if not re.search(r'[\\^_{}]', trimmed):
+                return trimmed
+
+        return full
+
+    text = re.sub(r'\$([^$\n]+)\$', replace_formula, text)
+
+    for token, original in currency_tokens.items():
+        text = text.replace(token, original)
+
+    return text
+
 def clean_html_and_math(html_str: str) -> Tuple[str, str]:
     """
     Cleans raw HTML, normalizes LaTeX/MathJax formulas, removes question numbering prefixes
@@ -78,6 +143,8 @@ def clean_html_and_math(html_str: str) -> Tuple[str, str]:
     clean_text = re.sub(r'\s+', ' ', clean_text)
     clean_text = QUESTION_NUMBER_REGEX.sub('', clean_text).strip()
     
+    clean_html = clean_unwanted_dollars(clean_html)
+    clean_text = clean_unwanted_dollars(clean_text)
     return clean_html, clean_text
 
 async def download_and_localize_image(url: str, referer: str = None) -> str:
@@ -106,14 +173,26 @@ async def download_and_localize_image(url: str, referer: str = None) -> str:
             return f"/media/{local_filename}"
             
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         }
         if referer:
             headers["Referer"] = referer
+        elif "fbcdn.net" in url or "facebook.com" in url:
+            headers["Referer"] = "https://www.facebook.com/"
             
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
+            if resp.status_code == 200 and len(resp.content) > 100:
+                ctype = (resp.headers.get("content-type") or "").lower()
+                if ext == ".png":
+                    if "jpeg" in ctype or "jpg" in ctype:
+                        ext = ".jpg"
+                    elif "webp" in ctype:
+                        ext = ".webp"
+                    local_filename = f"img_{url_hash[:16]}{ext}"
+                    local_filepath = os.path.join(MEDIA_DIR, local_filename)
+
                 with open(local_filepath, "wb") as f:
                     f.write(resp.content)
                 return f"/media/{local_filename}"
@@ -329,6 +408,21 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
     if re.search(r'bạn còn \d+/\d+ lượt thi đấu', combined, re.I):
         return False, "Chứa thông tin lượt thi đấu còn lại"
 
+    # 1.6b. Reject gamification feeds, achievement walls, avatars, diamonds, social activities
+    gamification_keywords = [
+        "tường thành tích", "cảm xúc của bạn", "sở hữu avatar", "kim cương",
+        "huy hiệu chiến binh", "siêu nhân vượt lười", "đã đồng hành", "nhận quà thành công",
+        "đã vượt qua bài kiểm tra", "thật tuyệt vời phải không nào", "tỏa sáng với những phần thưởng",
+        "chúc mừng bạn đã nhận được"
+    ]
+    if any(k in combined for k in gamification_keywords):
+        return False, "Chứa thông báo tường thành tích, avatar, kim cương hoặc phần thưởng gamification"
+
+    source_url = (q.get("source_url") or "").lower()
+    non_edu_urls = ["achievement-wall", "avatar-user", "arena-award", "notification", "diamond", "mission", "leaderboard", "rank", "shop"]
+    if any(u in source_url for u in non_edu_urls):
+        return False, f"URL nguồn không phải là trang bài thi/câu hỏi: {source_url}"
+
     # 1.7. Reject battle scoreboard with player names, timers, correct/wrong counts
     if any(k in combined for k in ["correct_icon", "wrong_icon", "countdown_icon"]):
         if re.search(r'\b\d{2}:\d{2}\b', content_text):
@@ -384,6 +478,9 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
         "lớp học thêm", "tư vấn tuyển sinh",
         "tuyển sinh", "website:", "email:", "bản quyền thuộc về", "all rights reserved"
     ]
+    if (q.get("source_platform") or "").lower() == "facebook":
+        contact_keywords = [k for k in contact_keywords if k != "facebook"]
+
     for ck in contact_keywords:
         ck_no = remove_vietnamese_accents(ck)
         if ck in combined or ck_no in combined_no_accents:
@@ -409,6 +506,10 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
         "học online toán", "học online tiếng việt", "học online luyện từ", "kh luyện từ",
         "tìm bài trong mục này", "tất cả chân trời kết nối cánh diều", "tài liệu, đề thi, trắc nghiệm"
     ]
+    if (q.get("source_platform") or "").lower() == "facebook":
+        fb_allowed = {"ba mẹ", "phụ huynh", "chia sẻ bài viết", "bình luận", "tài liệu tham khảo", "tài liệu hữu ích"}
+        blog_promo_keywords = [k for k in blog_promo_keywords if k not in fb_allowed]
+
     for bk in blog_promo_keywords:
         bk_no = remove_vietnamese_accents(bk)
         if bk in combined or bk_no in combined_no_accents:
@@ -466,14 +567,20 @@ def is_valid_question_payload(q: Dict[str, Any]) -> Tuple[bool, str]:
     # 9. Check for excessively long text without options (non-reading question article dump)
     if not options or len(options) == 0:
         is_reading_text = any(rm in combined for rm in ["đọc đoạn văn", "bài đọc", "reading passage", "read the following", "đoạn thơ"])
-        if len(content_text) > 450 and not is_reading_text:
+        is_fb = (q.get("source_platform") or "").lower() == "facebook"
+        has_imgs = bool(q.get("images"))
+        max_fill_len = 2500 if (is_fb or has_imgs) else 450
+        if len(content_text) > max_fill_len and not is_reading_text:
             return False, f"Câu hỏi điền khuyết quá dài ({len(content_text)} ký tự), không phải câu hỏi chuẩn"
         # Bắt buộc phải có dấu hỏi hoặc từ khóa nghi vấn / chỉ thị bài toán nếu câu ngắn
         has_direct_question = bool(re.search(r'\?|\b(?:hỏi|tính|tìm|điền|bao nhiêu|mấy|kết quả|giá trị|đúng ghi|sai ghi)\b', combined, re.I))
         if len(content_text) < 70 and not has_direct_question and not has_math:
-            return False, "Câu ngắn không có lựa chọn và không chứa câu hỏi hoặc lệnh tính toán hợp lệ"
+            has_exam_kw = bool(re.search(r'\b(?:đề thi|đề kiểm tra|đề ôn tập|đề khảo sát|phiếu bài tập|timo|asmo|hkimo|trạng nguyên|vioedu|violympic|toán|tiếng việt|tiếng anh)\b', combined, re.I))
+            if not (has_imgs and has_exam_kw):
+                return False, "Câu ngắn không có lựa chọn và không chứa câu hỏi hoặc lệnh tính toán hợp lệ"
 
-    if not (has_math or has_question_prompt or has_english_quiz or (options and len(options) >= 2)):
+    has_exam_media = bool(q.get("images")) and bool(re.search(r'\b(?:đề thi|đề kiểm tra|đề ôn tập|đề khảo sát|phiếu bài tập|bài tập|đề luyện|timo|asmo|hkimo|trạng nguyên|vioedu|violympic|toán|tiếng việt|tiếng anh|olympic|kangaroo)\b', combined, re.I))
+    if not (has_math or has_question_prompt or has_english_quiz or has_exam_media or (options and len(options) >= 2)):
         return False, "Nội dung không chứa công thức, câu hỏi, hoặc phương án trả lời mang tính giáo dục"
 
     return True, "Hợp lệ"

@@ -21,7 +21,12 @@ def _read_vioedu():
 
 def _read_app():
     with open("backend/app.py", encoding="utf-8") as f:
-        return f.read()
+        content = f.read()
+    import glob
+    for rf in sorted(glob.glob("backend/routers/*.py")):
+        with open(rf, encoding="utf-8") as f:
+            content += "\n" + f.read()
+    return content
 
 
 def test_skill_ledger_exists():
@@ -147,8 +152,7 @@ def test_vioedu_login_endpoint_exists():
     # User 2026-10-14: xoay khoi 1-12 dung "tai khoan dang nhap cao du lieu".
     # Admin nhap TK VioEdu 1 lan → server login, luu cookies vao system_config
     # (key vioedu_session_cookies) de scheduler dung. Endpoint chi admin.
-    with open("backend/app.py", encoding="utf-8") as f:
-        src = f.read()
+    src = _read_app()
     assert "vioedu-login" in src or "vioedu_login" in src, \
         "chua co endpoint luu phien dang nhap VioEdu (admin nhap TK 1 lan)"
     assert "vioedu_session_cookies" in src, \
@@ -158,8 +162,7 @@ def test_vioedu_login_endpoint_exists():
 def test_scheduler_uses_saved_vioedu_session():
     # Scheduler 24/7 phai doc cookies da luu (neu co) va truyen vao ham cao,
     # fallback anonymous khi chua co — khong doi hanh vi hien tai.
-    with open("backend/app.py", encoding="utf-8") as f:
-        src = f.read()
+    src = _read_app()
     assert "vioedu_session_cookies" in src, \
         "scheduler chua doc phien VioEdu da luu"
     with open("backend/scrapers/vioedu.py", encoding="utf-8") as f:
@@ -172,13 +175,18 @@ def test_vioedu_login_requires_admin_not_passthrough():
     # POST /api/collect/vioedu-login luu phien TK → user thuong KHONG duoc
     # goi (ke ca local pass-through): phai _require_admin, khong phai
     # require_api_token (rong = cho qua o local).
-    with open("backend/app.py", encoding="utf-8") as f:
-        src = f.read()
+    src = _read_app()
     i = src.find('"/api/collect/vioedu-login"')
     assert i >= 0, "endpoint vioedu-login missing"
     post_i = src.rfind("@app.post(", 0, i)
+    if post_i < 0:
+        post_i = src.rfind("@router.post(", 0, i)
     assert post_i >= 0
-    body = src[post_i:src.find("\n@app.", i)]
+    next_app = src.find("\n@app.", i)
+    next_router = src.find("\n@router.", i)
+    cands = [p for p in (next_app, next_router) if p > i]
+    end_i = min(cands) if cands else len(src)
+    body = src[post_i:end_i]
     assert "_require_admin" in body, \
         "POST vioedu-login chua _require_admin (user thuong luu phien TK tuy y)"
     assert "require_api_token" not in body or "_require_admin" in body

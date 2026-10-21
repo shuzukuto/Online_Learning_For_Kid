@@ -932,25 +932,40 @@ def generate_parametric_questions(
             ("Có công mài sắt, có ngày ......", "nên kim", ["thành tài", "phát đạt", "vinh hoa"], "Khuyên nhủ tính kiên trì, nhẫn nại: 'Có công mài sắt, có ngày nên kim'."),
             ("Gần mực thì đen, gần đèn thì ......", "sáng", ["rạng", "chói", "tỏ"], "Môi trường sống và bạn bè tác động lớn đến mỗi người: 'Gần mực thì đen, gần đèn thì sáng'."),
             ("Học thầy không tày học ......", "bạn", ["anh", "sách", "chị"], "Khuyên học hỏi từ bạn bè xung quanh: 'Học thầy không tày học bạn'."),
-            ("Đi một ngày đàng, học một sàng ......", "khôn", ["chữ", "tri thức", "sách"], "Khuyên đi nhiều để mở mang đầu óc: 'Đi một ngày đàng, học một sàng khôn'.")
+            ("Đi một ngày đàng, học một sàng ......", "khôn", ["chữ", "tri thức", "sách"], "Khuyên đi nhiều để mở mang đầu óc: 'Đi một ngày đàng, học một sàng khôn'."),
+            ("Thương người như thể thương ......", "thân", ["mình", "bạn", "ai"], "Câu tục ngữ nhắc nhở lòng nhân ái: 'Thương người như thể thương thân'."),
+            ("Một con ngựa đau cả tàu bỏ ......", "cỏ", ["ăn", "chạy", "đi"], "Tinh thần tương thân tương ái, gắn bó: 'Một con ngựa đau cả tàu bỏ cỏ'."),
+            ("Đói cho sạch, rách cho ......", "thơm", ["đẹp", "lành", "ngon"], "Khuyên giữ gìn phẩm giá trong sạch dù hoàn cảnh khó khăn: 'Đói cho sạch, rách cho thơm'."),
+            ("Lá rụng về ......", "cội", ["đất", "gốc", "nguồn"], "Nhắc nhở con người hướng về cội nguồn quê hương: 'Lá rụng về cội'."),
+            ("Tốt gỗ hơn tốt ......", "nước sơn", ["vỏ ngoài", "hình thức", "màu sắc"], "Giá trị phẩm chất bên trong quan trọng hơn vẻ hào nhoáng bên ngoài: 'Tốt gỗ hơn tốt nước sơn'."),
+            ("Có chí thì ......", "nên", ["thành", "thắng", "được"], "Khuyên nhủ ý chí và quyết tâm: 'Có chí thì nên'."),
+            ("Nhất tự vi sư, bán tự vi ......", "sư", ["huynh", "hữu", "bạn"], "Truyền thống tôn sư trọng đạo: 'Nhất tự vi sư, bán tự vi sư'."),
+            ("Chim có tổ, người có ......", "tông", ["nhà", "quê", "bạn"], "Ý thức về gia đình, dòng họ tổ tiên: 'Chim có tổ, người có tông'."),
+            ("Cây ngay không sợ chết ......", "đứng", ["ngã", "chìm", "đổ"], "Người ngay thẳng, chính trực không sợ gièm pha: 'Cây ngay không sợ chết đứng'."),
+            ("Muốn biết phải hỏi, muốn giỏi phải ......", "học", ["làm", "đọc", "rèn"], "Khuyên chăm chỉ học hỏi để tiến bộ: 'Muốn biết phải hỏi, muốn giỏi phải học'.")
         ]
         rhetoric = [
             ("Trong câu: 'Bác kim giờ thận trọng nhích từng bước từng li.', tác giả sử dụng biện pháp nghệ thuật nào?", "Nhân hóa", ["So sánh", "Điệp từ", "Ẩn dụ"], "Dùng từ gọi người 'Bác' và hành động 'thận trọng' cho chiếc kim giờ là biện pháp nhân hóa."),
             ("Trong câu: 'Mặt trời đỏ rực như một quả cầu lửa khổng lồ.', tác giả sử dụng biện pháp tu từ nào?", "So sánh", ["Nhân hóa", "Điệp từ", "Hoán dụ"], "Từ nối 'như' đối chiếu mặt trời với quả cầu lửa là biện pháp so sánh."),
             ("Trong câu thơ: 'Dòng sông mới điệu làm sao / Nắng lên mặc áo lụa đào thướt tha', biện pháp nghệ thuật nổi bật là gì?", "Nhân hóa", ["So sánh", "Nói quá", "Liệt kê"], "Dòng sông được miêu tả biết 'điệu', biết 'mặc áo' như con người, đây là nhân hóa.")
         ]
+        grammar_syntax = [
+            ("Trong các câu sau, câu nào là câu kiểu 'Ai là gì?'", "Mẹ em là cô giáo vùng cao.", ["Bé Mai đang đọc truyện tranh.", "Bông hoa hồng tỏa hương thơm ngát.", "Mặt trời chiếu những tia nắng vàng rực rỡ."], "Câu 'Ai là gì?' dùng để giới thiệu, nhận định, có từ 'là' nối chủ ngữ và vị ngữ."),
+            ("Trong các câu sau, câu nào là câu kiểu 'Ai làm gì?'", "Bác nông dân đang cày ruộng.", ["Mẹ em là bác sĩ đa khoa.", "Bầu trời mùa thu trong xanh.", "Chiếc cặp sách này rất bền đẹp."], "Vị ngữ chỉ hoạt động 'đang cày ruộng' trả lời cho câu hỏi Làm gì?"),
+            ("Trong các câu sau, câu nào là câu kiểu 'Ai thế nào?'", "Dòng sông quê hương hiền hòa và thơ mộng.", ["Bác bảo vệ đánh trống trường.", "Hà Nội là thủ đô của nước ta.", "Chú chim sâu bắt sâu trên cành bưởi."], "Vị ngữ 'hiền hòa và thơ mộng' chỉ đặc điểm, trạng thái trả lời cho câu hỏi Thế nào?"),
+            ("Từ nào dưới đây viết đúng chính tả?", "Sạch sẽ", ["Xạch xẽ", "Sạch xẽ", "Xạch sẽ"], "Từ viết đúng chính tả theo từ điển Tiếng Việt là 'sạch sẽ'."),
+            ("Từ nào dưới đây viết đúng chính tả?", "Trân trọng", ["Chân trọng", "Trân chọng", "Chân chọng"], "Từ đúng quy chuẩn từ điển Tiếng Việt là 'trân trọng'."),
+            ("Từ nào dưới đây viết đúng chính tả?", "Dành dụm", ["Giành dụm", "Rành dụm", "Dành giụm"], "Từ viết đúng chính tả chỉ sự tích lũy là 'dành dụm'.")
+        ]
         antonyms = [
             ("Cặp từ nào dưới đây là cặp từ trái nghĩa?", "Chân thật — Giả dối", ["Chăm chỉ — Cần cù", "Dũng cảm — Gan dạ", "Thông minh — Sáng dạ"], "Chân thật và Giả dối mang ý nghĩa hoàn toàn đối lập nhau."),
             ("Cặp từ nào dưới đây là cặp từ trái nghĩa?", "Dũng cảm — Nhút nhát", ["Cần cù — Chăm chỉ", "Bao la — Rộng lớn", "Đoàn kết — Gắn bó"], "Dũng cảm và Nhút nhát là cặp từ có nghĩa tương phản, trái ngược."),
-            ("Từ nào dưới đây trái nghĩa với từ 'khiêm tốn'?", "Tự phụ", ["Hiền lành", "Chân thật", "Cần kiệm"], "Khiêm tốn là nhún nhường, trái nghĩa với tự phụ, kiêu ngạo.")
+            ("Từ nào dưới đây trái nghĩa với từ 'khiêm tốn'?", "Tự phụ", ["Hiền lành", "Chân thật", "Cần kiệm"], "Khiêm tốn là nhún nhường, trái nghĩa với tự phụ, kiêu ngạo."),
+            ("Cặp từ nào dưới đây là cặp từ đồng nghĩa?", "Siêng năng — Chăm chỉ", ["Thật thà — Dối trá", "Giàu có — Nghèo khổ", "Mạnh khỏe — Ốm yếu"], "Siêng năng và chăm chỉ cùng nghĩa cần cù chịu khó.")
         ]
         
-        pool = proverbs + rhetoric + antonyms
+        pool = proverbs + rhetoric + grammar_syntax + antonyms
         if grade >= 6:
-            # Khối THCS/THPT cần stems riêng: pool tiểu học dùng chung mọi
-            # khối nên dedup content_hash ăn hết ở lần sweep thứ 2 (bug G9
-            # Văn 2026-10-12: API báo lưu nhưng DB tăng 0). Pool này bám
-            # chương trình GDPT 2018 cấp THCS/THPT.
             pool = pool + [
                 ("Trong câu: 'Mặt trời xuống biển như hòn lửa.', tác giả sử dụng biện pháp nghệ thuật nào?", "So sánh", ["Nhân hóa", "Ẩn dụ", "Hoán dụ"], "Từ 'như' đối chiếu mặt trời với hòn lửa là biện pháp so sánh (Trần Đăng Khoa)."),
                 ("Dòng nào dưới đây chỉ gồm các từ láy?", "Rì rào — lao xao — xôn xao", ["Rừng núi — sông suối", "Bàn ghế — sách vở", "Đi đứng — ăn nói"], "Từ láy là từ có âm lặp lại gợi hình gợi thanh: rì rào, lao xao, xôn xao."),
@@ -962,8 +977,7 @@ def generate_parametric_questions(
                 ("Trong truyện 'Lão Hạc' (Nam Cao), chi tiết nào thể hiện tình phụ tử sâu sắc?", "Lão Hạc dành dụm tiền cho con trai", ["Lão Hạc bán chó Vàng", "Lão Hạc xin Binh Tư bả chó", "Lão Hạc chết bằng bả chó"], "Dù nghèo khổ, lão Hạc vẫn chắt chiu từng đồng gửi ông giáo giữ hộ con trai."),
                 ("Câu thơ 'Gạo đem vào giã bao đau đớn / Gạo giã xong rồi trắng tựa bông' (Hồ Chí Minh) gửi gắm triết lý nào?", "Gian khổ rèn luyện thành công", ["Lao động là vinh quang", "Nông dân vất vả", "Gạo trắng ngon cơm"], "Bài thơ 'Nghe tiếng giã gạo': gian nan như giã gạo mới cho hạt gạo trắng — con người phải rèn luyện mới thành công."),
                 ("Tác phẩm 'Truyện Kiều' của Nguyễn Du được viết bằng thể thơ nào?", "Lục bát", ["Song thất lục bát", "Thất ngôn bát cú", "Tự do"], "Truyện Kiều gồm 3254 câu thơ lục bát."),
-                ("Trong câu: 'Nắng rọi xuống sân như đổ lửa.', vị ngữ là gì?", "như đổ lửa", ["Nắng", "rọi xuống sân", "xuống sân"], "Vị ngữ nêu đặc điểm của chủ ngữ 'Nắng': 'rọi xuống sân như đổ lửa' — lõi so sánh 'như đổ lửa'."),
-                ("Cặp từ nào dưới đây là cặp từ đồng nghĩa?", "Siêng năng — Chăm chỉ", ["Thật thà — Dối trá", "Giàu có — Nghèo khổ", "Mạnh khỏe — Ốm yếu"], "Siêng năng và chăm chỉ cùng nghĩa cần cù chịu khó."),
+                ("Trong câu: 'Nắng rọi xuống sân như đổ lửa.', vị ngữ là gì?", "như đổ lửa", ["Nắng", "rọi xuống sân", "xuống sân"], "Vị ngữ nêu đặc điểm của chủ ngữ 'Nắng': 'rọi xuống sân như đổ lửa'."),
             ]
         random.shuffle(pool)
         for item in pool[:count]:
@@ -975,34 +989,48 @@ def generate_parametric_questions(
                 distractors=dist,
                 explanation=exp,
                 grade=grade, subject="vietnamese", topic="Luyện từ và câu & Văn học", difficulty="medium",
-                exam_name="Đề thi Trạng Nguyên Tiếng Việt"
+                exam_name=f"Trạng Nguyên Tiếng Việt Lớp {grade}"
             )
             questions.append(q)
 
     elif subject == "english":
+        en_names = ["Emma", "Liam", "Olivia", "Noah", "Sophia", "Lucas", "David", "Sarah", "Alex", "Tom", "Anna", "Peter"]
+        en_places = ["the library", "the history museum", "the central zoo", "the national park", "the science lab", "the city museum"]
+        en_times = ["yesterday afternoon", "last Sunday", "two days ago", "yesterday morning", "last weekend"]
+        en_months = ["January", "March", "May", "July", "September", "November"]
+        en_year = random.randint(2015, 2023)
+        r_name = random.choice(en_names)
+        r_place = random.choice(en_places)
+        r_time = random.choice(en_times)
+        r_month = random.choice(en_months)
+
         en_items = [
-            ("Choose the correct verb form: 'Yesterday afternoon, we ______ to the history museum.'", "went", ["go", "goes", "will go"], "Dấu hiệu 'yesterday afternoon' là thì quá khứ đơn nên dùng 'went'."),
-            ("Choose the correct verb form: 'Listen! The birds ______ sweetly on the tree.'", "are singing", ["sing", "sang", "will sing"], "Mệnh lệnh 'Listen!' báo hiệu hành động đang diễn ra tại thời điểm nói -> thì hiện tại tiếp diễn."),
+            (f"Choose the correct verb form: '{r_time.capitalize()}, {r_name} ______ to {r_place}.'", "went", ["go", "goes", "will go"], f"Dấu hiệu '{r_time}' là thì quá khứ đơn nên dùng 'went'."),
+            (f"Choose the correct verb form: 'Listen! {r_name} ______ sweetly in the room.'", "is singing", ["sings", "sang", "will sing"], "Mệnh lệnh 'Listen!' báo hiệu hành động đang diễn ra tại thời điểm nói -> thì hiện tại tiếp diễn."),
+            (f"Fill in the blank: '{r_name}'s younger brother was born ______ {r_month} {en_year}.'", "in", ["on", "at", "by"], "Trước tháng và năm ta dùng giới từ 'in'."),
+            (f"Choose the correct answer: 'How ______ students are there in {r_name}'s class?'", "many", ["much", "long", "often"], "Với danh từ đếm được số nhiều 'students', ta dùng 'How many'."),
+            (f"Choose the correct answer: 'How ______ milk does {r_name} drink every morning?'", "much", ["many", "few", "any"], "Với danh từ không đếm được 'milk', ta dùng 'How much'."),
             ("Choose the correct word: 'An airplane is much ______ than a bicycle.'", "faster", ["fastest", "more fast", "fast"], "So sánh hơn của tính từ ngắn 'fast' là 'faster'."),
-            ("Fill in the blank: 'My younger brother was born ______ May 2018.'", "in", ["on", "at", "by"], "Trước tháng và năm ta dùng giới từ 'in'."),
             ("What is the opposite of the word <strong>'dangerous'</strong>?", "safe", ["quiet", "risky", "scary"], "'Dangerous' nghĩa là nguy hiểm, từ trái nghĩa là 'safe' (an toàn)."),
             ("What is the opposite of the word <strong>'ancient'</strong>?", "modern", ["old", "historic", "huge"], "'Ancient' nghĩa là cổ kính, từ trái nghĩa là 'modern' (hiện đại)."),
-            ("Choose the correct question word: '______ is your favorite subject?' — 'It is English.'", "What", ["Where", "When", "Who"], "Hỏi về môn học yêu thích dùng từ để hỏi 'What'.")
+            ("Choose the correct question word: '______ is your favorite subject?' — 'It is English.'", "What", ["Where", "When", "Who"], "Hỏi về môn học yêu thích dùng từ để hỏi 'What'."),
+            ("Choose the correct word: 'Mount Everest is the ______ mountain in the world.'", "highest", ["higher", "most high", "high"], "So sánh nhất của tính từ ngắn 'high' là 'the highest'."),
+            ("Choose the correct response: 'Thank you very much for your help!' — '______'", "You're welcome!", ["Good idea!", "Never mind!", "Same to you!"], "Lời đáp lại lời cảm ơn lịch sự là 'You're welcome!'."),
+            ("Choose the correct modal verb: 'You ______ stop when the traffic light turns red.'", "must", ["may", "could", "might"], "Quy định luật giao thông bắt buộc dùng 'must'."),
+            ("Choose the correct form: 'Would you like ______ a cup of tea?'", "to drink", ["drinking", "drink", "drank"], "Cấu trúc mời: Would you like to + V?"),
+            ("Choose the correct adverb: 'He ran ______ to catch the morning bus.'", "quickly", ["quick", "quicker", "quickness"], "Bổ nghĩa cho động từ 'ran' cần dùng trạng từ 'quickly'."),
+            ("Choose the correct sentence: 'What ______ the weather like in Hanoi today?'", "is", ["does", "are", "do"], "Cấu trúc hỏi thời tiết: What is the weather like?")
         ]
         if grade >= 6:
-            # Như nhánh Văn: pool THCS dùng chung mọi khối nên dedup ăn hết
-            # từ lần sweep thứ 2. Bổ sung stems bám SGK Global Success 6-12.
             en_items = en_items + [
                 ("Choose the correct answer: 'She ______ in Hanoi since 2019.'", "has lived", ["lives", "lived", "will live"], "Dấu hiệu 'since 2019' là thì hiện tại hoàn thành: has lived."),
                 ("Choose the correct passive form: 'This bridge ______ in 2020.'", "was built", ["is built", "builds", "has built"], "Hành động xây cầu đã hoàn tất trong quá khứ (2020) → bị động quá khứ đơn."),
                 ("Choose the correct conditional: 'If it ______ tomorrow, we will cancel the picnic.'", "rains", ["will rain", "rained", "would rain"], "Câu điều kiện loại 1: If + hiện tại đơn, will + V."),
                 ("Choose the word with a different stress pattern: 'happy — teacher — police — student'.", "police", ["happy", "teacher", "student"], "'Police' nhấn âm 2; các từ còn lại nhấn âm 1."),
                 ("Choose the correct reported speech: 'She said she ______ the film before.'", "had seen", ["sees", "saw", "will see"], "Câu tường thuật lùi thì: quá khứ đơn → quá khứ hoàn thành."),
-                ("Choose the correct phrasal verb: 'We will ______ the meeting until next Monday.'", "put off", ["put on", "put up", "put out"], "'Put off' nghĩa là hoãn lại; phù hợp ngữ cảnh dời cuộc họp."),
+                ("Choose the correct phrasal verb: 'We will ______ the meeting until next Monday.'", "put off", ["put on", "put up", "put out"], "'Put off' nghĩa là hoãn lại."),
                 ("Choose the correct relative pronoun: 'The man ______ lives next door is a doctor.'", "who", ["which", "whom", "whose"], "Đại từ quan hệ chỉ người làm chủ ngữ → who."),
-                ("Choose the correct answer: '______ you ever been to Ha Long Bay?'", "Have", ["Did", "Are", "Do"], "Cấu trúc hiện tại hoàn thành với 'ever': Have you ever been...?"),
-                ("Choose the correct word form: 'English is a ______ subject at our school.'", "compulsory", ["compel", "compulsion", "compulsorily"], "Sau mạo từ 'a' + danh từ cần tính từ: compulsory (bắt buộc)."),
-                ("Choose the correct tag question: 'You like folk music, ______?'", "don't you", ["do you", "aren't you", "isn't it"], "Câu hỏi đuôi của 'like' (hiện tại đơn, chủ ngữ you) là don't you."),
+                ("Choose the correct answer: '______ you ever been to Ha Long Bay?'", "Have", ["Did", "Are", "Do"], "Cấu trúc hiện tại hoàn thành: Have you ever been...?"),
                 ("Choose the synonym of 'enormous'.", "huge", ["tiny", "small", "little"], "'Enormous' nghĩa là khổng lồ, đồng nghĩa với huge."),
                 ("Choose the antonym of 'generous'.", "mean", ["kind", "brave", "polite"], "'Generous' (hào phóng) trái nghĩa với 'mean' (keo kiệt)."),
             ]
@@ -1016,7 +1044,7 @@ def generate_parametric_questions(
                 distractors=dist,
                 explanation=exp,
                 grade=grade, subject="english", topic="Grammar & Vocabulary", difficulty="medium",
-                exam_name="Olympic English IOE Contest"
+                exam_name=f"Olympic English IOE Lớp {grade}"
             )
             questions.append(q)
 
@@ -1025,7 +1053,15 @@ def generate_parametric_questions(
             ("Cơ quan nào của thực vật có hoa đảm nhiệm chức năng sinh sản?", "Hoa", ["Rễ", "Thân", "Lá"], "Hoa là cơ quan sinh sản của thực vật có hoa, chứa nhị và nhụy."),
             ("Cơ quan nào trong cơ thể người có nhiệm vụ co bóp đẩy máu đi khắp các bộ phận?", "Tim", ["Phổi", "Dạ dày", "Gan"], "Tim là cơ quan trung tâm của hệ tuần hoàn, có chức năng co bóp tuần hoàn máu."),
             ("Nguồn năng lượng nào sau đây là nguồn năng lượng tái tạo (năng lượng sạch)?", "Năng lượng mặt trời", ["Than đá", "Dầu mỏ", "Khí đốt tự nhiên"], "Năng lượng mặt trời là nguồn năng lượng vô tận và không gây ô nhiễm môi trường."),
-            ("Hiện tượng nước chuyển từ thể lỏng sang thể khí (hơi) được gọi là hiện tượng gì?", "Sự bay hơi", ["Sự ngưng tụ", "Sự đông đặc", "Sự nóng chảy"], "Sự chuyển từ thể lỏng sang thể hơi gọi là sự bay hơi.")
+            ("Hiện tượng nước chuyển từ thể lỏng sang thể khí (hơi) được gọi là hiện tượng gì?", "Sự bay hơi", ["Sự ngưng tụ", "Sự đông đặc", "Sự nóng chảy"], "Sự chuyển từ thể lỏng sang thể hơi gọi là sự bay hơi."),
+            ("Động vật nào sau đây là động vật đẻ trứng?", "Chim bồ câu", ["Chó", "Mèo", "Cá voi"], "Chim bồ câu thuộc lớp chim và sinh sản bằng cách đẻ trứng."),
+            ("Thành phần khí nào chiếm thể tích lớn nhất trong không khí?", "Khí Nitơ", ["Khí Ô-xi", "Khí Các-bô-níc", "Hơi nước"], "Khí Nitơ chiếm khoảng 78% thể tích bầu khí quyển Trái Đất."),
+            ("Khí nào duy trì sự cháy và cần thiết cho quá trình hô hấp của con người?", "Khí Ô-xi", ["Khí Nitơ", "Khí Hidro", "Khí Heli"], "Khí Ô-xi (O2) duy trì sự cháy và sự sống cho hô hấp."),
+            ("Ở áp suất tiêu chuẩn, nước nguyên chất đóng băng thành thể rắn ở nhiệt độ bao nhiêu?", "0 độ C", ["100 độ C", "50 độ C", "-10 độ C"], "Ở áp suất tiêu chuẩn, nước nguyên chất đóng băng thành thể rắn ở 0 độ C."),
+            ("Nước nguyên chất sôi và bốc hơi mạnh ở nhiệt độ bao nhiêu?", "100 độ C", ["80 độ C", "0 độ C", "50 độ C"], "Nước nguyên chất sôi ở nhiệt độ 100 độ C ở áp suất thường."),
+            ("Hành tinh nào gần Mặt Trời nhất trong Hệ Mặt Trời?", "Sao Thủy (Mercury)", ["Sao Kim", "Trái Đất", "Sao Hỏa"], "Sao Thủy là hành tinh nằm gần Mặt Trời nhất."),
+            ("Hiện tượng ngày và đêm luân phiên trên Trái Đất là do đâu?", "Trái Đất tự quay quanh trục của nó", ["Mặt Trời quay quanh Trái Đất", "Mặt Trăng che khuất Mặt Trời", "Trái Đất ngừng chuyển động"], "Trái Đất tự quay quanh trục từ Tây sang Đông tạo nên hiện tượng ngày và đêm luân phiên."),
+            ("Cơ quan nào trong cơ thể người có chức năng lọc máu và bài tiết nước tiểu?", "Thận", ["Dạ dày", "Phổi", "Ruột non"], "Thận là cơ quan bài tiết quan trọng lọc chất thải từ máu để tạo thành nước tiểu.")
         ]
         random.shuffle(sci_items)
         for item in sci_items[:count]:
@@ -1036,18 +1072,24 @@ def generate_parametric_questions(
                 correct_val=ans,
                 distractors=dist,
                 explanation=exp,
-                grade=grade, subject="science", topic="Tự nhiên & Xã hội", difficulty="easy",
-                exam_name="Đề thi Khám phá Khoa học"
+                grade=grade, subject="science", topic="Tự nhiên & Khoa học", difficulty="easy",
+                exam_name=f"Khám phá Khoa học Lớp {grade}"
             )
             questions.append(q)
 
     else:
-        # Informatics
+        # Informatics (Tin học)
         inf_items = [
             ("Thiết bị nào sau đây là thiết bị đưa thông tin vào máy tính (thiết bị nhập)?", "Bàn phím và Chuột", ["Màn hình", "Máy in", "Loa nghe nhạc"], "Bàn phím và chuột là thiết bị nhập dữ liệu vào máy tính."),
             ("Thiết bị nào sau đây dùng để hiển thị kết quả làm việc của máy tính cho người dùng?", "Màn hình", ["Bàn phím", "Chuột máy tính", "Máy quét (Scanner)"], "Màn hình là thiết bị xuất chuẩn giúp hiển thị hình ảnh, văn bản."),
             ("Một Kilobyte (1 KB) có giá trị bằng bao nhiêu Byte?", "1024 Byte", ["1000 Byte", "512 Byte", "2048 Byte"], "Theo chuẩn nhị phân công nghệ thông tin, 1 KB = 2^10 Byte = 1024 Byte."),
-            ("Biểu tượng hình thư mục màu vàng trong hệ điều hành Windows dùng để làm gì?", "Lưu trữ và phân loại các tệp tin", ["Tắt máy tính", "Kết nối mạng Internet", "Xem video trực tuyến"], "Thư mục (Folder) dùng để chứa và tổ chức các tệp tin một cách khoa học.")
+            ("Biểu tượng hình thư mục màu vàng trong hệ điều hành Windows dùng để làm gì?", "Lưu trữ và phân loại các tệp tin", ["Tắt máy tính", "Kết nối mạng Internet", "Xem video trực tuyến"], "Thư mục (Folder) dùng để chứa và tổ chức các tệp tin một cách khoa học."),
+            ("Phần mềm nào sau đây là hệ điều hành máy tính?", "Windows 11", ["Microsoft Word", "Google Chrome", "Adobe Photoshop"], "Windows 11 là hệ điều hành quản trị phần cứng và tài nguyên máy tính."),
+            ("Tổ hợp phím tắt nào dùng để sao chép (Copy) văn bản hoặc tệp tin?", "Ctrl + C", ["Ctrl + V", "Ctrl + X", "Ctrl + Z"], "Phím tắt Ctrl + C dùng để sao chép dữ liệu."),
+            ("Tổ hợp phím tắt nào dùng để dán (Paste) dữ liệu vừa sao chép?", "Ctrl + V", ["Ctrl + C", "Ctrl + S", "Ctrl + P"], "Phím tắt Ctrl + V dùng để dán dữ liệu."),
+            ("Để bảo vệ tài khoản cá nhân trên Internet, mật khẩu nào là mật khẩu an toàn nhất?", "Mật khẩu kết hợp chữ hoa, chữ thường, số và ký tự đặc biệt", ["123456", "Họ và tên của mình", "Ngày tháng năm sinh"], "Mật khẩu an toàn cần kết hợp nhiều loại ký tự và có độ dài tối thiểu 8-12 ký tự."),
+            ("Trình duyệt web nào sau đây được sử dụng để truy cập Internet?", "Google Chrome", ["Microsoft Excel", "Notepad", "Calculator"], "Google Chrome, Microsoft Edge, Firefox, Safari là các trình duyệt web phổ biến."),
+            ("Trong thuật toán lập trình, cấu trúc 'Nếu... Thì...' biểu thị cấu trúc điều khiển nào?", "Cấu trúc rẽ nhánh", ["Cấu trúc lặp", "Cấu trúc tuần tự", "Cấu trúc song song"], "Cấu trúc 'Nếu... Thì...' thể hiện sự lựa chọn và rẽ nhánh điều kiện.")
         ]
         random.shuffle(inf_items)
         for item in inf_items[:count]:
@@ -1058,8 +1100,8 @@ def generate_parametric_questions(
                 correct_val=ans,
                 distractors=dist,
                 explanation=exp,
-                grade=grade, subject="informatics", topic="Tin học căn bản", difficulty="easy",
-                exam_name="Đề thi Tin học Trẻ Tiểu học"
+                grade=grade, subject="informatics", topic="Tin học & Công nghệ", difficulty="easy",
+                exam_name=f"Tin học Trẻ Lớp {grade}"
             )
             questions.append(q)
 

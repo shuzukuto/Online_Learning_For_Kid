@@ -98,7 +98,7 @@ async function loadQuestions() {
         activeFilterDetails.push(`Lớp ${State.filters.grade}`);
       }
       if (State.filters.platform && State.filters.platform !== "all") {
-        const platNames = { ai_agent_import: "AI Agent Import", internet_hunter: "Săn Internet", hanhtrangso: "Hành Trang Số", vioedu: "VioEdu", tnmath: "Trạng Nguyên", olympiad: "Olympic", manual: "Tự biên soạn" };
+        const platNames = { ai_agent_import: "AI Agent Import", internet_hunter: "Săn Internet", hanhtrangso: "Hành Trang Số", vioedu: "VioEdu", tnmath: "Trạng Nguyên", olympiad: "Olympic", facebook: "Facebook (Nhóm học tập)", manual: "Tự biên soạn" };
         activeFilterDetails.push(platNames[State.filters.platform] || State.filters.platform.toUpperCase());
       }
       if (State.filters.source_detail && State.filters.source_detail !== "all") {

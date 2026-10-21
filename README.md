@@ -1,7 +1,7 @@
 # EduQuest Pro — Hệ Thống Thu Thập & Quản Lý Ngân Hàng Câu Hỏi Thi Trực Tuyến
 
-![Version](https://img.shields.io/badge/App-v1.0.43-blue)
-![Extension](https://img.shields.io/badge/Extension-v1.3.18-emerald)
+![Version](https://img.shields.io/badge/App-v1.1.8-blue)
+![Extension](https://img.shields.io/badge/Extension-v1.3.19-emerald)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Framework-teal)
 ![KaTeX](https://img.shields.io/badge/Math-KaTeX%20LaTeX-orange)
@@ -28,7 +28,16 @@
 ```
 Online_Learning_For_Kid/
 ├── backend/
-│   ├── app.py                 # FastAPI Application (REST APIs & Static Mounts)
+│   ├── app.py                 # FastAPI Application (Lifespan, Middlewares & Router Mounting)
+│   ├── dependencies.py        # Shared security dependencies (Auth, Admin, API Token)
+│   ├── routers/               # APIRouters độc lập theo chuẩn Modular Architecture
+│   │   ├── auth.py            # Quản lý tài khoản, đăng ký, đăng nhập & duyệt admin
+│   │   ├── questions.py       # Ngân hàng câu hỏi, lọc, phân trang, bulk & deduplication
+│   │   ├── exams.py           # Soạn đề, ma trận đề, trộn đề & xuất PDF/Word
+│   │   ├── practice.py        # Đấu trường luyện tập, chấm điểm & Spaced Repetition
+│   │   ├── collector.py       # Scrapers tự động, VioEdu Hub, Internet Hunter & Seeder
+│   │   ├── ai_vision.py       # Trích xuất PDF, Image OCR Studio & upload media
+│   │   └── database.py        # Chẩn đoán CSDL, sao lưu & khôi phục tự động
 │   ├── database.py            # Quản lý SQLite database (questions.db, q_number 1..N)
 │   ├── models.py              # Pydantic schemas (Question, Exam, Options)
 │   ├── normalizer.py          # Chuẩn hóa LaTeX/MathJax, loại bỏ số câu & tải ảnh offline
@@ -39,14 +48,14 @@ Online_Learning_For_Kid/
 │       ├── internet_hunter.py # Bot cào kho học liệu trực tuyến mở & đề thi online
 │       ├── vioedu.py          # Bot kết nối API VioEdu
 │       └── tnmath.py          # Bot kết nối API Trạng Nguyên
-├── extension/                 # Tiện ích Chrome / Edge Extension (v1.3.15 Manifest V3)
+├── extension/                 # Tiện ích Chrome / Edge Extension (v1.3.19 Manifest V3)
 │   ├── manifest.json
 │   ├── background.js          # Service worker đồng bộ với máy chủ port 8000
 │   ├── interceptor.js         # Tiêm page context bắt gói tin mạng Fetch/XHR/WebSocket
 │   ├── content.js             # Bắt câu hỏi DOM, Floating Widget & Zero-Click Auto-Sync
 │   ├── popup.html / popup.js  # Giao diện điều khiển popup & Monospace Debug Log
 │   └── styles.css
-├── frontend/                  # Web Dashboard UI/UX Pro Max (v1.0.43)
+├── frontend/                  # Web Dashboard UI/UX Pro Max (v1.1.8)
 │   ├── index.html             # Single Page Application
 │   ├── css/style.css          # Design system & KaTeX layout
 │   └── js/

@@ -247,6 +247,80 @@ OPEN_EXAM_REPOSITORY = {
             "correct_answer": "A",
             "explanation": "Hoa là cơ quan sinh sản của thực vật có hoa, gồm có nhị (sinh dục đực) và nhụy (sinh dục cái).",
             "difficulty": "easy"
+        },
+        {
+            "exam_name": "Khảo sát Khoa học Tự nhiên Lớp 5 - Năng lượng",
+            "grade": 5,
+            "subject": "science",
+            "topic": "Năng lượng & Môi trường",
+            "question_type": "single_choice",
+            "content_html": "<p>Nguồn năng lượng nào sau đây là nguồn năng lượng tái tạo và thân thiện với môi trường?</p>",
+            "content_text": "Nguồn năng lượng nào sau đây là nguồn năng lượng tái tạo và thân thiện với môi trường?",
+            "options": [
+                {"id": "A", "content": "Năng lượng gió và mặt trời", "is_correct": True},
+                {"id": "B", "content": "Than đá", "is_correct": False},
+                {"id": "C", "content": "Dầu mỏ", "is_correct": False},
+                {"id": "D", "content": "Khí đốt tự nhiên", "is_correct": False}
+            ],
+            "correct_answer": "A",
+            "explanation": "Năng lượng gió và mặt trời là nguồn năng lượng tái tạo sạch, vô tận và không phát thải khí nhà kính.",
+            "difficulty": "easy"
+        },
+        {
+            "exam_name": "Khám phá Khoa học Tự nhiên Lớp 4 - Vật chất",
+            "grade": 4,
+            "subject": "science",
+            "topic": "Nước và Không khí",
+            "question_type": "single_choice",
+            "content_html": "<p>Nước có những tính chất nào sau đây?</p>",
+            "content_text": "Nước có những tính chất nào sau đây?",
+            "options": [
+                {"id": "A", "content": "Không màu, không mùi, không vị, không có hình dạng nhất định", "is_correct": True},
+                {"id": "B", "content": "Có màu trắng, mùi thơm nhẹ", "is_correct": False},
+                {"id": "C", "content": "Có hình dạng cố định như khối vuông", "is_correct": False},
+                {"id": "D", "content": "Có vị ngọt thanh khi ở trạng thái tự nhiên", "is_correct": False}
+            ],
+            "correct_answer": "A",
+            "explanation": "Nước nguyên chất là chất lỏng trong suốt, không màu, không mùi, không vị và chảy tràn, không có hình dạng nhất định.",
+            "difficulty": "easy"
+        }
+    ],
+    "informatics": [
+        {
+            "exam_name": "Đề thi Tin học Trẻ - Phần cứng máy tính",
+            "grade": 5,
+            "subject": "informatics",
+            "topic": "Phần cứng & Thiết bị số",
+            "question_type": "single_choice",
+            "content_html": "<p>Bộ phận nào được coi là 'bộ não' điều khiển mọi hoạt động của máy tính?</p>",
+            "content_text": "Bộ phận nào được coi là 'bộ não' điều khiển mọi hoạt động của máy tính?",
+            "options": [
+                {"id": "A", "content": "Bộ vi xử lý (CPU)", "is_correct": True},
+                {"id": "B", "content": "Bộ nhớ RAM", "is_correct": False},
+                {"id": "C", "content": "Ổ đĩa cứng (Hard drive)", "is_correct": False},
+                {"id": "D", "content": "Màn hình hiển thị", "is_correct": False}
+            ],
+            "correct_answer": "A",
+            "explanation": "CPU (Central Processing Unit) là bộ xử lý trung tâm, đảm nhiệm việc xử lý dữ liệu và điều khiển mọi hoạt động của máy tính.",
+            "difficulty": "easy"
+        },
+        {
+            "exam_name": "Đề thi Tin học Trẻ - Mạng Internet & An toàn số",
+            "grade": 4,
+            "subject": "informatics",
+            "topic": "An toàn thông tin mạng",
+            "question_type": "single_choice",
+            "content_html": "<p>Khi sử dụng Internet, hành động nào sau đây là <strong>đúng đắn và an toàn</strong>?</p>",
+            "content_text": "Khi sử dụng Internet, hành động nào sau đây là đúng đắn và an toàn?",
+            "options": [
+                {"id": "A", "content": "Không chia sẻ mật khẩu tài khoản và thông tin cá nhân cho người lạ", "is_correct": True},
+                {"id": "B", "content": "Bấm vào các liên kết lạ trúng thưởng xuất hiện trên màn hình", "is_correct": False},
+                {"id": "C", "content": "Đặt mật khẩu dễ đoán như 123456 cho tiện ghi nhớ", "is_correct": False},
+                {"id": "D", "content": "Cung cấp số điện thoại và địa chỉ nhà cho người quen qua mạng", "is_correct": False}
+            ],
+            "correct_answer": "A",
+            "explanation": "Để bảo đảm an toàn trên không gian mạng, tuyệt đối không tiết lộ mật khẩu, thông tin cá nhân hay bấm vào đường link lạ.",
+            "difficulty": "easy"
         }
     ]
 }
@@ -1018,8 +1092,49 @@ def extract_grade_from_url(url: str, default_grade: int = 5) -> int:
 
 
 
-def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
-    """Generates standardized, grade-aligned source URLs and platform info for Grades 1 to 12."""
+def get_all_grades_source_catalog() -> Dict[str, Any]:
+    """Catalog of high-quality verified sources covering all Grades 1 to 12."""
+    vn_sources = [
+        {"name": "Hành Trang Số (SGK GDPT 1-12)", "url": "https://hanhtrangso.nxbgd.vn/sach-dien-tu", "type": "curriculum", "desc": "Kho SGK & SBT GDPT 2018 trọn bộ từ Lớp 1 đến 12 (NXB Giáo Dục)"},
+        {"name": "Lời Giải Hay (Toán, Văn, Anh 1-12)", "url": "https://loigiaihay.com/", "type": "practice", "desc": "Kho đề thi học kỳ & trắc nghiệm chi tiết lớp 1 đến 12 (verified 200)"},
+        {"name": "VietJack (Bộ đề thi & Trắc nghiệm 1-12)", "url": "https://vietjack.com/", "type": "practice", "desc": "Hệ thống trắc nghiệm và đề thi 12 khối lớp bám sát GDPT 2018"},
+        {"name": "OLM.vn (Học trực tuyến K-12)", "url": "https://olm.vn/", "type": "practice", "desc": "Ngân hàng câu hỏi trắc nghiệm tương tác lớp 1 đến 12 (ĐH Sư Phạm)"},
+        {"name": "THCS TOANMATH (Toán 6-9)", "url": "https://thcs.toanmath.com/", "type": "practice", "desc": "Chuyên trang đề thi, kiểm tra định kỳ & trắc nghiệm Toán THCS (verified 200)"},
+        {"name": "TOANMATH (Toán 10-12 & Đề thi THPT)", "url": "https://toanmath.com/", "type": "practice", "desc": "Đề thi thử tốt nghiệp THPT, đề khảo sát & chuyên đề Toán 10-12 (verified 200)"},
+        {"name": "Tech12h (Trắc nghiệm GDPT 1-12)", "url": "https://tech12h.com/", "type": "practice", "desc": "Đề kiểm tra & trắc nghiệm theo bài học SGK Kết nối tri thức 1-12 (verified 200)"},
+        {"name": "VioEdu (Đấu trường Toán học 1-9)", "url": "https://vio.edu.vn/skill-list", "type": "interactive", "desc": "Đấu trường toán học & ngân hàng kỹ năng toán FPT 1-9"},
+        {"name": "Trạng Nguyên Toán (Tiểu học 1-5)", "url": "https://tnmath.edu.vn/", "type": "interactive", "desc": "Sân chơi thi Toán trực tuyến Tiểu học thuần Việt"},
+        {"name": "VnDoc (Tài liệu & Đề thi 1-12)", "url": "https://vndoc.com/", "type": "worksheet", "desc": "Kho tài liệu, đề thi và phiếu bài tập 12 khối lớp"},
+    ]
+    en_sources = [
+        {"name": "K5 Learning (Worksheets K-6)", "url": "https://www.k5learning.com/free-math-worksheets", "type": "worksheets", "desc": "Phiếu bài tập Math & ELA chuẩn US Common Core"},
+        {"name": "IXL Learning Math (K-12)", "url": "https://www.ixl.com/math", "type": "adaptive", "desc": "Hàng ngàn kỹ năng Toán chuẩn US thích ứng từ Grade 1 đến 12"},
+        {"name": "Khan Academy (Math & Science K-12)", "url": "https://www.khanacademy.org/math", "type": "video_interactive", "desc": "Hệ thống bài giảng và bài tập chuẩn quốc tế từ Lớp 1 đến 12"},
+        {"name": "Common Core Math Sheets", "url": "https://www.commoncoresheets.com", "type": "worksheet", "desc": "Trình tạo đề bài tập tự động chuẩn Common Core K-12"},
+        {"name": "Education.com (Math & Reading)", "url": "https://www.education.com/worksheets/", "type": "worksheets", "desc": "Phiếu bài tập Toán & Tiếng Anh chuẩn Quốc tế kèm đáp án"},
+        {"name": "Tiếng Anh 123 (Chương trình 1-12)", "url": "https://www.tienganh123.com/", "type": "practice", "desc": "Luyện ngữ pháp và bài tập Tiếng Anh 1-12"},
+        {"name": "IOE Olympic Tiếng Anh (1-12)", "url": "https://ioe.vn/", "type": "olympiad", "desc": "Olympic Tiếng Anh trực tuyến trên Internet toàn quốc"},
+    ]
+    olympiad_sources = [
+        {"name": "Kangaroo Math IKMC (Khối 1-12)", "url": "https://kangaroo-math.vn", "type": "olympiad", "desc": "Kỳ thi Toán Quốc tế Kangaroo Ecolier, Benjamin, Cadet, Junior, Student"},
+        {"name": "Olympic TIMO & ASMO Song ngữ", "url": "https://codemath.vn/khoa-hoc/timo", "type": "olympiad", "desc": "Đề thi Olympic Toán Quốc tế TIMO & ASMO Song ngữ Anh - Việt"},
+        {"name": "Math Playground (Game Toán tư duy)", "url": "https://www.mathplayground.com/", "type": "interactive", "desc": "Trò chơi toán học tương tác & giải toán tư duy logic"},
+    ]
+    return {
+        "grade": "all",
+        "description": "Tất cả các khối lớp (Cào tuần tự Khối 1 đến 12)",
+        "categories": [
+            {"id": "vietnamese", "title": "Chương trình GDPT Việt Nam (Khối 1 - 12)", "sources": vn_sources},
+            {"id": "english", "title": "Tiếng Anh & US Common Core (Grade 1 - 12)", "sources": en_sources},
+            {"id": "olympiad", "title": "Toán Tư duy & Olympic Song ngữ (Khối 1 - 12)", "sources": olympiad_sources},
+        ]
+    }
+
+
+def get_grade_source_urls(grade: Any = 2) -> Dict[str, Any]:
+    """Generates standardized, grade-aligned source URLs and platform info for Grades 1 to 12 or all."""
+    if str(grade).lower() in ("all", "0", "tat_ca"):
+        return get_all_grades_source_catalog()
     grade = max(1, min(12, int(grade or 2)))
     
     # Vietnamese sources
@@ -1088,6 +1203,12 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
             "type": "practice",
             "desc": f"Bài tập trắc nghiệm Toán Lớp {grade} có đáp án chi tiết (verified 200)"
         },
+        {
+            "name": f"Tech12h Trắc nghiệm GDPT Lớp {grade}",
+            "url": "https://tech12h.com/",
+            "type": "practice",
+            "desc": f"Hệ thống bài tập trắc nghiệm và đề kiểm tra bám sát SGK mới Lớp {grade} (verified 200)"
+        },
     ]
     # 2nd textbook-set listings (grade 2 TV/EN alternates)
     _alt_vn = build_loigiaihay_alt_url("vietnamese", grade)
@@ -1104,6 +1225,20 @@ def get_grade_source_urls(grade: int = 2) -> Dict[str, Any]:
             "url": f"https://loigiaihay.com/{LOIGIAIHAY_VN_TRACNGHIEM[grade]}",
             "type": "interactive",
             "desc": f"Trắc nghiệm Văn Lớp {grade} có đáp án + lời giải — trang quiz JS (mở tay, verified 200)",
+        })
+    if 6 <= grade <= 9:
+        vn_sources.append({
+            "name": f"THCS TOANMATH Toán Lớp {grade}",
+            "url": "https://thcs.toanmath.com/",
+            "type": "practice",
+            "desc": f"Kho tài liệu trắc nghiệm, đề kiểm tra định kỳ & ôn tập Toán Lớp {grade} THCS (verified 200)",
+        })
+    elif 10 <= grade <= 12:
+        vn_sources.append({
+            "name": f"TOANMATH Đề thi & Chuyên đề Toán Lớp {grade}",
+            "url": "https://toanmath.com/",
+            "type": "practice",
+            "desc": f"Đề thi thử tốt nghiệp THPT, đề kiểm tra định kỳ & trắc nghiệm Toán Lớp {grade} THPT (verified 200)",
         })
     # Drop entries with no verified URL (e.g. TV grade 1):
     # a guessed category ID points at the WRONG subject's page.

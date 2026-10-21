@@ -51,6 +51,11 @@ def test_full_pipeline():
 
     print("\n4. Kiểm tra Nạp dữ liệu mẫu ban đầu qua FastAPI Client...")
     client = TestClient(app)
+    from backend.auth import ADMIN_USERNAME, ADMIN_SEED_PASSWORD
+    login_resp = client.post("/api/auth/login", json={"username": ADMIN_USERNAME, "password": ADMIN_SEED_PASSWORD})
+    if login_resp.status_code == 200:
+        token = login_resp.json().get("token", "")
+        client.headers.update({"Authorization": f"Bearer {token}"})
     resp = client.post("/api/init-samples")
     assert resp.status_code == 200
     res_data = resp.json()
@@ -300,19 +305,19 @@ def test_full_pipeline():
         assert os.path.exists(ef), f"Tệp extension {ef} không tồn tại!"
         with open(ef, "r", encoding="utf-8") as f:
             content = f.read()
-        assert any(v in content for v in ["1.3.18", "1.3.17", "1.3.16", "1.3.15"]), f"Tệp {ef} thiếu phiên bản v1.3.18 hoặc v1.3.17!"
+        assert any(v in content for v in ["1.3.20", "1.3.19", "1.3.18", "1.3.17", "1.3.16", "1.3.15"]), f"Tệp {ef} thiếu phiên bản v1.3.19 hoặc v1.3.18!"
         for obsolete in ["1.3.0", "1.3.11", "1.3.12", "1.3.14"]:
             assert obsolete not in content, f"Tệp {ef} còn sót phiên bản cũ {obsolete}!"
-    print("   => Tiện ích Extension đồng bộ v1.3.18 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
+    print("   => Tiện ích Extension đồng bộ v1.3.19 trên tất cả 6 tệp, sạch hoàn toàn chuỗi cũ!")
 
     with open("frontend/index.html", "r", encoding="utf-8") as f:
         index_html = f.read()
     with open("frontend/js/app.js", "r", encoding="utf-8") as f:
         app_js = f.read()
-    assert any(v in index_html for v in ["1.0.46", "1.0.45", "1.0.44"]), "frontend/index.html thiếu phiên bản Web App!"
-    assert any(v in app_js for v in ["1.0.46", "1.0.45", "1.0.44"]), "frontend/js/app.js thiếu phiên bản Web App!"
-    assert any(v in index_html for v in ["?v=1.0.51", "?v=1.0.50", "?v=1.0.49"]), "frontend/index.html thiếu Cache Buster!"
-    print("   => Web App đồng bộ v1.0.46 và Cache Buster ?v=1.0.51 chính xác!")
+    assert any(v in index_html for v in ["1.1.8", "1.1.7", "1.1.6", "1.1.5", "1.0.46", "1.0.45", "1.0.44"]), "frontend/index.html thiếu phiên bản Web App!"
+    assert any(v in app_js for v in ["1.1.8", "1.1.7", "1.1.6", "1.1.5", "1.0.46", "1.0.45", "1.0.44"]), "frontend/js/app.js thiếu phiên bản Web App!"
+    assert any(v in index_html for v in ["?v=1.1.8", "?v=1.1.7", "?v=1.1.6", "?v=1.1.5", "?v=1.0.51", "?v=1.0.50", "?v=1.0.49"]), "frontend/index.html thiếu Cache Buster!"
+    print("   => Web App đồng bộ v1.1.7 và Cache Buster chính xác!")
 
     print("\n17. Kiểm tra Bộ Thẩm định Normalizer & Phân biệt Dấu thanh 'Khoa học' vs 'Khóa học'...")
     # 17.1 Science questions with "khoa học" / "truyện khoa học" must be accepted

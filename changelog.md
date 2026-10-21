@@ -2,6 +2,106 @@
 
 Tat ca cac thay doi quan trong cua du an EduQuest Pro duoc ghi lai trong tai lieu nay.
 
+## [v1.2.5] - 2026-10-21 (app) / ext v1.3.23
+
+### Nâng Cấp Extension Thu Thập Đề Thi & Tự Động Tải Ảnh Facebook Về data/media/
+- **Mở rộng Tiện ích Extension Thu thập Facebook (Trang, Nhóm học tập, Tường cá nhân)**:
+  - Bổ sung bộ nhận diện isFacebookEduPost(text, hasImages) đa năng: tự động phát hiện bài viết đề thi, phiếu ôn tập, đề khảo sát chất lượng (TIMO, ASMO, HKIMO, Trạng Nguyên, VioEdu, v.v.) ngay cả với bài viết có caption ngắn kèm ảnh đề thi.
+  - Bổ sung bộ bóc tách ảnh chất lượng cao extractFacebookImages(post): trích xuất ảnh đề thi từ bài post Facebook (hỗ trợ scontent*.fbcdn.net, [href*='/photo/']), tự động lọc bỏ ảnh đại diện (avatar), biểu tượng cảm xúc (reactions/emojis), icon và banner quảng cáo.
+  - **Nút thu thập 1-Click trực tiếp trên từng bài post Facebook (.eduquest-fb-post-bar)**: Tự động chèn nút ⚡ Lưu đề thi EduQuest (X ảnh) vào đầu các bài viết có đề thi khi người dùng lướt Facebook. Bấm 1 chạm để lưu trọn vẹn nội dung và toàn bộ ảnh bài làm về CSDL.
+  - Tự động quét và nạp ảnh theo chu kỳ (3.5s) khi cuộn xem các nhóm/page ôn luyện trên Facebook.
+- **Backend Image Localizer & Normalizer Hỗ trợ Facebook CDN**:
+  - ackend/normalizer.py: download_and_localize_image() tự động gắn Referer: https://www.facebook.com/ và User-Agent chuẩn Chrome, nhận diện MIME type để lưu ảnh Facebook CDN về thư mục data/media/img_<hash>.jpg cục bộ.
+  - Điều chỉnh is_valid_question_payload() cho nguồn Facebook: cho phép các bài viết chia sẻ đề thi có từ ngữ phụ huynh/ba mẹ/bình luận/chia sẻ, nâng giới hạn độ dài nội dung lên 2500 ký tự cho bài có ảnh đề thi.
+- **Bảo toàn Tính năng Hệ thống**:
+  - Toàn bộ 141 bài kiểm thử tự động (Unit test, Integration test, Route footprint) đều đạt 100% Passed.
+  - Đồng bộ phiên bản toàn hệ thống: 1.2.5 (app) / 1.3.23 (ext).
+
+## [v1.2.2] - 2026-10-20 (app) / ext v1.3.21
+
+### Mặc định Khối 2, Nâng cấp Hunter, Sửa lỗi Bot VioEdu & Lọc rác Extension
+- **Mặc định Khối lớp 2**: Đặt Khối lớp 2 làm giá trị mặc định trên toàn hệ thống (Cấu hình Khối lớp Mặc định, Hunter, Scraper, Luyện tập).
+- **Cải tiến thêm nguồn Hunter**: Hỗ trợ tự động thêm `https://`, nhập nhiều URL/từ khóa cùng lúc, tự động kích hoạt và đưa nguồn lên đầu danh sách cào khi bấm gợi ý nhanh.
+- **Tối ưu Bot VioEdu**: Tối ưu hóa Bot Headless Playwright (giới hạn batch 12 bài để tránh timeout), tự động fallback quét bài luyện tập khi ngoài giờ đấu trường, cơ chế fallback cào bài cũ khi ledger 7 ngày đầy.
+- **Sửa triệt để lỗi Extension lấy sai dữ liệu tường thành tích**:
+  - Chặn các đường dẫn phi giáo dục trên VioEdu (`/achievement-wall`, `/avatar-user`, `/arena-award`, v.v.).
+  - Lọc bỏ triệt để các thông báo gamification (tường thành tích, avatar, kim cương, siêu nhân vượt lười, cảm xúc).
+  - Loại bỏ `<canvas>` khỏi điều kiện coi là công thức toán.
+  - Bổ sung bộ lọc backend trong `backend/normalizer.py`.
+  - Đã xóa sạch 8 bản ghi rác trong cơ sở dữ liệu `questions.db`.
+
+## [v1.2.1] - 2026-10-20 (app) / ext v1.3.20
+
+### Bổ sung Tùy chọn "Tất cả" & Chế độ Cào Tuần tự 12 Khối trong Internet Question Hunter
+- **Tùy chọn Khối lớp "Tất cả (Khối 1 đến 12)"**:
+  - Bổ sung `<option value="all">🌟 Tất cả (Cào tuần tự Khối 1 - 12)</option>` vào bộ lọc Chọn Khối lớp (`#hunter-grade`) và Cấu hình mặc định toàn hệ thống (`#global-default-grade`).
+  - Giao diện tự động thích ứng hiển thị gợi ý nguồn học liệu toàn diện 12 khối lớp cho GDPT Việt Nam, US Math và Olympic Song ngữ.
+- **Động cơ Cào Tuần tự Thời gian thực (Sequential Crawling Engine)**:
+  - Khi chọn "Tất cả", bot tự động chạy vòng lặp tuần tự từ Khối 1 đến Khối 12 (`for (let g = 1; g <= 12; g++)`).
+  - Cập nhật tiến độ trực tiếp lên `hunter-live-log` theo từng khối (`[Khối g/12]`), báo cáo số câu mới lưu và số câu trùng lặp trong CSDL.
+  - Hỗ trợ cả nạp nhanh 1-Click (`harvestCurrentGradeMathQuick`) và tự động định kỳ 5 phút (`toggleAutoHunter`).
+- **Kho Nguồn Cào Mặc định Phong phú (20+ Nguồn Toàn diện)**:
+  - Xây dựng `getDefaultHunterUrlsForGrade("all")` và `get_all_grades_source_catalog()` với 20 nguồn uy tín chuẩn GDPT 2018 (SGK Hành Trang Số, Lời Giải Hay, VietJack, OLM, THCS TOANMATH, TOANMATH, Tech12h, VioEdu, Trạng Nguyên, VnDoc) và Quốc tế/Olympic (K5 Learning, IXL, Khan Academy, Common Core Sheets, Education.com, Tiếng Anh 123, IOE, Kangaroo IKMC, TIMO, Math Playground).
+  - Bổ sung chuyên trang trắc nghiệm SGK mới Tech12h (`tech12h.com`) cho tất cả các khối lớp.
+- **Backend Runner & Router Hỗ trợ `grade="all"`**:
+  - `run_internet_question_hunter()` trong `runner.py` và `/api/hunter/run`, `/api/hunter/harvest-by-grade` trong `collector.py` hỗ trợ trực tiếp tham số `grade="all"` / `grade=0`, tự động lặp tuần tự qua 12 khối lớp với `grade_breakdown` chi tiết.
+- **Đồng bộ Phiên bản**: Nâng số patch lên `v1.2.1` (app) / `v1.3.20` (ext), cập nhật cache-buster `?v=1.2.1` trên toàn bộ tài nguyên tĩnh (`index.html`, `app.js`, `version.py`, `rules.md`).
+
+## [v1.2.0] - 2026-10-19 (app) / ext v1.3.20
+
+### Tích hợp Chế độ Chia sẻ (Shared Mode) ngrok Tunnel 24/7 vào Docker Compose
+- **Tự động hóa Shared Mode trong Docker**:
+  - Tích hợp service `ngrok` (image `ngrok/ngrok:latest`) trực tiếp vào `docker-compose.yml`, chạy song song với `eduquest-pro`.
+  - Kết nối ngrok thẳng vào server FastAPI qua mạng nội bộ Docker (`http://eduquest:8000`), không phụ thuộc vào cổng host hay tiến trình console ngoài Windows.
+  - Cấu hình `restart: unless-stopped` đảm bảo hệ thống tự khởi động lại và duy trì kết nối Internet liên tục khi Windows khởi động lại hoặc khi rớt mạng.
+- **Bảo mật & Biến môi trường**:
+  - Tạo `.env` và `.env.example` lưu trữ `NGROK_AUTHTOKEN` và `NGROK_DOMAIN` (`otter-scrawny-squall.ngrok-free.dev`), tự động nạp vào Docker Compose.
+  - Cấu hình `CORS_ORIGINS` cho phép các truy vấn từ domain ngrok an toàn.
+- **Loại bỏ Hoàn toàn Cửa sổ CMD Thủ công**:
+  - Người dùng không còn phải mở cửa sổ CMD chạy `start_server_shared.py` hay `ngrok.exe` trên màn hình Desktop, loại trừ 100% rủi ro tắt nhầm làm mất kết nối của bot và học sinh.
+- **Cải tiến Menu `start.bat` & Tài liệu `DEPLOY_GUIDE.md`**:
+  - Bổ sung tùy chọn chạy Docker 24/7 (Server + ngrok Internet) vào menu `[5] 🐳 Docker`.
+  - Bổ sung tùy chọn `[F] Xem log ngrok realtime` và hiển thị URL Internet cố định trong thông tin trạng thái.
+  - Bổ sung tài liệu hướng dẫn vận hành ngrok Docker 24/7 trong `DEPLOY_GUIDE.md`.
+- **Đồng bộ phiên bản**: `v1.2.0` (app) / `v1.3.20` (ext) trên toàn bộ `version.py`, `index.html`, `app.js`, `rules.md`.
+- **Kiểm thử**: Tất cả unit tests và endpoint kiểm tra kết nối (`localhost:8000` và `otter-scrawny-squall.ngrok-free.dev`) đạt HTTP 200 OK.
+
+## [v1.1.9] - 2026-10-17 (app) / ext v1.3.20
+
+### Cải tiến Toàn diện VioEdu Auto-Scraper & Extension Parser
+- **Phase 1: Score Variation (CRITICAL FIX)**:
+  - Sửa lỗi gốc bot không cào được câu hỏi mới: VioEdu GraphQL `PracticeQuestionQuery` dùng param `score` chọn tier độ khó. Bot trước đây hardcode `score=0` → chỉ lấy được ~3-8 câu dễ nhất mỗi skill rồi lặp vĩnh viễn.
+  - Nay quét tuần tự 6 mức điểm `[0, 20, 40, 60, 80, 100]` trên mỗi skill, thu hoạch toàn bộ phổ câu hỏi từ cơ bản đến nâng cao.
+  - Thêm `previousScore`, `grade`, `user` (optional) vào GraphQL variables.
+  - Giảm `consecutive_repeats` threshold từ 4→2 để phát hiện hết pool nhanh hơn.
+- **Phase 2: Smart Ledger v2 (Adaptive Cooldown)**:
+  - Nâng cấp cấu trúc ledger từ `{skill_id: timestamp}` sang `{skill_id: {last_crawl, new_count, total_crawled, fail_streak}}` với auto-migration v1→v2.
+  - Adaptive cooldown: skill hot (có câu mới) = 2 ngày, bình thường = 7 ngày, đã cạn kiệt (3+ fail liên tiếp) = 14 ngày.
+  - `record_skill_crawl()` nay nhận `new_count` để theo dõi hiệu suất cào từng skill.
+- **Phase 4: Extension Interceptor Parser Fix**:
+  - `parseVioEduGraphQLItem()` nay đọc `answers[].correct === true` và set `correct_answer` đúng (trước đây luôn trả `null`).
+  - Thêm `is_correct` flag cho từng option, trường `explanation`, và phát hiện `question_type` chính xác.
+- **Đồng bộ phiên bản**: `v1.1.9` (app) / `v1.3.20` (ext) trên toàn bộ `version.py`, `index.html`, `app.js`, `manifest.json`, `content.js`, `interceptor.js`, `background.js`, `rules.md`.
+- **Tests**: 134/134 unit tests passed.
+
+## [v1.1.8] - 2026-10-14 (app) / ext v1.3.19
+
+### Tái cấu trúc Backend Modular Router & Vá lỗi Toàn diện
+- **Phase 1: Vá lỗi nóng v1.1.7**:
+  - `backend/normalizer.py`: Bổ sung ngoại lệ whitelist cho `source_platform == "facebook"` để không bị chặn bởi bộ lọc contact keywords.
+  - `backend/routers/collector.py`: Đổi HTTP 401 thành HTTP 400 khi đăng nhập VioEdu thất bại, ngăn chặn việc `auth.js` tự động xóa token và kick admin ra ngoài.
+  - `extension/content.js`: Làm sạch icon/reaction Facebook, chuẩn hóa ngắt dòng HTML `<br>`, fallback dạng câu hỏi `fill_blank` cho các bài post không có lựa chọn A/B/C/D.
+  - Scheduler xoay tua khối lớp: Lưu con trỏ `vioedu_auto_cursor` vào SQLite `system_config` để duy trì trạng thái xoay tua sau khi khởi động lại server.
+- **Phase 2: Tái cấu trúc Backend God-Object**:
+  - Tách `backend/app.py` từ 2,896 dòng xuống còn 334 dòng, chia thành 7 APIRouters độc lập trong `backend/routers/` (`auth.py`, `questions.py`, `exams.py`, `practice.py`, `collector.py`, `ai_vision.py`, `database.py`).
+  - Tạo `backend/dependencies.py` tập trung các hàm xác thực và phân quyền (Bearer session, admin check, API token).
+  - Đảm bảo **Zero Route Drift**: Toàn bộ 90 routes trong snapshot được bảo toàn chính xác 100% cả về đường dẫn và HTTP methods (xác thực qua `tests/test_route_footprint.py`).
+- **Phase 3: Tối ưu Frontend & Chuẩn hóa Auth Fetch**:
+  - Chuẩn hóa toàn bộ 15 điểm gọi API còn lại trong `frontend/js/collector.js` sang `apiFetch()` tự động đính kèm Bearer token của EduAuth.
+- **Phase 4: Kiểm thử Toàn diện**:
+  - 134/134 bài kiểm thử unit tests (`tests/`) và 25/25 bước kiểm thử tích hợp E2E (`test_app.py`) đều đạt kết quả 100% Passed.
+  - Đồng bộ phiên bản `v1.1.8` trên `version.py`, `index.html`, `app.js`, `README.md`, `rules.md`.
+
 ## [v1.1.7] - 2026-10-14 (app) / ext v1.3.19
 
 ### User: xoay 1-12 bang TK dang nhap + quet Facebook

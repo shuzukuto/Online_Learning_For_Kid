@@ -42,8 +42,12 @@ def _skill_ledger_path() -> str:
     return os.path.join(d, "vioedu_skill_ledger.json")
 
 
-def _load_skill_ledger() -> Dict[str, str]:
-    """skill_id -> ISO timestamp of last successful crawl."""
+def _load_skill_ledger() -> Dict[str, Any]:
+    """Ledger v2: skill_id -> {last_crawl, new_count, total_crawled, fail_streak}.
+
+    Backward-compatible: old entries stored as plain ISO strings are
+    auto-migrated on read to ``{"last_crawl": "<ts>", ...}`` dicts.
+    """
     import json as _json
     import os as _os
     p = _skill_ledger_path()
@@ -52,12 +56,27 @@ def _load_skill_ledger() -> Dict[str, str]:
     try:
         with open(p, encoding="utf-8") as f:
             data = _json.load(f)
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            return {}
+        # Auto-migrate v1 (plain string timestamps) → v2 dicts
+        migrated = False
+        for k, v in list(data.items()):
+            if isinstance(v, str):
+                data[k] = {"last_crawl": v, "new_count": 0,
+                           "total_crawled": 0, "fail_streak": 0}
+                migrated = True
+        if migrated:
+            try:
+                with open(p, "w", encoding="utf-8") as f2:
+                    _json.dump(data, f2, ensure_ascii=False)
+            except Exception:
+                pass
+        return data
     except Exception:
         return {}
 
 
-def _save_skill_ledger(ledger: Dict[str, str]) -> None:
+def _save_skill_ledger(ledger: Dict[str, Any]) -> None:
     import json as _json
     try:
         with open(_skill_ledger_path(), "w", encoding="utf-8") as f:
@@ -66,18 +85,63 @@ def _save_skill_ledger(ledger: Dict[str, str]) -> None:
         pass
 
 
-def record_skill_crawl(skill_id: str, when: Optional[str] = None) -> None:
-    """Mark a skill as crawled now (ISO timestamp). Pure file-backed ledger."""
+def record_skill_crawl(skill_id: str, new_count: int = 0,
+                        when: Optional[str] = None) -> None:
+    """Record a crawl result with v2 metadata (new questions found, streaks).
+
+    Parameters
+    ----------
+    skill_id : str
+        The VioEdu skill ObjectId.
+    new_count : int
+        Number of **new** (not-yet-in-DB) questions found in this crawl.
+        Pass 0 when the caller cannot determine this (legacy call sites).
+    when : str | None
+        ISO timestamp override (for testing); defaults to now.
+    """
     if not skill_id:
         return
     ledger = _load_skill_ledger()
-    ledger[str(skill_id)] = when or datetime.now(VN_TZ).isoformat()
+    sid = str(skill_id)
+    prev = ledger.get(sid)
+    if isinstance(prev, str):
+        prev = {"last_crawl": prev, "new_count": 0,
+                "total_crawled": 0, "fail_streak": 0}
+    elif not isinstance(prev, dict):
+        prev = {"last_crawl": "", "new_count": 0,
+                "total_crawled": 0, "fail_streak": 0}
+    prev["last_crawl"] = when or datetime.now(VN_TZ).isoformat()
+    prev["new_count"] = new_count
+    prev["total_crawled"] = (prev.get("total_crawled") or 0) + max(new_count, 0)
+    if new_count > 0:
+        prev["fail_streak"] = 0
+    else:
+        prev["fail_streak"] = (prev.get("fail_streak") or 0) + 1
+    ledger[sid] = prev
     _save_skill_ledger(ledger)
+
+
+def _adaptive_cooldown_days(entry: Dict[str, Any],
+                            default_days: int = VIOEDU_RECRAWL_DAYS) -> float:
+    """Return how many days to wait before re-crawling this skill.
+
+    Adaptive strategy:
+    - Last crawl found new questions & fail_streak == 0 → 2 days (hot)
+    - Last crawl found 0 new & fail_streak < 3             → default (7 days)
+    - fail_streak >= 3                                     → 14 days (exhausted)
+    """
+    fs = entry.get("fail_streak") or 0
+    nc = entry.get("new_count") or 0
+    if nc > 0 and fs == 0:
+        return 2.0
+    if fs >= 3:
+        return 14.0
+    return float(default_days)
 
 
 def get_stale_skills(skills: List[Dict[str, Any]], max_age_days: int = VIOEDU_RECRAWL_DAYS,
                       now: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Return only skills never crawled or crawled longer than max_age_days ago."""
+    """Return only skills never crawled or whose adaptive cooldown has elapsed."""
     from datetime import datetime as _dt
     ledger = _load_skill_ledger()
     try:
@@ -89,7 +153,15 @@ def get_stale_skills(skills: List[Dict[str, Any]], max_age_days: int = VIOEDU_RE
         sid = str(s.get("skill_id") or "")
         if not sid:
             continue
-        ts = ledger.get(sid)
+        entry = ledger.get(sid)
+        if not entry:
+            stale.append(s)
+            continue
+        # Backward compat: plain string → treat as v1
+        if isinstance(entry, str):
+            entry = {"last_crawl": entry, "new_count": 0,
+                     "total_crawled": 0, "fail_streak": 0}
+        ts = entry.get("last_crawl") or ""
         if not ts:
             stale.append(s)
             continue
@@ -99,7 +171,8 @@ def get_stale_skills(skills: List[Dict[str, Any]], max_age_days: int = VIOEDU_RE
         except Exception:
             stale.append(s)
             continue
-        if age >= max_age_days:
+        cooldown = _adaptive_cooldown_days(entry, max_age_days)
+        if age >= cooldown:
             stale.append(s)
     return stale
 
@@ -572,10 +645,17 @@ async def fetch_vioedu_skill_practice_questions(
     grade: int,
     cookies: Optional[Dict[str, str]] = None,
     max_questions: int = 15,
-    log_func: Optional[callable] = None
+    log_func: Optional[callable] = None,
+    user_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    Safely retrieves practice questions for a specific skill via GraphQL in Read-Only mode.
+    """Safely retrieves practice questions for a specific skill via GraphQL.
+
+    **Score Variation Strategy (v2):**  VioEdu's adaptive question engine
+    selects questions based on ``score`` / ``previousScore``.  By sweeping
+    multiple score levels (0 → 100, step 20) we unlock questions at every
+    ``depthOfKnowledge`` tier instead of only the easiest pool.
+
+    Safety guarantees are unchanged:
     - Zero answer submissions (PracticeResultMutation is NEVER called).
     - Preserves student practice quota, score, and progress 100%.
     - Completely safe against bot bans.
@@ -587,68 +667,91 @@ async def fetch_vioedu_skill_practice_questions(
         "Referer": f"{VIOEDU_BASE_URL}/skill-practice/{skill_id}",
         "Origin": VIOEDU_BASE_URL
     }
-    
+
     collected: List[Dict[str, Any]] = []
-    seen_ids = set()
-    consecutive_repeats = 0
-    
+    seen_ids: set = set()
+
+    # Score levels to sweep: each level can unlock a different question pool
+    # based on VioEdu's adaptive ``depthOfKnowledge`` engine.
+    SCORE_LEVELS = [0, 20, 40, 60, 80, 100]
+
     if log_func:
-        log_func(f"🎯 Bắt đầu truy vấn câu hỏi thực hành an toàn (Read-Only) cho bài: {skill_id}...")
-        
+        log_func(f"🎯 Bắt đầu truy vấn câu hỏi thực hành an toàn (Read-Only, {len(SCORE_LEVELS)} mức điểm) cho bài: {skill_id}...")
+
     try:
         async with httpx.AsyncClient(timeout=12.0, cookies=cookies or {}, follow_redirects=True) as client:
-            for step in range(max_questions):
-                variables = {
-                    "skillId": skill_id,
-                    "score": 0,
-                    "userHomeworkId": "",
-                    "fromSchool": False,
-                    "notHomework": False,
-                    "skillResultId": "",
-                    "totalQues": step,
-                    "hwQsDone": step,
-                    "isManual": False,
-                    "afterManual": False
-                }
-                payload = {
-                    "operationName": "PracticeQuestionQuery",
-                    "variables": variables,
-                    "query": PRACTICE_QUESTION_QUERY
-                }
-                
-                resp = await client.post(url, json=payload, headers=headers)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    raw_q = data.get("data", {}).get("getPracticeQuestionBySkillId")
-                    if raw_q and raw_q.get("_id"):
-                        qid = raw_q["_id"]
-                        if qid not in seen_ids:
-                            seen_ids.add(qid)
-                            consecutive_repeats = 0
-                            collected.append(raw_q)
-                            if log_func:
-                                s_name = raw_q.get("skillName") or "Luyện tập"
-                                raw_stem = clean_vioedu_stem(raw_q.get('content', ''))
-                                clean_snippet = re.sub(r'<[^>]+>', ' ', raw_stem)
-                                clean_snippet = re.sub(r'\s+', ' ', clean_snippet).strip()[:55]
-                                log_func(f"  ✨ Thu thập câu hỏi #{len(collected)} [{s_name}]: {clean_snippet}...")
-                        else:
-                            consecutive_repeats += 1
-                            if consecutive_repeats >= 4:
+            for score_level in SCORE_LEVELS:
+                consecutive_repeats = 0
+                # Number of fetch rounds per score level: spread max_questions
+                # across all levels, minimum 3 per level.
+                rounds_per_level = max(3, max_questions // len(SCORE_LEVELS))
+                for step in range(rounds_per_level):
+                    if len(collected) >= max_questions:
+                        break
+                    variables: Dict[str, Any] = {
+                        "skillId": skill_id,
+                        "score": score_level,
+                        "previousScore": max(0, score_level - 20),
+                        "grade": grade,
+                        "userHomeworkId": "",
+                        "fromSchool": False,
+                        "notHomework": False,
+                        "skillResultId": "",
+                        "totalQues": step,
+                        "hwQsDone": step,
+                        "isManual": False,
+                        "afterManual": False,
+                    }
+                    # Pass user ID when available (authed sessions unlock more
+                    # questions, e.g. homework-only or premium content).
+                    if user_id:
+                        variables["user"] = user_id
+                    payload = {
+                        "operationName": "PracticeQuestionQuery",
+                        "variables": variables,
+                        "query": PRACTICE_QUESTION_QUERY
+                    }
+
+                    resp = await client.post(url, json=payload, headers=headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw_q = data.get("data", {}).get("getPracticeQuestionBySkillId")
+                        if raw_q and raw_q.get("_id"):
+                            qid = raw_q["_id"]
+                            if qid not in seen_ids:
+                                seen_ids.add(qid)
+                                consecutive_repeats = 0
+                                collected.append(raw_q)
                                 if log_func:
-                                    log_func(f"  ℹ️ Đã quét hết ngân hàng câu hỏi mở của bài luyện tập này ({len(collected)} câu).")
-                                break
+                                    s_name = raw_q.get("skillName") or "Luyện tập"
+                                    raw_stem = clean_vioedu_stem(raw_q.get('content', ''))
+                                    clean_snippet = re.sub(r'<[^>]+>', ' ', raw_stem)
+                                    clean_snippet = re.sub(r'\s+', ' ', clean_snippet).strip()[:55]
+                                    log_func(f"  ✨ Thu thập câu hỏi #{len(collected)} [{s_name}] (điểm={score_level}): {clean_snippet}...")
+                            else:
+                                consecutive_repeats += 1
+                                # Bail out of this score level after 2 consecutive
+                                # repeats (lowered from 4) — the pool is exhausted.
+                                if consecutive_repeats >= 2:
+                                    break
+                        else:
+                            # Server returned null question — move to next score level
+                            break
                     else:
                         break
-                else:
+
+                    await asyncio.sleep(0.35)
+
+                if len(collected) >= max_questions:
                     break
-                    
-                await asyncio.sleep(0.35)
-                
+
+            if log_func:
+                log_func(f"  ℹ️ Tổng kết: Thu thập được {len(collected)} câu hỏi unique cho bài {skill_id}.")
+
     except Exception as e:
         if log_func:
             log_func(f"⚠️ Lỗi kết nối khi truy vấn bài luyện tập: {str(e)}")
-            
+
     return collected
 
 LIST_TOPIC_SKILL_QUERY = """query getListTopicSkill($grade: Int, $subjectId: String, $semester: Int, $topicClass: String, $bookId: String) {
@@ -781,7 +884,7 @@ async def crawl_vioedu_breadth(
                             raw["skillName"] = raw.get("skillName") or s.get("skill_name")
                             collected.append(raw)
                         n_q += len(sqs)
-                        record_skill_crawl(s["skill_id"])
+                        record_skill_crawl(s["skill_id"], new_count=len(sqs))
                         await asyncio.sleep(0.2)
                     stats[f"{subj}_g{grade}"] = n_q
                     if log_func:
@@ -821,7 +924,7 @@ async def crawl_vioedu_rounds_headless(
         live_logs.append(formatted)
         print(f"[VioEdu Bot] {formatted}")
         
-    log_step(f"🚀 Khởi động Bot Đăng nhập Ngầm VioEdu cho tài khoản: {username}...")
+    log_step(f"🚀 [Bước 1/5] Khởi động Bot Đăng nhập Ngầm VioEdu cho tài khoản: {username}...")
     
     if not username or not password:
         err = "Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu tài khoản VioEdu."
@@ -835,14 +938,21 @@ async def crawl_vioedu_rounds_headless(
 
     # Parse target type early
     target_info = parse_vioedu_target(round_id)
-    log_step(f"🎯 Phân tích mục tiêu cào dữ liệu: Kiểu '{target_info['type'].upper()}'")
+    target_desc = "Tự động (Tìm vòng Đấu trường đang mở hoặc bài luyện tập phù hợp)"
+    if target_info["type"] == "arena_round":
+        target_desc = f"Vòng thi Đấu trường #{target_info['round_id']} (Khối {effective_grade})"
+    elif target_info["type"] == "skill_practice":
+        target_desc = f"Bài luyện tập chuyên đề (ID: {target_info['skill_id']})"
+    elif target_info["type"] == "skill_list":
+        target_desc = f"Toàn bộ danh mục kỹ năng Toán Khối {effective_grade}"
+    log_step(f"🎯 [Bước 1/5] Phân tích mục tiêu cào dữ liệu: {target_desc}")
 
-    # Step 1: Check credentials directly with VioEdu API
-    log_step("🔑 Đang kiểm tra xác thực tài khoản VioEdu...")
+    # Step 2: Check credentials directly with VioEdu API
+    log_step(f"🔑 [Bước 2/5] Đang kiểm tra xác thực tài khoản VioEdu ({username})...")
     auth_check = await login_vioedu(username, password, log_func=log_step)
     if not auth_check.get("success"):
         err_msg = auth_check.get("error", "Tài khoản hoặc mật khẩu VioEdu không chính xác. Vui lòng kiểm tra lại.")
-        log_step(f"❌ {err_msg}", "error")
+        log_step(f"❌ [Bước 2/5] Đăng nhập thất bại: {err_msg}", "error")
         return {"success": False, "error": err_msg, "logs": live_logs}
 
     session_cookies = auth_check.get("cookies", {})
@@ -850,14 +960,14 @@ async def crawl_vioedu_rounds_headless(
     if auth_check.get("grade"):
         student_profile["grade"] = auth_check["grade"]
         effective_grade = int(auth_check["grade"])
-        log_step(f"✅ Xác thực tài khoản thành công! Học sinh: {student_profile['fullName']}")
-        log_step(f"📌 QUAN TRỌNG: Tài khoản VioEdu có KHỐI LỚP CỐ ĐỊNH: Lớp {effective_grade}. Bot áp dụng tự động cho mọi câu hỏi và vòng thi!")
+        log_step(f"✅ [Bước 2/5] Xác thực tài khoản thành công! Học sinh: {student_profile['fullName']}")
+        log_step(f"📌 [Bước 2/5] Tài khoản VioEdu có KHỐI LỚP CỐ ĐỊNH: Lớp {effective_grade} (Bot tự động áp dụng cho mọi câu hỏi và vòng thi).")
 
     target_exam_name = f"VioEdu Luyện tập - Khối {effective_grade}"
 
     try:
         async with async_playwright() as p:
-            log_step("🌐 Đang khởi tạo trình duyệt Chromium không đầu (Headless)...")
+            log_step("🌐 [Bước 3/5] Khởi tạo trình duyệt Chromium không đầu (Headless) để vượt tường bảo vệ & đồng bộ phiên...")
             browser = await p.chromium.launch(
                 headless=True,
                 args=[
@@ -1104,8 +1214,8 @@ async def crawl_vioedu_rounds_headless(
     except Exception as e:
         log_step(f"⚠️ Ngoại lệ trong tiến trình Bot: {str(e)}", "warn")
         
-    # --- Step 4: Normalize, Filter & Save to SQLite Database ---
-    log_step(f"🔄 Đang tiến hành làm sạch & chuẩn hóa toàn bộ {len(captured_questions_raw)} dữ liệu thu thập được...")
+    # --- Step 5: Normalize, Filter & Save to SQLite Database ---
+    log_step(f"🔄 [Bước 5/5] Đang làm sạch, chuẩn hóa và kiểm tra trùng lặp cho {len(captured_questions_raw)} câu hỏi thu được...")
     
     unique_candidates: Dict[str, Dict[str, Any]] = {}
     for raw_q in captured_questions_raw:
@@ -1121,9 +1231,7 @@ async def crawl_vioedu_rounds_headless(
         )
         if parsed:
             parsed["grade"] = item_grade
-            # Dedup key: full normalized text + options signature. NEVER truncate:
-            # VioEdu stems share long prefixes ("Bạn hãy chọn đáp án đúng..."),
-            # so a [:80] prefix key collapses distinct questions into one.
+            # Dedup key: full normalized text + options signature.
             opt_sig = "|".join(
                 str((o.get("content") or "") if isinstance(o, dict) else o)[:60]
                 for o in (parsed.get("options") or [])
@@ -1152,12 +1260,28 @@ async def crawl_vioedu_rounds_headless(
             message=f"Bot VioEdu cào thành công: {inserted_count} câu hỏi mới (Khối {effective_grade} - {student_profile.get('fullName') or username})",
             count=inserted_count
         )
-        log_step(f"💾 CƠ SỞ DỮ LIỆU: Đã lưu thành công {inserted_count} câu hỏi mới vào Ngân hàng EduQuest Pro!", "success")
-    else:
-        log_step(f"ℹ️ Đợt quét hoàn tất: Không có câu hỏi mới hoặc câu hỏi đã tồn tại trong CSDL.", "info")
-        log_step(f"💡 Gợi ý: Hãy nhập link bài luyện tập (vd: https://vio.edu.vn/skill-practice/...) hoặc mã vòng thi cụ thể.")
         
-    log_step(f"🎉 Hoàn thành tiến trình Bot Cào Dữ liệu VioEdu!")
+    dupe_in_db = max(0, len(valid_normalized_list) - inserted_count)
+    log_step(f"  • Tổng câu hỏi bắt được từ mạng: {len(captured_questions_raw)} câu.")
+    log_step(f"  • Số câu chuẩn hóa hợp lệ: {len(valid_normalized_list)} câu.")
+    if dupe_in_db > 0:
+        log_step(f"  • Đã có sẵn trong CSDL: {dupe_in_db} câu (tự động bỏ qua để chống trùng lặp).")
+    if inserted_count > 0:
+        log_step(f"💾 CƠ SỞ DỮ LIỆU: Đã lưu thành công {inserted_count} câu hỏi MỚI TINH vào Ngân hàng EduQuest Pro!", "success")
+    else:
+        log_step(f"ℹ️ Không có câu hỏi mới: Toàn bộ câu hỏi quét được đã tồn tại trong CSDL hoặc trang thi chưa mở.", "info")
+        log_step(f"💡 Gợi ý: Hãy nhập link bài luyện tập cụ thể (vd: https://vio.edu.vn/skill-practice/...) hoặc số vòng thi để cào thêm.")
+
+    # Comprehensive summary report
+    log_step("============================================================")
+    log_step("📊 BÁO CÁO TỔNG KẾT TIẾN TRÌNH BOT CÀO VIOEDU:")
+    log_step(f"  • Học sinh: {student_profile.get('fullName') or username} | Khối: Lớp {effective_grade}")
+    log_step(f"  • Mục tiêu: {target_exam_name}")
+    log_step(f"  • Bắt được từ mạng: {len(captured_questions_raw)} câu hỏi")
+    log_step(f"  • Bỏ qua do đã có trong CSDL: {dupe_in_db} câu")
+    log_step(f"  • Nạp mới thành công: {inserted_count} câu")
+    log_step("============================================================")
+    log_step("🎉 Hoàn thành tiến trình Bot Cào Dữ liệu VioEdu!")
     
     return {
         "success": True,
@@ -1197,3 +1321,233 @@ async def fetch_vioedu_arena_questions(token: str, arena_id: str, grade: int = 5
         print(f"Error fetching VioEdu arena questions: {e}")
         
     return []
+
+
+# -------------------------------------------------------------
+# 7. Supplementary GraphQL Endpoints (Exam, Homework, Challenge)
+# -------------------------------------------------------------
+
+_VIOEDU_QUESTION_FIELDS = """
+    _id
+    skillName
+    grade
+    subject
+    content
+    depthOfKnowledge
+    questionType
+    explanation
+    answers { _id text order correct }
+    leftMatching { id textContent }
+    rightMatching { id textContent }
+    textDropdownAnswers { order list { text } }
+    topic
+    category
+"""
+
+# Student Exam queries — VioEdu may expose exam/test content via these operations
+GET_STUDENT_EXAM_QUERY = f"""query getStudentExamQuery($grade: Int, $subjectId: String, $semester: Int) {{
+  getStudentExam(grade: $grade, subjectId: $subjectId, semester: $semester) {{
+    _id name questions {{
+      {_VIOEDU_QUESTION_FIELDS}
+    }}
+  }}
+}}"""
+
+GET_HOMEWORK_QUERY = f"""query getHomeworkQuestionsQuery($userId: String, $grade: Int, $subjectId: String) {{
+  getHomeworkByUser(userId: $userId, grade: $grade, subjectId: $subjectId) {{
+    _id skillName questions {{
+      {_VIOEDU_QUESTION_FIELDS}
+    }}
+  }}
+}}"""
+
+GET_DAILY_CHALLENGE_QUERY = f"""query getDailyChallengeQuery($grade: Int, $subjectId: String) {{
+  getDailyChallenge(grade: $grade, subjectId: $subjectId) {{
+    {_VIOEDU_QUESTION_FIELDS}
+  }}
+}}"""
+
+
+async def _vioedu_graphql_fetch(
+    operation_name: str,
+    query: str,
+    variables: Dict[str, Any],
+    cookies: Optional[Dict[str, str]] = None,
+    log_func: Optional[Callable[..., None]] = None,
+) -> Any:
+    """Low-level helper: POST a GraphQL query to VioEdu and return the 'data' payload.
+
+    Returns None on network/auth errors instead of raising — callers decide
+    whether to retry or skip.
+    """
+    headers = {
+        "Content-Type": "application/json",
+        "Origin": VIOEDU_BASE_URL,
+        "Referer": f"{VIOEDU_BASE_URL}/",
+        "User-Agent": USER_AGENT,
+    }
+    payload = {"operationName": operation_name, "variables": variables, "query": query}
+    try:
+        async with httpx.AsyncClient(timeout=15.0, cookies=cookies) as client:
+            resp = await client.post(f"{VIOEDU_BASE_URL}/graphql", json=payload, headers=headers)
+            if resp.status_code != 200:
+                if log_func:
+                    log_func(f"[GraphQL {operation_name}] HTTP {resp.status_code}")
+                return None
+            body = resp.json()
+            if body.get("errors"):
+                if log_func:
+                    log_func(f"[GraphQL {operation_name}] errors: {body['errors'][:200]}")
+                return None
+            return body.get("data")
+    except Exception as e:
+        if log_func:
+            log_func(f"[GraphQL {operation_name}] exception: {e}")
+        return None
+
+
+async def fetch_vioedu_student_exams(
+    grade: int,
+    subject_id: str = "",
+    semester: int = 1,
+    cookies: Optional[Dict[str, str]] = None,
+    log_func: Optional[Callable[..., None]] = None,
+) -> List[Dict[str, Any]]:
+    """Attempt to fetch student exam questions for a grade/subject/semester.
+
+    This targets VioEdu's exam content which is separate from skill practice.
+    If the operation name is wrong or requires auth, returns empty gracefully.
+    """
+    variables: Dict[str, Any] = {"grade": grade, "semester": semester}
+    if subject_id:
+        variables["subjectId"] = subject_id
+    data = await _vioedu_graphql_fetch(
+        "getStudentExamQuery", GET_STUDENT_EXAM_QUERY, variables, cookies, log_func
+    )
+    if not data:
+        return []
+    # Response shape: data.getStudentExam = {_id, name, questions: [...]}
+    exam = data.get("getStudentExam")
+    if not exam:
+        return []
+    raw_qs = exam.get("questions") or []
+    exam_name = exam.get("name") or f"VioEdu Exam G{grade}"
+    collected = []
+    for q in raw_qs:
+        parsed = parse_vioedu_question_data(q, exam_name=exam_name, grade=grade)
+        if parsed:
+            collected.append(parsed)
+    if log_func and collected:
+        log_func(f"[StudentExam] G{grade} sem{semester}: {len(collected)} câu")
+    return collected
+
+
+async def fetch_vioedu_homework(
+    grade: int,
+    user_id: str = "",
+    subject_id: str = "",
+    cookies: Optional[Dict[str, str]] = None,
+    log_func: Optional[Callable[..., None]] = None,
+) -> List[Dict[str, Any]]:
+    """Attempt to fetch homework questions assigned to a user.
+
+    Requires authenticated session (cookies) and user_id for meaningful results.
+    Returns empty if not authenticated or operation name mismatches.
+    """
+    if not cookies:
+        return []  # Homework requires authentication
+    variables: Dict[str, Any] = {"grade": grade}
+    if user_id:
+        variables["userId"] = user_id
+    if subject_id:
+        variables["subjectId"] = subject_id
+    data = await _vioedu_graphql_fetch(
+        "getHomeworkQuestionsQuery", GET_HOMEWORK_QUERY, variables, cookies, log_func
+    )
+    if not data:
+        return []
+    hw = data.get("getHomeworkByUser")
+    if not hw:
+        return []
+    # hw may be a list of homework sets or a single object
+    hw_list = hw if isinstance(hw, list) else [hw]
+    collected = []
+    for hw_item in hw_list:
+        raw_qs = hw_item.get("questions") or []
+        skill = hw_item.get("skillName") or "Bài tập về nhà"
+        for q in raw_qs:
+            parsed = parse_vioedu_question_data(q, exam_name=f"BTVN: {skill}", grade=grade)
+            if parsed:
+                collected.append(parsed)
+    if log_func and collected:
+        log_func(f"[Homework] G{grade}: {len(collected)} câu")
+    return collected
+
+
+async def fetch_vioedu_daily_challenge(
+    grade: int,
+    subject_id: str = "",
+    cookies: Optional[Dict[str, str]] = None,
+    log_func: Optional[Callable[..., None]] = None,
+) -> List[Dict[str, Any]]:
+    """Attempt to fetch daily challenge questions for a grade.
+
+    Daily challenges rotate each day so re-fetching yields new content.
+    """
+    variables: Dict[str, Any] = {"grade": grade}
+    if subject_id:
+        variables["subjectId"] = subject_id
+    data = await _vioedu_graphql_fetch(
+        "getDailyChallengeQuery", GET_DAILY_CHALLENGE_QUERY, variables, cookies, log_func
+    )
+    if not data:
+        return []
+    challenge = data.get("getDailyChallenge")
+    if not challenge:
+        return []
+    # challenge may be a single question or a list
+    items = challenge if isinstance(challenge, list) else [challenge]
+    collected = []
+    for q in items:
+        parsed = parse_vioedu_question_data(q, exam_name=f"Thử thách G{grade}", grade=grade)
+        if parsed:
+            collected.append(parsed)
+    if log_func and collected:
+        log_func(f"[DailyChallenge] G{grade}: {len(collected)} câu")
+    return collected
+
+
+async def fetch_vioedu_supplementary(
+    grade: int,
+    cookies: Optional[Dict[str, str]] = None,
+    log_func: Optional[Callable[..., None]] = None,
+) -> List[Dict[str, Any]]:
+    """Run all supplementary GraphQL fetchers (exam, homework, challenge) for a grade.
+
+    Designed to be called alongside or after the main skill practice sweep.
+    Operations that don't exist on VioEdu's schema simply return empty — no
+    exceptions, no broken crawls.
+    """
+    from backend.scrapers.vioedu import VIOEDU_SUBJECTS
+    all_questions: List[Dict[str, Any]] = []
+    for _subj_key, subj_info in VIOEDU_SUBJECTS.items():
+        sid = subj_info["subject_id"]
+        # Student exams (both semesters)
+        for semester in [1, 2]:
+            qs = await fetch_vioedu_student_exams(grade, sid, semester, cookies, log_func)
+            all_questions.extend(qs)
+            if qs:
+                await asyncio.sleep(0.3)
+        # Homework (needs user auth)
+        qs = await fetch_vioedu_homework(grade, "", sid, cookies, log_func)
+        all_questions.extend(qs)
+        if qs:
+            await asyncio.sleep(0.3)
+        # Daily challenge
+        qs = await fetch_vioedu_daily_challenge(grade, sid, cookies, log_func)
+        all_questions.extend(qs)
+        if qs:
+            await asyncio.sleep(0.3)
+    if log_func:
+        log_func(f"[Supplementary] G{grade} tổng: {len(all_questions)} câu từ exam/hw/challenge")
+    return all_questions

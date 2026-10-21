@@ -1,4 +1,4 @@
-// EduQuest Collector - Background Service Worker v1.3.19
+// EduQuest Collector - Background Service Worker v1.3.23
 // Hỗ trợ URL server động — dùng chrome.storage.sync
 
 // URL server chung — tất cả dữ liệu cào được gửi về đây
@@ -58,7 +58,7 @@ function postJson(path, body, sendResponse) {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("EduQuest Collector Extension v1.3.19 installed.");
+  console.log("EduQuest Collector Extension v1.3.23 installed.");
   chrome.storage.sync.get({ serverUrl: DEFAULT_SERVER }, (r) => {
     if (!r.serverUrl) chrome.storage.sync.set({ serverUrl: DEFAULT_SERVER });
   });

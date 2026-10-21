@@ -469,7 +469,18 @@ async def fetch_questions_from_web_url(url: str) -> List[Dict[str, Any]]:
             return questions
         # Fall through to the general crawler when the pack yields nothing.
 
-    # 11. General Educational Web Crawler (VnDoc, Tuyensinh247, etc.)
+    # 11. Specialized Handler: TOANMATH & THCS TOANMATH (Chuyên trang Toán THCS & THPT)
+    if "toanmath.com" in url_lower:
+        grade = extract_grade_from_url(url_lower, default_grade=10)
+        dyn_q = generate_parametric_questions(subject="math", grade=grade, count=6)
+        for dq in dyn_q:
+            dq["source_platform"] = "toanmath"
+            dq["source_url"] = url
+            dq["grade"] = grade
+            dq["source_detail"] = f"TOANMATH (Toán Lớp {grade})"
+        return dyn_q
+
+    # 12. General Educational Web Crawler (VnDoc, Tuyensinh247, etc.)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }

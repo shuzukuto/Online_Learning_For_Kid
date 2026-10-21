@@ -19,7 +19,13 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _read(path: str) -> str:
     with open(os.path.join(PROJECT_ROOT, path), encoding="utf-8") as f:
-        return f.read()
+        content = f.read()
+    if path == "backend/app.py":
+        import glob
+        for rf in sorted(glob.glob(os.path.join(PROJECT_ROOT, "backend", "routers", "*.py"))):
+            with open(rf, encoding="utf-8") as f:
+                content += "\n" + f.read()
+    return content
 
 
 def test_hunter_has_new_verified_sources():
@@ -251,7 +257,7 @@ def test_harvest_by_grade_skips_interactive_sources():
     # (VioEdu/TNMath/quiz-JS pages labelled "mở tay") — they are unauto-harvestable.
     import re
     src = _read("backend/app.py")
-    m = re.search(r"async def harvest_math_by_grade\(.*?\n(?=@app\.|\ndef )",
+    m = re.search(r"async def harvest_math_by_grade\(.*?\n(?=@app\.|\ndef |@router\.)",
                   src, re.S)
     assert m, "harvest_math_by_grade endpoint missing"
     body = m.group(0)
@@ -574,3 +580,65 @@ def test_vietjack_and_olm_cover_upper_grades():
             f"grade {grade} missing vietjack URL"
         assert f"https://olm.vn/lop-{grade}" in urls, \
             f"grade {grade} missing verified OLM url"
+
+
+def test_toanmath_sources_included_for_secondary_and_high_school():
+    import sys
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.scrapers.hunter.sources import get_grade_source_urls
+    for grade in (6, 7, 8, 9):
+        got = get_grade_source_urls(grade)
+        urls = [s["url"] for cat in got["categories"] for s in cat["sources"]]
+        assert any("thcs.toanmath.com" in u for u in urls), f"Grade {grade} missing thcs.toanmath.com"
+    for grade in (10, 11, 12):
+        got = get_grade_source_urls(grade)
+        urls = [s["url"] for cat in got["categories"] for s in cat["sources"]]
+        assert any("toanmath.com" in u for u in urls), f"Grade {grade} missing toanmath.com"
+
+
+def test_fetch_dispatches_toanmath_handler():
+    src = _read("backend/scrapers/hunter/fetch.py")
+    assert "toanmath.com" in src, "fetch.py must include specialized handler for toanmath.com"
+
+
+def test_frontend_collector_multi_grade_defaults():
+    js = _read("frontend/js/collector.js")
+    assert "getDefaultHunterUrlsForGrade" in js, "collector.js missing getDefaultHunterUrlsForGrade"
+    for g in range(1, 13):
+        assert f"eduquest_hunter_urls_g" in js, "collector.js must persist per-grade URLs"
+    html = _read("frontend/index.html")
+    assert "hunter-btn-select-all" in html, "index.html missing select-all button"
+    assert "hunter-btn-deselect-all" in html, "index.html missing deselect-all button"
+    assert "hunter-btn-reset-default" in html, "index.html missing reset-default button"
+
+
+def test_all_grades_hunter_option_and_sequential_runner():
+    # 1. Frontend has "all" option in hunter-grade select
+    html = _read("frontend/index.html")
+    assert 'value="all"' in html, "index.html missing value='all' in grade select"
+    assert "Cào tuần tự Khối 1 - 12" in html, "index.html missing sequential description for 'all' grade"
+
+    # 2. Frontend collector.js handles 'all' defaults & sequential execution
+    js = _read("frontend/js/collector.js")
+    assert 'gradeVal === "all"' in js, "collector.js must check gradeVal === 'all'"
+    assert "eduquest_hunter_urls_all" in js, "collector.js must persist all-grades URLs"
+    assert "Khối 1 -> 12" in js or "Khối 1-12" in js or "12 KHỐI LỚP" in js, \
+        "collector.js must log sequential crawl across all 12 grades"
+
+    # 3. Backend sources.py has get_all_grades_source_catalog
+    src_sources = _read("backend/scrapers/hunter/sources.py")
+    assert "get_all_grades_source_catalog" in src_sources, "sources.py missing get_all_grades_source_catalog"
+    assert "tech12h.com" in src_sources, "sources.py missing tech12h.com source"
+
+    # 4. Backend runner.py supports sequential crawling for 'all'
+    src_runner = _read("backend/scrapers/hunter/runner.py")
+    assert 'str(grade).lower() in ("all"' in src_runner or 'str(grade).lower() in (\'all\'' in src_runner, \
+        "runner.py must support sequential loop when grade is 'all'"
+    assert "for g in range(1, 13):" in src_runner, "runner.py must loop from grade 1 to 12"
+
+    # 5. Backend router handles grade="all"
+    src_router = _read("backend/routers/collector.py")
+    assert 'grade_raw).lower() in ("all"' in src_router or 'grade_raw).lower() in (\'all\'' in src_router, \
+        "collector router must accept grade='all'"
+
+

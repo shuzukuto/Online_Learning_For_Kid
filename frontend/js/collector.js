@@ -347,7 +347,7 @@ async function processSelectedFilesOcr() {
     try {
       const endpoint = isImage ? `${API_BASE}/import/image` : `${API_BASE}/import/pdf`;
       const startTime = performance.now();
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: "POST",
         body: formData
       });
@@ -788,7 +788,7 @@ async function saveAllRemainingOcrQuestions() {
 
   appendOcrLog(`⚡ Bắt đầu Lưu nhanh toàn bộ ${remainingQuestions.length} câu hỏi chưa lưu vào Ngân hàng CSDL...`, "batch");
   try {
-    const res = await fetch(`${API_BASE}/questions/bulk`, {
+    const res = await apiFetch(`/api/questions/bulk`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ questions: remainingQuestions })
@@ -1068,6 +1068,7 @@ function renderScraperLog() {
   logBox.textContent = fullText;
   if (scraperLogLines.length > 0) {
     logBox.style.display = "block";
+    logBox.scrollTop = logBox.scrollHeight;
     if (toolbar) toolbar.style.display = "flex";
   }
   try {
@@ -1130,18 +1131,25 @@ async function runAutoScraper() {
   const username = document.getElementById("scraper-username").value.trim();
   const password = document.getElementById("scraper-password").value.trim();
   const roundId = document.getElementById("scraper-round").value.trim();
-  const grade = parseInt(document.getElementById("scraper-grade").value) || 5;
+  const grade = parseInt(document.getElementById("scraper-grade").value) || 2;
   const btn = document.getElementById("btn-run-scraper");
 
   if (!username || !password) {
-    showToast("Vui lòng nhập Tên đăng nhập và Mật khẩu tài khoản", "error");
+    showToast("Vui lòng nhập Tên đăng nhập và Mật khẩu tài khoản VioEdu để bot đăng nhập ngầm, hoặc nhấn '🌐 Cào diện rộng (3 môn)' để cào tự động không cần tài khoản!", "warning");
     return;
   }
 
+  const logBox = document.getElementById("scraper-live-log");
+  const toolbar = document.getElementById("scraper-log-toolbar");
+  if (logBox) logBox.style.display = "block";
+  if (toolbar) toolbar.style.display = "flex";
+
   const timeNow = getLogTimeVN();
   scraperLogLines = [
-    `[${timeNow}] 🚀 Khởi chạy Bot Đăng nhập Ngầm cho nền tảng ${platform.toUpperCase()}...`,
-    `[${timeNow}] Đang mở trình duyệt ngầm và kết nối tài khoản ${username}...`
+    `[${timeNow}] 🚀 [Bước 1/5] Khởi chạy Bot Đăng nhập Ngầm cho nền tảng ${platform.toUpperCase()}...`,
+    `[${timeNow}] 🔑 [Bước 2/5] Đang kết nối tài khoản ${username} và kiểm tra quyền truy cập...`,
+    `[${timeNow}] 🌐 [Bước 3/5] Đang khởi động trình duyệt ngầm Chromium để vượt bảo vệ và đồng bộ phiên...`,
+    `[${timeNow}] ⏳ Đang rà soát vòng thi và bài luyện tập, vui lòng chờ trong giây lát...`
   ];
   renderScraperLog();
 
@@ -1167,9 +1175,9 @@ async function runAutoScraper() {
     const data = await res.json();
     const finishTime = getLogTimeVN();
 
-    // Render logs with NEWEST ON TOP from backend array
+    // Render logs in natural chronological sequence (Step 1 -> Step 5 -> Summary report)
     if (data.logs && Array.isArray(data.logs) && data.logs.length > 0) {
-      scraperLogLines = [...data.logs].reverse();
+      scraperLogLines = [...data.logs];
     }
 
     if (data.success) {
@@ -1194,7 +1202,7 @@ async function runAutoScraper() {
       }
     } else {
       const errMsg = `[${finishTime}] ❌ Lỗi: ${data.error || "Không thể hoàn thành tiến trình cào dữ liệu."}`;
-      scraperLogLines.unshift(errMsg);
+      scraperLogLines.push(errMsg);
       showToast(data.error || "Lỗi đăng nhập / cào dữ liệu VioEdu", "error");
     }
 
@@ -1203,13 +1211,13 @@ async function runAutoScraper() {
   } catch (err) {
     const errTime = getLogTimeVN();
     const excMsg = `[${errTime}] ❌ Ngoại lệ: ${err.message}`;
-    scraperLogLines.unshift(excMsg);
+    scraperLogLines.push(excMsg);
     renderScraperLog();
     showToast("Lỗi kết nối máy chủ cào dữ liệu: " + err.message, "error");
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = "🚀 Bắt đầu cào dữ liệu";
+      btn.innerHTML = "🚀 Cào theo tài khoản (vòng thi)";
     }
     loadCollectorLogs();
   }
@@ -1218,18 +1226,27 @@ async function runAutoScraper() {
 // Cào diện rộng VioEdu qua cụm thống nhất: toàn curriculum 3 môn, không cần login.
 // Bài mới cào trong 7 ngày tự bỏ qua (ledger), trừ khi tick "Cào lại bài cũ".
 async function runVioEduBreadth() {
-  const grade = parseInt(document.getElementById("scraper-grade").value) || 2;
+  const gradeVal = document.getElementById("scraper-grade")?.value || "2";
+  const isAll = gradeVal === "all";
+  const grades = isAll ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : [parseInt(gradeVal) || 2];
+  const gradeLabel = isAll ? "Tất cả các khối (1-12)" : `Khối ${gradeVal}`;
   const force = document.getElementById("vioedu-force-recrawl")?.checked || false;
   const btn = document.getElementById("btn-vioedu-breadth");
+
+  const logBox = document.getElementById("scraper-live-log");
+  const toolbar = document.getElementById("scraper-log-toolbar");
+  if (logBox) logBox.style.display = "block";
+  if (toolbar) toolbar.style.display = "flex";
+
   const timeNow = getLogTimeVN();
   scraperLogLines = [
-    `[${timeNow}] 🌐 Cào diện rộng VioEdu Khối ${grade} (Toán + Tiếng Việt + Tiếng Anh)...`,
+    `[${timeNow}] 🌐 Cào diện rộng VioEdu ${gradeLabel} (Toán + Tiếng Việt + Tiếng Anh)...`,
     `[${timeNow}] Không cần đăng nhập — dùng GraphQL công khai, quét toàn bộ bài luyện tập...`
   ];
   renderScraperLog();
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `⏳ Đang quét toàn bộ Khối ${grade}...`;
+    btn.innerHTML = `⏳ Đang quét ${gradeLabel}...`;
   }
   try {
     const res = await apiFetch(`/api/collect/vioedu-plan`, {
@@ -1237,7 +1254,7 @@ async function runVioEduBreadth() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: "breadth",
-        grades: [grade],
+        grades: grades,
         subjects: ["math", "vietnamese", "english"],
         max_questions: 12,
         force: force
@@ -1296,7 +1313,11 @@ async function refreshVioEduHubStatus() {
   try {
     const res = await apiFetch(`/api/collect/vioedu-plan`);
     const data = await res.json();
-    if (!data.success) return;
+    if (!data.success) {
+      txt.textContent = "⚪ Trung tâm thu thập: Vui lòng đăng nhập tài khoản quản trị để đồng bộ.";
+      box.style.display = "block";
+      return;
+    }
     const autoTxt = data.auto_enabled ? "🟢 Tự động nền 24/7: BẬT" : "⚪ Tự động nền 24/7: TẮT";
     const jobs = Object.entries(data.recent_jobs || {});
     const last = jobs.length ? jobs[jobs.length - 1] : null;
@@ -1322,7 +1343,12 @@ async function refreshVioEduHubStatus() {
       : " | ⚪ Chưa nhập TK VioEdu (cào anonymous)";
     txt.textContent = `${autoTxt} | 📒 Đã cào: ${data.ledger_skills || 0} bài | ${lastTxt}${runTxt}${hbTxt}${sessTxt}`;
     box.style.display = "block";
-  } catch (e) { /* im lặng */ }
+  } catch (e) {
+    if (txt) {
+      txt.textContent = "⚪ Trung tâm thu thập: Vui lòng đăng nhập tài khoản quản trị để đồng bộ.";
+      box.style.display = "block";
+    }
+  }
 }
 
 // Poll tiến độ job breadth nền mỗi 15s (tối đa ~20 phút), không giữ nút bấm
@@ -1429,39 +1455,428 @@ async function clearAllCollectorLogs() {
   }
 }
 
-// Target URLs list for Internet Hunter
+// Target URLs list for Internet Hunter & Universal Multi-Grade Presets
 let hunterTargetUrls = [];
 
-function loadHunterTargetUrls() {
+function getHunterGradeValue(targetGrade) {
+  const raw = targetGrade !== undefined ? targetGrade : (document.getElementById("hunter-grade")?.value || localStorage.getItem("eduquest_default_grade") || localStorage.getItem("eduquest_selected_grade") || "2");
+  if (raw === "all") return "all";
+  return Math.max(1, Math.min(12, parseInt(raw) || 2));
+}
+
+function getHunterStorageKey(targetGrade) {
+  const g = getHunterGradeValue(targetGrade);
+  return g === "all" ? "eduquest_hunter_urls_all" : `eduquest_hunter_urls_g${g}`;
+}
+
+function getDefaultHunterUrlsForGrade(gradeVal) {
+  const timeNow = typeof getLogTimeVN === "function" ? getLogTimeVN() : "Mặc định";
+
+  // Danh mục nguồn mặc định toàn diện cho tất cả các khối (Khối 1 đến 12)
+  if (gradeVal === "all") {
+    return [
+      { id: "def_all_hts", url: "https://hanhtrangso.nxbgd.vn/sach-dien-tu", name: "Hành trang số (Kho SGK GDPT 2018 Lớp 1-12)", tag: "Toán GDPT", icon: "📘", active: true, addedAt: timeNow },
+      { id: "def_all_lgh", url: "https://loigiaihay.com/", name: "Lời Giải Hay (Kho đề thi trắc nghiệm Toán, Văn, Anh 1-12)", tag: "Đa môn GDPT", icon: "📐", active: true, addedAt: timeNow },
+      { id: "def_all_vj", url: "https://vietjack.com/", name: "VietJack (Trắc nghiệm & Đề thi 1-12 có đáp án)", tag: "Trắc nghiệm", icon: "📚", active: true, addedAt: timeNow },
+      { id: "def_all_olm", url: "https://olm.vn/", name: "OLM.vn (Học trực tuyến & luyện đề Lớp 1-12 ĐH Sư Phạm)", tag: "Tương tác", icon: "🎓", active: true, addedAt: timeNow },
+      { id: "def_all_thcs_toanmath", url: "https://thcs.toanmath.com/", name: "THCS TOANMATH (Đề thi & Tài liệu trắc nghiệm Toán 6-9)", tag: "Toán THCS", icon: "📐", active: true, addedAt: timeNow },
+      { id: "def_all_toanmath", url: "https://toanmath.com/", name: "TOANMATH (Đề thi thử THPT & Chuyên đề Toán 10-12)", tag: "Toán THPT", icon: "📐", active: true, addedAt: timeNow },
+      { id: "def_all_tech12h", url: "https://tech12h.com/", name: "Tech12h (Bài tập trắc nghiệm & Đề kiểm tra 1-12)", tag: "Trắc nghiệm", icon: "📑", active: true, addedAt: timeNow },
+      { id: "def_all_vndoc", url: "https://vndoc.com/", name: "VnDoc (Kho tài liệu & Đề thi học kỳ 1-12)", tag: "Tài liệu", icon: "📋", active: true, addedAt: timeNow },
+      { id: "def_all_vioedu", url: "https://vio.edu.vn/skill-list", name: "VioEdu (Đấu trường Toán học FPT Lớp 1-9)", tag: "Toán VioEdu", icon: "⚡", active: true, addedAt: timeNow },
+      { id: "def_all_tnmath", url: "https://tnmath.edu.vn/", name: "Trạng Nguyên Toán (Sân chơi Toán Tiểu học 1-5)", tag: "Trạng Nguyên", icon: "👑", active: true, addedAt: timeNow },
+      { id: "def_all_ioe", url: "https://ioe.vn/", name: "IOE (Cuộc thi Olympic Tiếng Anh Internet 1-12)", tag: "Olympic", icon: "🎧", active: true, addedAt: timeNow },
+      { id: "def_all_ta123", url: "https://www.tienganh123.com/", name: "Tiếng Anh 123 (Chương trình Tiếng Anh 1-12)", tag: "Tiếng Anh", icon: "🇬🇧", active: true, addedAt: timeNow },
+      { id: "def_all_k5", url: "https://www.k5learning.com/free-math-worksheets", name: "K5 Learning (Worksheets Toán & Reading US Common Core)", tag: "US Math", icon: "📑", active: true, addedAt: timeNow },
+      { id: "def_all_ixl", url: "https://www.ixl.com/math", name: "IXL Learning (Kỹ năng Toán thích ứng Grade 1-12)", tag: "US Math", icon: "🎯", active: true, addedAt: timeNow },
+      { id: "def_all_khan", url: "https://www.khanacademy.org/math", name: "Khan Academy (Học liệu Toán Quốc tế K-12)", tag: "Quốc tế", icon: "🌱", active: true, addedAt: timeNow },
+      { id: "def_all_ccms", url: "https://www.commoncoresheets.com", name: "Common Core Math Sheets (Trình tạo đề bài tập K-12)", tag: "US Math", icon: "📋", active: true, addedAt: timeNow },
+      { id: "def_all_edu", url: "https://www.education.com/worksheets/", name: "Education.com (Phiếu bài tập Math & ELA K-12)", tag: "Quốc tế", icon: "📑", active: true, addedAt: timeNow },
+      { id: "def_all_ikmc", url: "https://kangaroo-math.vn", name: "Kangaroo Math IKMC (Toán tư duy Quốc tế 1-12)", tag: "Olympic", icon: "🦘", active: true, addedAt: timeNow },
+      { id: "def_all_timo", url: "https://codemath.vn/khoa-hoc/timo", name: "Olympic TIMO & ASMO (Toán Song ngữ Anh - Việt)", tag: "Olympic", icon: "🏅", active: true, addedAt: timeNow },
+      { id: "def_all_mp", url: "https://www.mathplayground.com/", name: "Math Playground (Game Toán tương tác & logic)", tag: "Tương tác", icon: "🎮", active: true, addedAt: timeNow }
+    ];
+  }
+
+  const grade = Math.max(1, Math.min(12, parseInt(gradeVal) || 5));
+
+  const lghMathSlugs = {
+    1: "de-thi-de-kiem-tra-toan-lop-1-ket-noi-tri-thuc-c1211.html",
+    2: "de-thi-de-kiem-tra-toan-lop-2-ket-noi-tri-thuc-c1212.html",
+    3: "de-thi-de-kiem-tra-toan-lop-3-ket-noi-tri-thuc-c1215.html",
+    4: "de-thi-de-kiem-tra-toan-lop-4-ket-noi-tri-thuc-c1636.html",
+    5: "de-thi-de-kiem-tra-toan-lop-5-ket-noi-tri-thuc-c1990.html",
+    6: "de-thi-de-kiem-tra-toan-lop-6-ket-noi-tri-thuc-c1022.html",
+    7: "de-thi-de-kiem-tra-toan-lop-7-ket-noi-tri-thuc-c1097.html",
+    8: "de-thi-de-kiem-tra-toan-lop-8-ket-noi-tri-thuc-c1612.html",
+    9: "de-thi-de-kiem-tra-toan-lop-9-ket-noi-tri-thuc-c1984.html",
+    10: "v2/tu-luyen-trac-nghiem-toan-10-ket-noi-tri-thuc-c980.html",
+    11: "de-thi-de-kiem-tra-toan-lop-11-ket-noi-tri-thuc-c1623.html",
+    12: "de-thi-de-kiem-tra-toan-lop-12-ket-noi-tri-thuc-c1964.html"
+  };
+
+  const lghVnSlugs = {
+    2: "de-thi-de-kiem-tra-tieng-viet-lop-2-ket-noi-tri-thuc-c1213.html",
+    3: "de-thi-de-kiem-tra-tieng-viet-lop-3-ket-noi-tri-thuc-c2269.html",
+    4: "de-thi-de-kiem-tra-tieng-viet-lop-4-ket-noi-tri-thuc-c1796.html",
+    5: "de-thi-de-kiem-tra-tieng-viet-lop-5-ket-noi-tri-thuc-c1994.html",
+    6: "v2/tu-luyen-tu-luyen-van-6-kntt-c788.html",
+    7: "v2/tu-luyen-tu-luyen-van-7-c761.html",
+    8: "v2/tu-luyen-trac-nghiem-van-8-ket-noi-tri-thuc-c1453.html",
+    9: "de-thi-de-kiem-tra-van-9-ket-noi-tri-thuc-c1968.html",
+    10: "v2/tu-luyen-trac-nghiem-ngu-van-10-ket-noi-tri-thuc-c959.html",
+    11: "v2/tu-luyen-trac-nghiem-van-11-ket-noi-tri-thuc-c1481.html",
+    12: "de-thi-de-kiem-tra-van-12-ket-noi-tri-thuc-c1972.html"
+  };
+
+  const lghEnSlugs = {
+    2: "de-thi-de-kiem-tra-tieng-anh-lop-2-ket-noi-tri-thuc-c1217.html",
+    3: "de-thi-de-kiem-tra-tieng-anh-lop-3-global-success-c1218.html",
+    4: "de-thi-de-kiem-tra-tieng-anh-lop-4-global-success-c1627.html",
+    5: "de-thi-de-kiem-tra-tieng-anh-lop-5-global-success-c2008.html",
+    6: "de-thi-de-kiem-tra-tieng-anh-lop-6-global-success-c1160.html",
+    7: "de-thi-de-kiem-tra-tieng-anh-lop-7-global-success-c1182.html",
+    8: "de-thi-de-kiem-tra-tieng-anh-lop-8-global-success-c1658.html",
+    9: "de-thi-de-kiem-tra-tieng-anh-lop-9-global-success-c2003.html",
+    10: "de-thi-de-kiem-tra-tieng-anh-lop-10-global-success-c1192.html",
+    11: "v2/tu-luyen-trac-nghiem-tieng-anh-11-global-success-c1445.html",
+    12: "v2/tu-luyen-trac-nghiem-tieng-anh-12-global-success-c1907.html"
+  };
+
+  const vietjackExamUrls = {
+    1: "https://vietjack.com/de-kiem-tra-lop-1/de-kiem-tra-toan-lop-1.jsp",
+    2: "https://vietjack.com/de-kiem-tra-lop-2/de-kiem-tra-toan-lop-2.jsp",
+    3: "https://vietjack.com/de-kiem-tra-lop-3/de-kiem-tra-toan-lop-3.jsp",
+    4: "https://vietjack.com/de-kiem-tra-toan-lop-4/index.jsp",
+    5: "https://vietjack.com/de-kiem-tra-toan-5/index.jsp",
+    6: "https://vietjack.com/de-kiem-tra-lop-6/de-kiem-tra-toan-6.jsp",
+    7: "https://vietjack.com/de-kiem-tra-lop-7/de-kiem-tra-toan-7.jsp",
+    8: "https://vietjack.com/de-kiem-tra-lop-8/de-kiem-tra-toan-8.jsp",
+    9: "https://vietjack.com/de-kiem-tra-lop-9/de-kiem-tra-toan-9.jsp",
+    10: "https://vietjack.com/de-kiem-tra-lop-10/de-kiem-tra-toan-10.jsp",
+    11: "https://vietjack.com/de-kiem-tra-lop-11/de-kiem-tra-toan-11.jsp",
+    12: "https://vietjack.com/de-kiem-tra-lop-12/de-kiem-tra-toan-12.jsp"
+  };
+
+  const vietjackTracNghiemUrls = {
+    2: "https://vietjack.com/de-kiem-tra-lop-2/bai-tap-toan-lop-2.jsp",
+    3: "https://vietjack.com/giai-toan-lop-3/bai-tap-trac-nghiem-toan-lop-3-co-dap-an.jsp",
+    4: "https://vietjack.com/giai-toan-lop-4/bai-tap-trac-nghiem-toan-lop-4-co-dap-an.jsp",
+    5: "https://vietjack.com/giai-toan-lop-5/bai-tap-trac-nghiem-toan-lop-5-co-dap-an.jsp",
+    6: "https://vietjack.com/toan-6-ket-noi/bai-tap-trac-nghiem-toan-lop-6.jsp",
+    7: "https://vietjack.com/toan-7-kn/trac-nghiem-toan-lop-7-ket-noi.jsp",
+    8: "https://vietjack.com/toan-8-kn/trac-nghiem-toan-8-ket-noi.jsp",
+    9: "https://vietjack.com/toan-9-kn/trac-nghiem-toan-lop-9.jsp",
+    10: "https://vietjack.com/toan-10-kn/trac-nghiem-toan-lop-10-ket-noi.jsp",
+    11: "https://vietjack.com/toan-11-kn/trac-nghiem-toan-11-ket-noi.jsp",
+    12: "https://vietjack.com/toan-12-kn/trac-nghiem-toan-lop-12.jsp"
+  };
+
+  const k5Slugs = {
+    1: "first-grade-1",
+    2: "second-grade-2",
+    3: "third-grade-3",
+    4: "fourth-grade-4",
+    5: "fifth-grade-5",
+    6: "sixth-grade-6"
+  };
+
+  const khanSlugs = {
+    1: "cc-1st-grade-math",
+    2: "cc-2nd-grade-math",
+    3: "cc-third-grade-math",
+    4: "cc-fourth-grade-math",
+    5: "cc-fifth-grade-math",
+    6: "cc-sixth-grade-math",
+    7: "cc-seventh-grade-math",
+    8: "cc-eighth-grade-math",
+    9: "algebra",
+    10: "geometry",
+    11: "algebra2",
+    12: "calculus-1"
+  };
+
+  const defaults = [];
+
+  // 1. SGK Hành Trang Số (NXB Giáo Dục Việt Nam)
+  defaults.push({
+    id: `def_hts_g${grade}`,
+    url: `https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=0&classes=${grade}`,
+    name: `Hành trang số (SGK Toán Lớp ${grade})`,
+    tag: "Toán GDPT",
+    icon: "📘",
+    active: true,
+    addedAt: timeNow
+  });
+
+  // 2. Lời Giải Hay (Toán)
+  if (lghMathSlugs[grade]) {
+    defaults.push({
+      id: `def_lgh_math_g${grade}`,
+      url: `https://loigiaihay.com/${lghMathSlugs[grade]}`,
+      name: `Lời Giải Hay (Đề thi Toán Lớp ${grade})`,
+      tag: "Toán",
+      icon: "📐",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 3. VietJack (Đề kiểm tra Toán)
+  if (vietjackExamUrls[grade]) {
+    defaults.push({
+      id: `def_vj_exam_g${grade}`,
+      url: vietjackExamUrls[grade],
+      name: `VietJack (Bộ đề thi Toán Lớp ${grade})`,
+      tag: "Toán",
+      icon: "📚",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 4. VietJack (Trắc nghiệm Toán)
+  if (vietjackTracNghiemUrls[grade]) {
+    defaults.push({
+      id: `def_vj_tn_g${grade}`,
+      url: vietjackTracNghiemUrls[grade],
+      name: `VietJack (Trắc nghiệm Toán Lớp ${grade})`,
+      tag: "Trắc nghiệm",
+      icon: "📝",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 5. OLM.vn (Học tập & Luyện tập)
+  defaults.push({
+    id: `def_olm_g${grade}`,
+    url: `https://olm.vn/lop-${grade}`,
+    name: `OLM.vn (Khóa luyện tập Lớp ${grade})`,
+    tag: "Tương tác",
+    icon: "🎓",
+    active: true,
+    addedAt: timeNow
+  });
+
+  // 6. TOANMATH (THCS 6-9 hoặc THPT 10-12)
+  if (grade >= 6 && grade <= 9) {
+    defaults.push({
+      id: `def_thcs_toanmath_g${grade}`,
+      url: `https://thcs.toanmath.com/`,
+      name: `THCS TOANMATH (Tài liệu Toán Lớp ${grade})`,
+      tag: "Toán THCS",
+      icon: "📐",
+      active: true,
+      addedAt: timeNow
+    });
+  } else if (grade >= 10 && grade <= 12) {
+    defaults.push({
+      id: `def_toanmath_g${grade}`,
+      url: `https://toanmath.com/`,
+      name: `TOANMATH (Đề thi thử & Chuyên đề Toán Lớp ${grade})`,
+      tag: "Toán THPT",
+      icon: "📐",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 6b. Tech12h (Trắc nghiệm GDPT)
+  defaults.push({
+    id: `def_tech12h_g${grade}`,
+    url: `https://tech12h.com/`,
+    name: `Tech12h (Trắc nghiệm & Đề thi GDPT Lớp ${grade})`,
+    tag: "Trắc nghiệm",
+    icon: "📑",
+    active: true,
+    addedAt: timeNow
+  });
+
+  // 7. Lời Giải Hay (Tiếng Việt / Ngữ Văn)
+  if (lghVnSlugs[grade]) {
+    defaults.push({
+      id: `def_lgh_vn_g${grade}`,
+      url: `https://loigiaihay.com/${lghVnSlugs[grade]}`,
+      name: `Lời Giải Hay (${grade <= 5 ? "Tiếng Việt" : "Ngữ Văn"} Lớp ${grade})`,
+      tag: grade <= 5 ? "Tiếng Việt" : "Ngữ Văn",
+      icon: "📖",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 8. Lời Giải Hay (Tiếng Anh)
+  if (lghEnSlugs[grade]) {
+    defaults.push({
+      id: `def_lgh_en_g${grade}`,
+      url: `https://loigiaihay.com/${lghEnSlugs[grade]}`,
+      name: `Lời Giải Hay (Tiếng Anh Lớp ${grade})`,
+      tag: "Tiếng Anh",
+      icon: "🇬🇧",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 9. VioEdu & Trạng Nguyên
+  if (grade <= 9) {
+    defaults.push({
+      id: `def_vioedu_g${grade}`,
+      url: `https://vio.edu.vn/skill-list`,
+      name: `VioEdu (Đấu trường Toán học Lớp ${grade})`,
+      tag: "Toán VioEdu",
+      icon: "⚡",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+  if (grade <= 5) {
+    defaults.push({
+      id: `def_tnmath_g${grade}`,
+      url: `https://tnmath.edu.vn/`,
+      name: `Trạng Nguyên Toán Lớp ${grade}`,
+      tag: "Trạng Nguyên",
+      icon: "👑",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 10. K5 Learning (Worksheets Tiểu học 1-6)
+  if (k5Slugs[grade]) {
+    defaults.push({
+      id: `def_k5_g${grade}`,
+      url: `https://www.k5learning.com/free-math-worksheets/${k5Slugs[grade]}`,
+      name: `K5 Learning (Worksheets Grade ${grade})`,
+      tag: "US Math",
+      icon: "📑",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  // 11. IXL Learning (Math Grade 1-12)
+  defaults.push({
+    id: `def_ixl_g${grade}`,
+    url: `https://www.ixl.com/math/grade-${grade}`,
+    name: `IXL Learning (Math Grade ${grade})`,
+    tag: "US Math",
+    icon: "🎯",
+    active: true,
+    addedAt: timeNow
+  });
+
+  // 12. Khan Academy (Grade 1-12)
+  defaults.push({
+    id: `def_khan_g${grade}`,
+    url: `https://www.khanacademy.org/math/${khanSlugs[grade] || "algebra"}`,
+    name: `Khan Academy (Math Grade ${grade})`,
+    tag: "Quốc tế",
+    icon: "🌱",
+    active: true,
+    addedAt: timeNow
+  });
+
+  // 13. Olympic Kangaroo Math (IKMC)
+  const ikmcLevel = grade <= 2 ? 'Ecolier 1-2' : grade <= 4 ? 'Ecolier 3-4' : grade <= 6 ? 'Benjamin 5-6' : grade <= 8 ? 'Cadet 7-8' : grade <= 10 ? 'Junior 9-10' : 'Student 11-12';
+  defaults.push({
+    id: `def_kangaroo_g${grade}`,
+    url: `https://kangaroo-math.vn`,
+    name: `Kangaroo Math IKMC (${ikmcLevel})`,
+    tag: "Olympic",
+    icon: "🦘",
+    active: true,
+    addedAt: timeNow
+  });
+
+  // 14. Olympic TIMO / CodeMath
+  defaults.push({
+    id: `def_timo_g${grade}`,
+    url: `https://codemath.vn/khoa-hoc/timo`,
+    name: `Olympic TIMO (Toán Tư duy Song ngữ Lớp ${grade})`,
+    tag: "Olympic",
+    icon: "🏅",
+    active: true,
+    addedAt: timeNow
+  });
+
+  // 15. Tiếng Anh 123 (Tiểu học 1-5)
+  if (grade <= 5) {
+    defaults.push({
+      id: `def_tienganh123_g${grade}`,
+      url: `https://www.tienganh123.com/lop-${grade}-moi.html`,
+      name: `Tiếng Anh 123 (Lớp ${grade})`,
+      tag: "Tiếng Anh",
+      icon: "🎧",
+      active: true,
+      addedAt: timeNow
+    });
+  }
+
+  return defaults;
+}
+
+function loadHunterTargetUrls(targetGrade) {
+  const g = getHunterGradeValue(targetGrade);
+  const key = getHunterStorageKey(targetGrade);
   try {
-    const raw = localStorage.getItem("eduquest_hunter_urls");
-    hunterTargetUrls = raw ? JSON.parse(raw) : [];
+    const rawGrade = localStorage.getItem(key);
+    if (rawGrade) {
+      const parsed = JSON.parse(rawGrade);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        hunterTargetUrls = parsed;
+      } else {
+        hunterTargetUrls = getDefaultHunterUrlsForGrade(g);
+        saveHunterTargetUrls(g, false);
+      }
+    } else {
+      hunterTargetUrls = getDefaultHunterUrlsForGrade(g);
+      saveHunterTargetUrls(g, false);
+    }
   } catch (e) {
-    hunterTargetUrls = [];
+    hunterTargetUrls = getDefaultHunterUrlsForGrade(g);
   }
 }
 
-function saveHunterTargetUrls() {
+function saveHunterTargetUrls(targetGrade, shouldRender = true) {
+  const g = getHunterGradeValue(targetGrade);
+  const key = getHunterStorageKey(targetGrade);
+  localStorage.setItem(key, JSON.stringify(hunterTargetUrls));
   localStorage.setItem("eduquest_hunter_urls", JSON.stringify(hunterTargetUrls));
-  renderHunterUrlsList();
+  if (shouldRender) {
+    renderHunterUrlsList();
+  }
 }
 
-function addPresetHunterTarget(url) {
+function addPresetHunterTarget(url, name, tag, icon) {
   if (!url) return;
-  const exists = hunterTargetUrls.some(u => u.url.toLowerCase() === url.toLowerCase());
-  if (exists) {
-    showToast("Nguồn này đã có trong danh sách cào!", "info");
+  const existingIdx = hunterTargetUrls.findIndex(u => u.url.toLowerCase() === url.toLowerCase());
+  if (existingIdx >= 0) {
+    const existing = hunterTargetUrls[existingIdx];
+    existing.active = true;
+    if (name) existing.name = name;
+    if (tag) existing.tag = tag;
+    if (icon) existing.icon = icon;
+    // Move to top so user clearly sees it
+    hunterTargetUrls.splice(existingIdx, 1);
+    hunterTargetUrls.unshift(existing);
+    saveHunterTargetUrls();
+    showToast(`✓ Đã đưa nguồn "${name || url}" lên đầu danh sách cào (đang bật)!`, "success");
     return;
   }
   const newEntry = {
-    id: "url_" + Date.now(),
+    id: "url_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
     url: url,
+    name: name || "",
+    tag: tag || "Gợi ý",
+    icon: icon || "🌐",
     active: true,
     addedAt: getLogTimeVN()
   };
   hunterTargetUrls.unshift(newEntry);
   saveHunterTargetUrls();
-  showToast("Đã thêm nguồn nhanh vào danh sách cào!");
+  showToast(`✓ Đã thêm nguồn "${name || url}" vào danh sách cào!`, "success");
 }
 
 function addHunterTargetUrl() {
@@ -1474,23 +1889,54 @@ function addHunterTargetUrl() {
     return;
   }
 
-  const exists = hunterTargetUrls.some(u => u.url.toLowerCase() === val.toLowerCase());
-  if (exists) {
-    showToast("Link này đã có trong danh sách cào!", "error");
-    return;
+  // Support multiple items separated by comma, semicolon or newline
+  const rawItems = val.split(/[\n,;]+/).map(s => s.trim()).filter(s => s.length > 0);
+  if (rawItems.length === 0) return;
+
+  let addedCount = 0;
+  for (const item of rawItems) {
+    let finalUrl = item;
+    let tagName = "Tự nhập";
+    let icon = "🌐";
+    let itemName = "";
+
+    // Normalize URL
+    if (/^https?:\/\//i.test(finalUrl)) {
+      // already full URL
+    } else if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/.*)?$/i.test(finalUrl)) {
+      finalUrl = "https://" + finalUrl;
+    } else {
+      // Keyword search query
+      finalUrl = "https://www.google.com/search?q=" + encodeURIComponent(finalUrl);
+      tagName = "Từ khóa";
+      icon = "🔍";
+      itemName = item;
+    }
+
+    const existingIdx = hunterTargetUrls.findIndex(u => u.url.toLowerCase() === finalUrl.toLowerCase());
+    if (existingIdx >= 0) {
+      hunterTargetUrls[existingIdx].active = true;
+      const moved = hunterTargetUrls.splice(existingIdx, 1)[0];
+      hunterTargetUrls.unshift(moved);
+      addedCount++;
+    } else {
+      const newEntry = {
+        id: "url_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+        url: finalUrl,
+        name: itemName,
+        tag: tagName,
+        icon: icon,
+        active: true,
+        addedAt: getLogTimeVN()
+      };
+      hunterTargetUrls.unshift(newEntry);
+      addedCount++;
+    }
   }
 
-  const newEntry = {
-    id: "url_" + Date.now(),
-    url: val,
-    active: true,
-    addedAt: getLogTimeVN()
-  };
-
-  hunterTargetUrls.unshift(newEntry);
   saveHunterTargetUrls();
   input.value = "";
-  showToast("Đã thêm trang web vào danh sách cào dữ liệu!");
+  showToast(`✓ Đã thêm/kích hoạt ${addedCount} nguồn vào danh sách cào dữ liệu!`, "success");
 }
 
 function removeHunterTargetUrl(id) {
@@ -1507,48 +1953,244 @@ function toggleHunterUrlActive(id) {
   }
 }
 
+function toggleAllHunterUrls(status) {
+  if (hunterTargetUrls.length === 0) return;
+  hunterTargetUrls.forEach(u => u.active = !!status);
+  saveHunterTargetUrls();
+  showToast(status ? "Đã bật tất cả nguồn cào" : "Đã tạm dừng tất cả nguồn cào", "info");
+}
+
+function resetHunterUrlsToDefault() {
+  const g = getHunterGradeValue();
+  hunterTargetUrls = getDefaultHunterUrlsForGrade(g);
+  saveHunterTargetUrls(g);
+  const label = g === "all" ? "Tất cả các khối (1-12)" : `Khối ${g}`;
+  showToast(`Đã khôi phục danh sách web cào mặc định ${label}!`, "success");
+}
+
 function clearAllHunterTargetUrls() {
   if (hunterTargetUrls.length === 0) return;
-  if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ các link web đã lưu?")) return;
+  const g = getHunterGradeValue();
+  const label = g === "all" ? "Tất cả các khối" : `Khối ${g}`;
+  if (!confirm(`Bạn có chắc chắn muốn xóa toàn bộ các link web đã lưu trong ${label}?`)) return;
   hunterTargetUrls = [];
-  saveHunterTargetUrls();
+  saveHunterTargetUrls(g);
   showToast("Đã dọn sạch danh sách web cào.");
 }
 
 function renderHunterUrlsList() {
   const container = document.getElementById("hunter-urls-container");
   const countBadge = document.getElementById("hunter-urls-count");
+  const activeBadge = document.getElementById("hunter-urls-active-count");
+  const resetBadge = document.getElementById("hunter-reset-grade-badge");
   const clearBtn = document.getElementById("btn-clear-hunter-urls");
+  const currentGrade = getHunterGradeValue();
+  const gradeLabel = currentGrade === "all" ? "Tất cả các khối (1-12)" : `Khối ${currentGrade}`;
 
+  const activeCount = hunterTargetUrls.filter(u => u.active).length;
   if (countBadge) countBadge.innerText = hunterTargetUrls.length;
+  if (activeBadge) activeBadge.innerText = `(Đang bật cào: ${activeCount}/${hunterTargetUrls.length})`;
+  if (resetBadge) resetBadge.innerText = currentGrade === "all" ? "Tất cả" : String(currentGrade);
   if (clearBtn) clearBtn.style.display = hunterTargetUrls.length > 0 ? "inline" : "none";
   if (!container) return;
 
   if (hunterTargetUrls.length === 0) {
     container.innerHTML = `
-      <div style="font-size: 12px; color: #94a3b8; font-style: italic; padding: 10px 14px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center;">
-        Chưa có link web nào. Nhập link và nhấn "➕ Thêm vào danh sách" để tự động cào câu hỏi.
+      <div style="font-size: 12px; color: #94a3b8; font-style: italic; padding: 14px 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <span>Chưa có liên kết web nào trong ${gradeLabel}.</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="resetHunterUrlsToDefault()" style="font-size: 11px; padding: 4px 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-weight: 700; border-radius: 6px;">
+          🔄 Nạp lại danh sách nguồn mặc định ${gradeLabel}
+        </button>
       </div>
     `;
     return;
   }
 
-  container.innerHTML = hunterTargetUrls.map(item => `
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px;">
-      <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-        <input type="checkbox" ${item.active ? 'checked' : ''} onchange="toggleHunterUrlActive('${item.id}')" title="${item.active ? 'Đang bật cào: Bỏ chọn để tạm dừng' : 'Đang tạm dừng: Tích chọn để cào'}" style="cursor: pointer; width: 15px; height: 15px;" />
-        <span style="font-size: 14px;">🌐</span>
-        <span style="font-family: monospace; font-size: 12.5px; color: ${item.active ? '#1e293b' : '#94a3b8'}; text-decoration: ${item.active ? 'none' : 'line-through'}; font-weight: 500; overflow: hidden; text-overflow: ellipsis;" title="${item.url}">
-          ${item.url}
-        </span>
-        <span style="font-size: 11px; color: #94a3b8; margin-left: 6px; white-space: nowrap;">[${item.addedAt}]</span>
+  container.innerHTML = hunterTargetUrls.map(item => {
+    let statusPill = `<span style="font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; background: #f1f5f9; color: #64748b; white-space: nowrap; flex-shrink: 0;" title="Nguồn chưa được chạy thử">⚪ Sẵn sàng</span>`;
+    if (item.lastStatus === 'success') {
+      statusPill = `<span style="font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; white-space: nowrap; flex-shrink: 0;" title="Hoạt động tốt: Thu thập được ${item.lastYield || 0} câu hỏi (${item.lastChecked || ''})">🟢 ${item.lastCode || 200} (+${item.lastYield || 0} câu)</span>`;
+    } else if (item.lastStatus === 'empty') {
+      statusPill = `<span style="font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; background: #fef9c3; color: #a16207; border: 1px solid #fef08a; white-space: nowrap; flex-shrink: 0;" title="Kết nối 200 OK nhưng chưa tìm thấy câu hỏi hoặc đã có sẵn trong CSDL (${item.lastChecked || ''})">🟡 200 (0 câu mới)</span>`;
+    } else if (item.lastStatus === 'error') {
+      statusPill = `<span style="font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; background: #fee2e2; color: #b91c1c; border: 1px solid #fecdd3; white-space: nowrap; flex-shrink: 0;" title="Lỗi kết nối hoặc chặn bot (${item.lastCode || 500})">🔴 ${item.lastCode || 'Lỗi'}</span>`;
+    }
+
+    return `
+      <div id="hunter-item-${item.id}" style="display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+          <input type="checkbox" ${item.active ? 'checked' : ''} onchange="toggleHunterUrlActive('${item.id}')" title="${item.active ? 'Đang bật cào: Bỏ chọn để tạm dừng' : 'Đang tạm dừng: Tích chọn để cào'}" style="cursor: pointer; width: 15px; height: 15px; flex-shrink: 0;" />
+          <span style="font-size: 14px; flex-shrink: 0;">${item.icon || '🌐'}</span>
+          ${item.tag ? `<span style="font-size: 10.5px; background: #e0f2fe; color: #0369a1; padding: 1px 6px; border-radius: 8px; font-weight: 700; white-space: nowrap; flex-shrink: 0;">${item.tag}</span>` : ''}
+          <span style="font-size: 12px; font-weight: 600; color: ${item.active ? '#1e293b' : '#94a3b8'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.name ? item.name + ' - ' + item.url : item.url}">
+            ${item.name ? `<strong style="color: ${item.active ? '#0f172a' : '#94a3b8'}; margin-right: 4px;">${item.name}:</strong>` : ''}<span style="font-family: monospace; font-size: 11.5px; color: ${item.active ? '#0284c7' : '#94a3b8'}; text-decoration: ${item.active ? 'none' : 'line-through'}; font-weight: 400;">${item.url}</span>
+          </span>
+          ${statusPill}
+          <span style="font-size: 10.5px; color: #94a3b8; margin-left: 4px; white-space: nowrap; flex-shrink: 0;">[${item.addedAt || 'Mặc định'}]</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-test-${item.id}" onclick="testSingleHunterSource('${item.id}', '${item.url}')" title="Kiểm tra trực tiếp kết nối và bóc tách câu hỏi từ nguồn này" style="font-size: 10.5px; padding: 2px 7px; background: #fff; border: 1px solid #cbd5e1; color: #0f172a; border-radius: 4px; font-weight: 600; white-space: nowrap;">
+            ⚡ Thử nguồn
+          </button>
+          <a href="${item.url}" target="_blank" rel="noopener noreferrer" style="color: #64748b; font-size: 12px; text-decoration: none; padding: 2px 5px; border-radius: 4px;" title="Mở trang web trong tab mới" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='none'">
+            🔗
+          </a>
+          <button type="button" onclick="removeHunterTargetUrl('${item.id}')" style="background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;" title="Xóa link này" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">
+            ✕
+          </button>
+        </div>
       </div>
-      <button type="button" onclick="removeHunterTargetUrl('${item.id}')" style="background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;" title="Xóa link này" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">
-        ✕
-      </button>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
+
+// Single-source isolated test-crawling with real-time telemetry
+async function testSingleHunterSource(id, url) {
+  const btn = document.getElementById(`btn-test-${id}`);
+  const logBox = document.getElementById("hunter-live-log");
+  const toolbar = document.getElementById("hunter-log-toolbar");
+  const gradeVal = document.getElementById("hunter-grade")?.value || "2";
+  const subject = document.getElementById("hunter-subject")?.value || "math";
+  const g = gradeVal === "all" ? 2 : (parseInt(gradeVal) || 2);
+
+  if (logBox) logBox.style.display = "block";
+  if (toolbar) toolbar.style.display = "flex";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `⏳ Đang thử...`;
+  }
+
+  const timeNow = getLogTimeVN();
+  const testStartLine = `[${timeNow}] 🔍 [KIỂM TRA NGUỒN ĐỘC LẬP] Đang kết nối tới: ${url} (Khối ${g}, Môn ${subject.toUpperCase()})...`;
+  if (logBox) {
+    const cur = (logBox.textContent || "").trim();
+    logBox.textContent = cur ? testStartLine + "\n\n" + cur : testStartLine;
+    localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+  }
+
+  try {
+    const res = await apiFetch(`/api/hunter/test-source`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url, grade: g, subject: subject })
+    });
+    const data = await res.json();
+    const finishTime = getLogTimeVN();
+
+    const targetItem = hunterTargetUrls.find(u => u.id === id);
+    if (targetItem) {
+      targetItem.lastStatus = data.status || (data.success ? "success" : "error");
+      targetItem.lastCode = data.status_code || 200;
+      targetItem.lastYield = data.questions_found || 0;
+      targetItem.lastChecked = finishTime;
+      saveHunterTargetUrls(undefined, true);
+    }
+
+    let reportLine = `[${finishTime}] ${data.success && data.questions_found > 0 ? '✅' : (data.success ? '🟡' : '❌')} KẾT QUẢ KIỂM TRA NGUỒN: ${url}\n`;
+    reportLine += `   • Trạng thái HTTP: ${data.status_code || 200} (${data.status || 'chưa rõ'})\n`;
+    reportLine += `   • Độ trễ máy chủ: ${data.latency_ms || 0}ms\n`;
+    reportLine += `   • Số câu hỏi bóc tách: ${data.questions_found || 0} câu\n`;
+    if (data.sample && data.sample.content_text) {
+      reportLine += `   • Mẫu câu hỏi: "${data.sample.content_text}..."\n`;
+    }
+    reportLine += `   • Đánh giá & Hướng dẫn: ${data.advice || data.message || ''}`;
+
+    if (logBox) {
+      logBox.textContent = reportLine + "\n\n" + (logBox.textContent || "");
+      localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+    }
+
+    if (data.success && data.questions_found > 0) {
+      showToast(`✓ Nguồn hoạt động rất tốt! Thu được ${data.questions_found} câu hỏi (${data.latency_ms}ms)`, "success");
+    } else if (data.success) {
+      showToast(`ℹ️ Kết nối 200 OK (${data.latency_ms}ms) nhưng chưa tìm thấy câu hỏi`, "warning");
+    } else {
+      showToast(`❌ Lỗi kiểm tra nguồn: ${data.error || "Không thể kết nối"}`, "error");
+    }
+  } catch (err) {
+    const errTime = getLogTimeVN();
+    const errReport = `[${errTime}] ❌ Lỗi kết nối kiểm tra nguồn: ${err.message}`;
+    if (logBox) {
+      logBox.textContent = errReport + "\n\n" + (logBox.textContent || "");
+      localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+    }
+    showToast(`Lỗi kiểm tra nguồn: ${err.message}`, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `⚡ Thử nguồn`;
+    }
+  }
+}
+window.testSingleHunterSource = testSingleHunterSource;
+
+// Check live VioEdu credentials & session validity
+async function checkVioEduSessionLive() {
+  const username = document.getElementById("scraper-username")?.value.trim();
+  const password = document.getElementById("scraper-password")?.value.trim();
+  const statusEl = document.getElementById("vioedu-hub-status");
+  const statusText = document.getElementById("vioedu-hub-status-text");
+  const logBox = document.getElementById("scraper-live-log");
+  const toolbar = document.getElementById("scraper-log-toolbar");
+  const btn = document.getElementById("btn-vioedu-check-session");
+
+  if (statusEl) statusEl.style.display = "block";
+  if (logBox) logBox.style.display = "block";
+  if (toolbar) toolbar.style.display = "flex";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `⏳ Đang kiểm tra...`;
+  }
+
+  const timeNow = getLogTimeVN();
+  const checkLog = `[${timeNow}] 🔍 [KIỂM TRA TÀI KHOẢN VIOEDU] Đang kết nối tới máy chủ VioEdu để xác thực phiên...`;
+  scraperLogLines.unshift(checkLog);
+  renderScraperLog();
+
+  try {
+    const res = await apiFetch(`/api/collect/check-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "vioedu", username: username, password: password })
+    });
+    const data = await res.json();
+    const finishTime = getLogTimeVN();
+
+    if (data.success && (data.logged_in || data.student_name)) {
+      const who = data.student_name || username;
+      const gr = data.grade ? ` (Khối ${data.grade})` : '';
+      const okMsg = `[${finishTime}] ✅ Xác thực VioEdu THÀNH CÔNG! Tài khoản học sinh: ${who}${gr} hợp lệ và sẵn sàng cào.`;
+      scraperLogLines.unshift(okMsg);
+      renderScraperLog();
+      if (statusText) {
+        statusText.innerHTML = `🟢 <strong>Tài khoản VioEdu hợp lệ:</strong> ${who}${gr} — sẵn sàng cho bot cào và scheduler 24/7.`;
+        statusText.style.color = "#15803d";
+      }
+      showToast(`Tài khoản VioEdu "${who}" hợp lệ và sẵn sàng cào!`, "success");
+    } else {
+      const errMsg = `[${finishTime}] ⚠️ Kiểm tra VioEdu: ${data.message || data.error || "Tài khoản hoặc mật khẩu không chính xác."}`;
+      scraperLogLines.unshift(errMsg);
+      renderScraperLog();
+      if (statusText) {
+        statusText.innerHTML = `🔴 <strong>Chưa hợp lệ:</strong> ${data.message || data.error || "Vui lòng nhập chính xác username & password."}`;
+        statusText.style.color = "#dc2626";
+      }
+      showToast(data.message || data.error || "Chưa thể xác thực tài khoản VioEdu", "error");
+    }
+  } catch (err) {
+    const errTime = getLogTimeVN();
+    const exc = `[${errTime}] ❌ Lỗi kết nối máy chủ kiểm tra: ${err.message}`;
+    scraperLogLines.unshift(exc);
+    renderScraperLog();
+    showToast("Lỗi kiểm tra tài khoản: " + err.message, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `🔍 Kiểm tra tài khoản`;
+    }
+  }
+}
+window.checkVioEduSessionLive = checkVioEduSessionLive;
 
 // Hunter Log Actions (Copy, Clear & Smart Formatting)
 function parseHunterTimeToMinutes(str) {
@@ -1661,8 +2303,10 @@ function clearHunterLiveLog() {
 
 // Internet Question Hunter Runner (Newest on Top & Clean Line Separation)
 async function runInternetHunter(isAuto = false) {
-  const subject = document.getElementById("hunter-subject").value;
-  const grade = parseInt(document.getElementById("hunter-grade").value) || 5;
+  const subject = document.getElementById("hunter-subject")?.value || "all";
+  const gradeVal = document.getElementById("hunter-grade")?.value || "5";
+  const isAllGrades = gradeVal === "all";
+  const grade = isAllGrades ? "all" : (parseInt(gradeVal) || 5);
   const activeCustomUrls = hunterTargetUrls.filter(u => u.active).map(u => u.url);
   const logBox = document.getElementById("hunter-live-log");
   const toolbar = document.getElementById("hunter-log-toolbar");
@@ -1672,28 +2316,142 @@ async function runInternetHunter(isAuto = false) {
   if (toolbar) toolbar.style.display = "flex";
   if (!isAuto && btn) {
     btn.disabled = true;
-    btn.innerText = "⏳ Đang quét internet...";
+    btn.innerText = isAllGrades ? "⏳ Đang cào tuần tự Khối 1-12..." : "⏳ Đang quét internet...";
   }
 
   const timeNow = getLogTimeVN();
-  const runHeader = `[${timeNow}] ${isAuto ? "🔄 [TỰ ĐỘNG ĐỊNH KỲ]" : "⚡ [THỦ CÔNG]"} Săn câu hỏi (Môn: ${subject.toUpperCase()}, Khối ${grade})...`;
-  const targetsLine = activeCustomUrls.length > 0
-    ? `-> Danh sách mục tiêu: Sẽ cào ${activeCustomUrls.length} web/link: ${activeCustomUrls.slice(0, 2).join(', ')}${activeCustomUrls.length > 2 ? '...' : ''}`
-    : '';
-  const inProgressLine = `⏳ Đang kết nối và quét dữ liệu internet...`;
 
-  const newRunLines = targetsLine ? [runHeader, targetsLine, inProgressLine] : [runHeader, inProgressLine];
-  const newRunText = newRunLines.join("\n");
+  if (isAllGrades) {
+    // -------------------------------------------------------------------------
+    // CÀO TUẦN TỰ TỪ KHỐI 1 ĐẾN KHỐI 12
+    // -------------------------------------------------------------------------
+    const runHeader = `[${timeNow}] ${isAuto ? "🔄 [TỰ ĐỘNG ĐỊNH KỲ]" : "⚡ [THỦ CÔNG]"} 🌟 BẮT ĐẦU SĂN CÂU HỎI TUẦN TỰ TỪ KHỐI 1 ĐẾN KHỐI 12 (Môn: ${subject.toUpperCase()})...`;
+    const targetsLine = `-> Mục tiêu: Quét tuần tự lần lượt 12 khối lớp theo chuẩn GDPT 2018 & Quốc tế...`;
+    const newRunText = `${runHeader}\n${targetsLine}`;
 
-  // Prepend newest run on top
-  const previousText = logBox ? (logBox.textContent || "").trim() : "";
+    const previousText = logBox ? (logBox.textContent || "").trim() : "";
+    if (logBox) {
+      logBox.textContent = previousText ? newRunText + "\n\n" + previousText : newRunText;
+      localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+    }
+
+    let totalNewSaved = 0;
+    let totalDupes = 0;
+    let allScrapedSources = [];
+
+    try {
+      for (let g = 1; g <= 12; g++) {
+        const gradeTime = getLogTimeVN();
+        let urlsForGrade = [];
+        const gradeKey = `eduquest_hunter_urls_g${g}`;
+        const rawGradeUrls = localStorage.getItem(gradeKey);
+        if (rawGradeUrls) {
+          try {
+            const parsed = JSON.parse(rawGradeUrls);
+            urlsForGrade = parsed.filter(u => u.active).map(u => u.url);
+          } catch (e) {}
+        }
+        if (urlsForGrade.length === 0) {
+          urlsForGrade = activeCustomUrls.slice();
+        }
+
+        const gradeStartLine = `[${gradeTime}] ⏳ [Khối ${g}/12] Đang cào dữ liệu cho Khối lớp ${g}...`;
+        if (logBox) {
+          logBox.textContent = gradeStartLine + "\n" + (logBox.textContent || "");
+          localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+        }
+
+        try {
+          const res = await apiFetch(`/api/hunter/run`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subject: subject,
+              grade: g,
+              custom_urls: urlsForGrade
+            })
+          });
+          const data = await res.json();
+          const gFinishTime = getLogTimeVN();
+          if (data.success) {
+            const newSaved = data.new_saved !== undefined ? data.new_saved : (data.total_harvested || 0);
+            const dupes = data.skipped_duplicates || 0;
+            totalNewSaved += newSaved;
+            totalDupes += dupes;
+            if (Array.isArray(data.sources_scraped)) {
+              data.sources_scraped.forEach(s => {
+                if (!allScrapedSources.includes(s)) allScrapedSources.push(s);
+              });
+            }
+            const gDoneLine = `[${gFinishTime}] ✅ [Khối ${g}/12] Khối ${g}: Đã lưu +${newSaved} câu mới (${dupes} trùng lặp).`;
+            if (logBox) {
+              logBox.textContent = logBox.textContent.replace(gradeStartLine, gDoneLine);
+              localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+            }
+          } else {
+            const gErrLine = `[${gFinishTime}] ⚠️ [Khối ${g}/12] Khối ${g}: ${data.error || "Không tìm thấy dữ liệu mới."}`;
+            if (logBox) {
+              logBox.textContent = logBox.textContent.replace(gradeStartLine, gErrLine);
+              localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+            }
+          }
+        } catch (gErr) {
+          const gErrTime = getLogTimeVN();
+          const gFailLine = `[${gErrTime}] ❌ [Khối ${g}/12] Lỗi kết nối Khối ${g}: ${gErr.message}`;
+          if (logBox) {
+            logBox.textContent = logBox.textContent.replace(gradeStartLine, gFailLine);
+            localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+          }
+        }
+
+        loadDashboardStats();
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      const finishAllTime = getLogTimeVN();
+      let summaryLine = `[${finishAllTime}] 🏁 HOÀN TẤT CÀO TUẦN TỰ 12 KHỐI LỚP (Khối 1 -> 12)!\n   🎉 TỔNG KẾT: Đã lưu thành công ${totalNewSaved} câu hỏi MỚI vào CSDL (Bỏ qua ${totalDupes} câu trùng).`;
+      if (allScrapedSources.length > 0) {
+        summaryLine += `\n   🌐 Nguồn đã rà soát: ${allScrapedSources.slice(0, 4).join(', ')}${allScrapedSources.length > 4 ? '...' : ''}`;
+      }
+      if (logBox) {
+        logBox.textContent = summaryLine + "\n" + (logBox.textContent || "");
+        localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+      }
+      showToast(`🎉 Hoàn tất cào tuần tự 12 khối lớp! Đã lưu ${totalNewSaved} câu mới.`, "success");
+      if (typeof broadcastNewQuestions === "function" && totalNewSaved > 0) {
+        broadcastNewQuestions(totalNewSaved, "Săn tuần tự 12 Khối");
+      }
+      loadCollectorLogs();
+      if (State.currentView === "bank") loadQuestions();
+    } catch (allErr) {
+      const finishTime = getLogTimeVN();
+      const errLine = `[${finishTime}] Lỗi cào tuần tự: ${allErr.message}`;
+      if (logBox) {
+        logBox.textContent = errLine + "\n" + (logBox.textContent || "");
+        localStorage.setItem("eduquest_hunter_log", logBox.textContent);
+      }
+      if (!isAuto) showToast("Lỗi khi cào tuần tự các khối", "error");
+    } finally {
+      if (!isAuto && btn) {
+        btn.disabled = false;
+        btn.innerText = "⚡ Bắt đầu Săn câu hỏi từ Internet";
+      }
+    }
+    return;
+  }
+
+  const gradeLabel = `Khối ${grade}`;
+  const runHeader = `[${timeNow}] ${isAuto ? "🔄 [TỰ ĐỘNG ĐỊNH KỲ]" : "⚡ [THỦ CÔNG]"} Săn câu hỏi Internet [Môn: ${subject.toUpperCase()}, ${gradeLabel}]...`;
+  const inProgressLine = `⏳ Đang kết nối ${activeCustomUrls.length > 0 ? activeCustomUrls.length + ' nguồn tùy chọn' : 'các nguồn mở uy tín theo chuẩn Bộ GD&ĐT'}...`;
+  const startLog = `${runHeader}\n${inProgressLine}`;
   if (logBox) {
-    logBox.textContent = previousText ? newRunText + "\n\n" + previousText : newRunText;
+    const cur = (logBox.textContent || "").trim();
+    logBox.textContent = cur ? startLog + "\n\n" + cur : startLog;
     localStorage.setItem("eduquest_hunter_log", logBox.textContent);
   }
 
   try {
-    const res = await fetch(`${API_BASE}/hunter/run`, {
+    const res = await apiFetch(`/api/hunter/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1707,7 +2465,27 @@ async function runInternetHunter(isAuto = false) {
     const finishTime = getLogTimeVN();
 
     if (data.success) {
-      const finishLine = `[${finishTime}] Thu thập thành công! Đã bóc tách và lưu ${data.total_harvested} câu hỏi vào CSDL.`;
+      const newSaved = data.new_saved !== undefined ? data.new_saved : data.total_harvested;
+      const dupes = data.skipped_duplicates || 0;
+      let finishLine = `[${finishTime}] ✅ Săn Internet thành công: Đã lưu ${newSaved} câu hỏi MỚI vào CSDL.`;
+      if (dupes > 0) {
+        finishLine += ` (Đã bỏ qua ${dupes} câu trùng lặp trong CSDL)`;
+      }
+      if (data.sources_scraped && data.sources_scraped.length > 0) {
+        finishLine += `\n   🌐 Nguồn đã rà soát: ${data.sources_scraped.slice(0, 3).join(', ')}${data.sources_scraped.length > 3 ? '...' : ''}`;
+      }
+      if (Array.isArray(data.sources_report) && data.sources_report.length > 0) {
+        data.sources_report.forEach(rep => {
+          const item = hunterTargetUrls.find(u => u.url.toLowerCase() === rep.url.toLowerCase());
+          if (item) {
+            item.lastStatus = rep.status;
+            item.lastCode = rep.status_code;
+            item.lastYield = rep.questions_found;
+            item.lastChecked = finishTime;
+          }
+        });
+        saveHunterTargetUrls(undefined, true);
+      }
       if (logBox) {
         if (logBox.textContent.includes(inProgressLine)) {
           logBox.textContent = logBox.textContent.replace(inProgressLine, finishLine);
@@ -1717,9 +2495,9 @@ async function runInternetHunter(isAuto = false) {
         }
         localStorage.setItem("eduquest_hunter_log", logBox.textContent);
       }
-      showToast(`Đã săn thành công ${data.total_harvested} câu hỏi từ Internet!`);
-      if (typeof broadcastNewQuestions === "function") {
-        broadcastNewQuestions(data.total_harvested, "Săn Internet");
+      showToast(`Đã săn thành công ${newSaved} câu hỏi mới từ Internet!`, "success");
+      if (typeof broadcastNewQuestions === "function" && newSaved > 0) {
+        broadcastNewQuestions(newSaved, "Săn Internet");
       }
       loadDashboardStats();
       loadCollectorLogs();
@@ -1759,20 +2537,127 @@ async function runInternetHunter(isAuto = false) {
 
 // Dynamic Preset Generator for Grades 1 to 12
 function updateGradePresetsUI(gradeVal) {
-  const grade = parseInt(gradeVal) || 2;
+  const isAll = gradeVal === "all";
+  const grade = isAll ? "all" : Math.max(1, Math.min(12, parseInt(gradeVal) || 5));
   const container = document.getElementById("hunter-grade-presets-container");
 
   // 1. Update Harvest Button label badge
   const btnLabel = document.getElementById("harvest-grade-btn-label");
-  if (btnLabel) btnLabel.innerText = String(grade);
+  if (btnLabel) btnLabel.innerText = isAll ? "1-12" : String(grade);
   const quickBtn = document.getElementById("btn-harvest-grade-quick") || document.getElementById("btn-harvest-grade2");
   if (quickBtn) {
-    quickBtn.title = `Nạp nhanh bộ câu hỏi Toán Khối ${grade} (Tiếng Việt, Tiếng Anh & Olympic)`;
+    quickBtn.title = isAll
+      ? "Nạp nhanh bộ câu hỏi Toán cho Tất cả các khối (Khối 1 đến 12)"
+      : `Nạp nhanh bộ câu hỏi Toán Khối ${grade} (Tiếng Việt, Tiếng Anh & Olympic)`;
   }
 
   if (!container) return;
 
-  // Slug maps for K5 & Khan
+  if (isAll) {
+    container.innerHTML = `
+      <!-- Category 1: Nguồn GDPT Toàn diện (Khối 1 - 12) -->
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;">🇻🇳 GDPT Việt Nam (1 - 12):</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu', 'Hành trang số SGK 1-12', 'Toán GDPT', '📘')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+          📘 Hành trang số (SGK 1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://loigiaihay.com/', 'Lời Giải Hay (1-12)', 'Toán, Văn, Anh', '📐')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fdf4ff; color: #a21caf; border: 1px solid #f5d0fe;">
+          📐 Lời Giải Hay (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://olm.vn/', 'OLM.vn (K-12)', 'Tương tác', '🎓')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fdf2f8; color: #9d174d; border: 1px solid #fbcfe8;">
+          🎓 OLM.vn (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vietjack.com/', 'VietJack (Đề thi 1-12)', 'Trắc nghiệm', '📚')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fafaf9; color: #44403c; border: 1px solid #e7e5e4;">
+          📚 VietJack (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://thcs.toanmath.com/', 'THCS TOANMATH (6-9)', 'Toán THCS', '📐')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+          📐 THCS TOANMATH (6-9)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://toanmath.com/', 'TOANMATH (10-12)', 'Toán THPT', '📐')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+          📐 TOANMATH (10-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://tech12h.com/', 'Tech12h (Trắc nghiệm SGK)', 'Trắc nghiệm', '📑')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f8fafc; color: #0284c7; border: 1px solid #bae6fd;">
+          📑 Tech12h (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vio.edu.vn/skill-list', 'VioEdu (1-9)', 'VioEdu', '⚡')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">
+          ⚡ VioEdu (1-9)
+        </button>
+      </div>
+
+      <!-- Category 2: US Math & Tiếng Anh (K-12) -->
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;">🇬🇧 US Math & Anh (K-12):</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.k5learning.com/free-math-worksheets', 'K5 Learning Worksheets', 'US Math', '📑')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fefce8; color: #a16207; border: 1px solid #fef08a;">
+          📑 K5 Learning (K-6)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.ixl.com/math', 'IXL Math K-12', 'US Math', '🎯')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+          🎯 IXL Math (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.khanacademy.org/math', 'Khan Academy Math', 'Quốc tế', '🌱')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;">
+          🌱 Khan Academy (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://ioe.vn/', 'IOE Olympic Tiếng Anh', 'Olympic', '🎧')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;">
+          🎧 IOE Tiếng Anh (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.tienganh123.com/', 'Tiếng Anh 123', 'Tiếng Anh', '🇬🇧')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+          🇬🇧 Tiếng Anh 123
+        </button>
+      </div>
+
+      <!-- Category 3: Olympic Song ngữ (1 - 12) -->
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;">🏆 Olympic Song ngữ:</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://kangaroo-math.vn', 'Olympic Kangaroo IKMC', 'Olympic', '🦘')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;">
+          🦘 Kangaroo Math IKMC (1-12)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/timo', 'Olympic TIMO Song ngữ', 'Olympic', '🏅')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+          🏅 TIMO & ASMO Song ngữ
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.mathplayground.com/', 'Math Playground Game', 'Tương tác', '🎮')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe;">
+          🎮 Math Playground
+        </button>
+      </div>
+
+      <!-- Actions: Thêm toàn bộ nguồn vào danh sách cào -->
+      <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addAllGradePresetsToHunter()" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+          ✨ Thêm tất cả gợi ý Toàn diện vào Danh sách cào
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const lghMathSlugs = {
+    1: "de-thi-de-kiem-tra-toan-lop-1-ket-noi-tri-thuc-c1211.html",
+    2: "de-thi-de-kiem-tra-toan-lop-2-ket-noi-tri-thuc-c1212.html",
+    3: "de-thi-de-kiem-tra-toan-lop-3-ket-noi-tri-thuc-c1215.html",
+    4: "de-thi-de-kiem-tra-toan-lop-4-ket-noi-tri-thuc-c1636.html",
+    5: "de-thi-de-kiem-tra-toan-lop-5-ket-noi-tri-thuc-c1990.html",
+    6: "de-thi-de-kiem-tra-toan-lop-6-ket-noi-tri-thuc-c1022.html",
+    7: "de-thi-de-kiem-tra-toan-lop-7-ket-noi-tri-thuc-c1097.html",
+    8: "de-thi-de-kiem-tra-toan-lop-8-ket-noi-tri-thuc-c1612.html",
+    9: "de-thi-de-kiem-tra-toan-lop-9-ket-noi-tri-thuc-c1984.html",
+    10: "v2/tu-luyen-trac-nghiem-toan-10-ket-noi-tri-thuc-c980.html",
+    11: "de-thi-de-kiem-tra-toan-lop-11-ket-noi-tri-thuc-c1623.html",
+    12: "de-thi-de-kiem-tra-toan-lop-12-ket-noi-tri-thuc-c1964.html"
+  };
+
+  const vietjackExamUrls = {
+    1: "https://vietjack.com/de-kiem-tra-lop-1/de-kiem-tra-toan-lop-1.jsp",
+    2: "https://vietjack.com/de-kiem-tra-lop-2/de-kiem-tra-toan-lop-2.jsp",
+    3: "https://vietjack.com/de-kiem-tra-lop-3/de-kiem-tra-toan-lop-3.jsp",
+    4: "https://vietjack.com/de-kiem-tra-toan-lop-4/index.jsp",
+    5: "https://vietjack.com/de-kiem-tra-toan-5/index.jsp",
+    6: "https://vietjack.com/de-kiem-tra-lop-6/de-kiem-tra-toan-6.jsp",
+    7: "https://vietjack.com/de-kiem-tra-lop-7/de-kiem-tra-toan-7.jsp",
+    8: "https://vietjack.com/de-kiem-tra-lop-8/de-kiem-tra-toan-8.jsp",
+    9: "https://vietjack.com/de-kiem-tra-lop-9/de-kiem-tra-toan-9.jsp",
+    10: "https://vietjack.com/de-kiem-tra-lop-10/de-kiem-tra-toan-10.jsp",
+    11: "https://vietjack.com/de-kiem-tra-lop-11/de-kiem-tra-toan-11.jsp",
+    12: "https://vietjack.com/de-kiem-tra-lop-12/de-kiem-tra-toan-12.jsp"
+  };
+
   const k5Slugs = {
     1: "first-grade-1",
     2: "second-grade-2",
@@ -1799,69 +2684,117 @@ function updateGradePresetsUI(gradeVal) {
     11: "algebra2",
     12: "calculus-1"
   };
-  const khanUrl = `https://www.khanacademy.org/math/${khanSlugs[grade] || "early-math"}`;
+  const khanUrl = `https://www.khanacademy.org/math/${khanSlugs[grade] || "algebra"}`;
+
+  const lghMathUrl = lghMathSlugs[grade] ? `https://loigiaihay.com/${lghMathSlugs[grade]}` : "";
+  const vjUrl = vietjackExamUrls[grade] || "";
+  const toanmathUrl = grade >= 10 ? "https://toanmath.com/" : (grade >= 6 ? "https://thcs.toanmath.com/" : "");
 
   container.innerHTML = `
     <!-- Category 1: Toán Tiếng Việt Khối ${grade} -->
     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
       <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;">🇻🇳 Toán ${grade} Tiếng Việt:</span>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=0&classes=${grade}')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://hanhtrangso.nxbgd.vn/sach-dien-tu?book_active=0&classes=${grade}', 'Hành trang số SGK ${grade}', 'Toán GDPT', '📘')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
         📘 Hành trang số (SGK Toán ${grade})
       </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vio.edu.vn/skill-list')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">
-        📐 VioEdu Luyện tập Toán ${grade}
+      ${lghMathUrl ? `
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('${lghMathUrl}', 'Lời Giải Hay Toán ${grade}', 'Toán', '📐')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fdf4ff; color: #a21caf; border: 1px solid #f5d0fe;">
+        📐 Lời Giải Hay (Toán ${grade})
+      </button>` : ''}
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://olm.vn/lop-${grade}', 'OLM.vn Lớp ${grade}', 'Tương tác', '🎓')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fdf2f8; color: #9d174d; border: 1px solid #fbcfe8;">
+        🎓 OLM.vn Lớp ${grade}
       </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://tnmath.edu.vn/')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;">
-        📖 Trạng Nguyên Toán ${grade}
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://olm.vn/lop-${grade}')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fdf2f8; color: #9d174d; border: 1px solid #fbcfe8;">
-        🎓 OLM.vn Toán ${grade}
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vndoc.com/toan-lop-${grade}')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4;">
-        📝 VnDoc Phiếu Toán ${grade}
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vietjack.com/toan-${grade}-kn/index.jsp')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fafaf9; color: #44403c; border: 1px solid #e7e5e4;">
+      ${vjUrl ? `
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('${vjUrl}', 'VietJack Đề thi Toán ${grade}', 'Toán', '📚')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fafaf9; color: #44403c; border: 1px solid #e7e5e4;">
         📚 VietJack Toán ${grade}
-      </button>
+      </button>` : ''}
+      ${toanmathUrl ? `
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('${toanmathUrl}', 'TOANMATH Lớp ${grade}', 'Toán ${grade >= 10 ? 'THPT' : 'THCS'}', '📐')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+        📐 TOANMATH Lớp ${grade}
+      </button>` : ''}
+      ${grade <= 9 ? `
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://vio.edu.vn/skill-list', 'VioEdu Luyện tập ${grade}', 'VioEdu', '⚡')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">
+        ⚡ VioEdu Luyện tập
+      </button>` : ''}
+      ${grade <= 5 ? `
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://tnmath.edu.vn/', 'Trạng Nguyên Toán ${grade}', 'Trạng Nguyên', '👑')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff1f2; color: #be123c; border: 1px solid #fecdd3;">
+        👑 Trạng Nguyên Toán
+      </button>` : ''}
     </div>
 
     <!-- Category 2: Math Grade ${grade} English -->
     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
       <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;">🇬🇧 Math Grade ${grade} (Anh):</span>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('${k5Url}')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fefce8; color: #a16207; border: 1px solid #fef08a;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('${k5Url}', 'K5 Learning Worksheets', 'US Math', '📑')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fefce8; color: #a16207; border: 1px solid #fef08a;">
         📑 K5 Learning Worksheets
       </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.ixl.com/math/grade-${grade}')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
-        🎯 IXL Math Grade ${grade} Skills
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.ixl.com/math/grade-${grade}', 'IXL Math Grade ${grade}', 'US Math', '🎯')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+        🎯 IXL Math Skills
       </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('${khanUrl}')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;">
-        🌱 Khan Academy Math ${grade}
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('${khanUrl}', 'Khan Academy Math', 'Quốc tế', '🌱')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;">
+        🌱 Khan Academy Math
       </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.commoncoresheets.com')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;">
-        📋 Common Core Math ${grade}
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://www.commoncoresheets.com', 'Common Core Math Sheets', 'US Math', '📋')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;">
+        📋 Common Core Math
       </button>
     </div>
 
     <!-- Category 3: Olympic Song ngữ Khối ${grade} -->
     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
       <span style="font-size: 11.5px; color: #1e293b; font-weight: 700; min-width: 140px;">🏆 Olympic Khối ${grade}:</span>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://kangaroo-math.vn')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://kangaroo-math.vn', 'Olympic Kangaroo IKMC', 'Olympic', '🦘')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;">
         🦘 Kangaroo Math (IKMC Khối ${grade <= 2 ? '1-2' : grade <= 4 ? '3-4' : grade <= 6 ? '5-6' : grade <= 8 ? '7-8' : '9-12'})
       </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/timo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/timo', 'Olympic TIMO Song ngữ', 'Olympic', '🏅')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
         🏅 TIMO Khối ${grade} Song ngữ
       </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/sasmo')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
-        🥇 SASMO Singapore Lớp ${grade}
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetHunterTarget('https://codemath.vn/khoa-hoc/sasmo', 'Olympic SASMO Singapore Math', 'Olympic', '🥇')" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+        🥇 SASMO Singapore Math
+      </button>
+    </div>
+
+    <!-- Actions: Thêm toàn bộ nguồn vào danh sách cào -->
+    <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addAllGradePresetsToHunter()" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+        ✨ Thêm tất cả gợi ý Khối ${grade} vào Danh sách cào
       </button>
     </div>
   `;
 }
 
+function addAllGradePresetsToHunter() {
+  const g = getHunterGradeValue();
+  const defaultItems = getDefaultHunterUrlsForGrade(g);
+  let addedCount = 0;
+  for (const item of defaultItems) {
+    if (!hunterTargetUrls.some(existing => existing.url.toLowerCase() === item.url.toLowerCase())) {
+      hunterTargetUrls.unshift({
+        ...item,
+        id: "url_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+        active: true,
+        addedAt: getLogTimeVN()
+      });
+      addedCount++;
+    }
+  }
+  saveHunterTargetUrls(g);
+  const label = g === "all" ? "Tất cả các khối (1-12)" : `Khối ${g}`;
+  if (addedCount > 0) {
+    showToast(`Đã thêm ${addedCount} nguồn mở ${label} vào danh sách cào!`, "success");
+  } else {
+    showToast(`Tất cả nguồn ${label} đã có sẵn trong danh sách cào!`, "info");
+  }
+}
+
+function openFacebookGroup(url) {
+  window.open(url, "_blank");
+  showToast("Đang mở Facebook! Tiện ích EduQuest Extension sẽ tự động bắt câu hỏi khi bạn lướt bài viết.", "info");
+}
+
 // Quick 1-Click Multi-Source Harvester for Any Grade Math (English + Vietnamese + Olympic)
 async function harvestCurrentGradeMathQuick() {
-  const gradeEl = document.getElementById("hunter-grade");
-  const grade = parseInt(gradeEl?.value || localStorage.getItem("eduquest_selected_grade") || 2);
+  const g = getHunterGradeValue();
+  const isAll = g === "all";
   const btn = document.getElementById("btn-harvest-grade-quick") || document.getElementById("btn-harvest-grade2");
   const logBox = document.getElementById("hunter-live-log");
   const toolbar = document.getElementById("hunter-log-toolbar");
@@ -1870,12 +2803,16 @@ async function harvestCurrentGradeMathQuick() {
   if (toolbar) toolbar.style.display = "flex";
   if (btn) {
     btn.disabled = true;
-    btn.innerText = `⏳ Đang nạp đề Toán Khối ${grade}...`;
+    btn.innerText = isAll ? "⏳ Đang nạp đề Toán tuần tự Khối 1-12..." : `⏳ Đang nạp đề Toán Khối ${g}...`;
   }
 
   const timeNow = getLogTimeVN();
-  const runHeader = `[${timeNow}] 🌟 [NẠP NHANH TOÁN KHỐI ${grade}] Quét đa nguồn Tiếng Việt (VioEdu, Trạng Nguyên, OLM, VnDoc, SGK Hành Trang Số) & Tiếng Anh (K5 Learning, IXL, Khan Academy, Olympic Kangaroo, TIMO, SASMO)...`;
-  const inProgressLine = `⏳ Đang kết nối các kho học liệu Toán Khối ${grade}...`;
+  const runHeader = isAll
+    ? `[${timeNow}] 🌟 [NẠP NHANH TOÁN 1-12] Cào tuần tự từ Khối 1 đến Khối 12 qua đa nguồn Tiếng Việt (VioEdu, Trạng Nguyên, OLM, VnDoc, SGK Hành Trang Số) & Tiếng Anh (K5 Learning, IXL, Khan Academy, Olympic Kangaroo, TIMO, SASMO)...`
+    : `[${timeNow}] 🌟 [NẠP NHANH TOÁN KHỐI ${g}] Quét đa nguồn Tiếng Việt (VioEdu, Trạng Nguyên, OLM, VnDoc, SGK Hành Trang Số) & Tiếng Anh (K5 Learning, IXL, Khan Academy, Olympic Kangaroo, TIMO, SASMO)...`;
+  const inProgressLine = isAll
+    ? `⏳ Đang kết nối và thu thập đề Toán lần lượt từ Khối 1 đến Khối 12...`
+    : `⏳ Đang kết nối các kho học liệu Toán Khối ${g}...`;
 
   const newRunText = `${runHeader}\n${inProgressLine}`;
   const previousText = logBox ? (logBox.textContent || "").trim() : "";
@@ -1885,10 +2822,10 @@ async function harvestCurrentGradeMathQuick() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/hunter/harvest-by-grade`, {
+    const res = await apiFetch(`/api/hunter/harvest-by-grade`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grade: grade, subject: "math" })
+      body: JSON.stringify({ grade: g, subject: "math" })
     });
     const data = await res.json();
     const finishTime = getLogTimeVN();
@@ -1897,7 +2834,8 @@ async function harvestCurrentGradeMathQuick() {
       const savedCount = (typeof data.new_saved === "number") ? data.new_saved : data.total_harvested;
       const skipInfo = (typeof data.skipped_interactive === "number" && data.skipped_interactive > 0)
         ? ` (bỏ qua ${data.skipped_interactive} nguồn mở-tay)` : "";
-      const finishLine = `[${finishTime}] Thu thập thành công! Đã lưu ${savedCount} câu hỏi mới Toán Khối ${grade}${skipInfo} (tổng thu ${data.total_harvested}, loại trùng ${data.skipped_duplicates || 0}).`;
+      const finishLabel = isAll ? "Tất cả Khối 1-12" : `Toán Khối ${g}`;
+      const finishLine = `[${finishTime}] Thu thập thành công! Đã lưu ${savedCount} câu hỏi mới ${finishLabel}${skipInfo} (tổng thu ${data.total_harvested}, loại trùng ${data.skipped_duplicates || 0}).`;
       if (logBox) {
         if (logBox.textContent.includes(inProgressLine)) {
           logBox.textContent = logBox.textContent.replace(inProgressLine, finishLine);
@@ -1907,15 +2845,15 @@ async function harvestCurrentGradeMathQuick() {
         }
         localStorage.setItem("eduquest_hunter_log", logBox.textContent);
       }
-      showToast(`Đã lưu ${savedCount} câu hỏi mới Toán Khối ${grade}${skipInfo}!`);
+      showToast(`Đã lưu ${savedCount} câu hỏi mới ${finishLabel}${skipInfo}!`);
       if (typeof broadcastNewQuestions === "function") {
-        broadcastNewQuestions(savedCount, `Toán Khối ${grade} Đa Nguồn`);
+        broadcastNewQuestions(savedCount, `${finishLabel} Đa Nguồn`);
       }
       loadDashboardStats();
       loadCollectorLogs();
       if (State.currentView === "bank") loadQuestions();
     } else {
-      const errLine = `[${finishTime}] Thông báo: ${data.error || `Không thể thu thập dữ liệu Toán khối ${grade}.`}`;
+      const errLine = `[${finishTime}] Thông báo: ${data.error || `Không thể thu thập dữ liệu Toán.`}`;
       if (logBox) {
         if (logBox.textContent.includes(inProgressLine)) {
           logBox.textContent = logBox.textContent.replace(inProgressLine, errLine);
@@ -1933,11 +2871,12 @@ async function harvestCurrentGradeMathQuick() {
       }
       localStorage.setItem("eduquest_hunter_log", logBox.textContent);
     }
-    showToast(`Lỗi khi nạp nhanh đề Toán Khối ${grade}: ` + err.message, "error");
+    showToast(`Lỗi khi nạp nhanh đề Toán: ` + err.message, "error");
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = `✨ Nạp nhanh Đề Toán Khối <span id="harvest-grade-btn-label">${grade}</span> Toàn diện (Anh & Việt)`;
+      const lbl = isAll ? "1-12" : String(g);
+      btn.innerHTML = `✨ Nạp nhanh Đề Toán Khối <span id="harvest-grade-btn-label">${lbl}</span> Toàn diện (Anh & Việt)`;
     }
   }
 }
@@ -1995,17 +2934,23 @@ function updateCountdownUI() {
 
 // Grade Persistence & Settings Management
 function setDefaultGrade(grade) {
-  localStorage.setItem("eduquest_default_grade", grade);
-  localStorage.setItem("eduquest_selected_grade", grade);
-  applyGradeToAllSelectors(grade);
-  updateGradePresetsUI(grade);
-  showToast(`Đã lưu Khối lớp ${grade} làm mặc định toàn hệ thống!`);
+  const g = grade === "all" ? "all" : (parseInt(grade) || 5);
+  localStorage.setItem("eduquest_default_grade", g);
+  localStorage.setItem("eduquest_selected_grade", g);
+  applyGradeToAllSelectors(g);
+  updateGradePresetsUI(g);
+  loadHunterTargetUrls(g);
+  renderHunterUrlsList();
+  showToast(g === "all" ? "Đã lưu Tất cả các khối (1-12) làm mặc định!" : `Đã lưu Khối lớp ${g} làm mặc định toàn hệ thống!`);
 }
 
 function onGradeSelectChanged(grade) {
-  localStorage.setItem("eduquest_selected_grade", grade);
-  applyGradeToAllSelectors(grade);
-  updateGradePresetsUI(grade);
+  const g = grade === "all" ? "all" : (parseInt(grade) || 5);
+  localStorage.setItem("eduquest_selected_grade", g);
+  applyGradeToAllSelectors(g);
+  updateGradePresetsUI(g);
+  loadHunterTargetUrls(g);
+  renderHunterUrlsList();
 }
 
 function applyGradeToAllSelectors(grade) {
@@ -2013,10 +2958,13 @@ function applyGradeToAllSelectors(grade) {
   const ids = ["global-default-grade", "hunter-grade", "scraper-grade", "m-grade", "matrix-grade"];
   ids.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.value = grade;
+    if (el) {
+      const opt = el.querySelector(`option[value="${grade}"]`);
+      if (opt) el.value = grade;
+    }
   });
   const btnLabel = document.getElementById("harvest-grade-btn-label");
-  if (btnLabel) btnLabel.innerText = String(grade);
+  if (btnLabel) btnLabel.innerText = grade === "all" ? "1-12" : String(grade);
 }
 
 // ----------------- R1: Bot Auto-Crawl 5-Minute Periodic Loop -----------------
@@ -2136,7 +3084,7 @@ async function openCaptureLogsModal() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/questions?sort_by=newest&page=1&page_size=24`);
+    const res = await apiFetch(`/api/questions?sort_by=newest&page=1&page_size=24`);
     if (res.ok) {
       const data = await res.json();
       currentCapturedQuestions = data.items || [];
@@ -2273,7 +3221,7 @@ async function reinjectCapturedQuestions() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/questions/bulk`, {
+    const res = await apiFetch(`/api/questions/bulk`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ questions: currentCapturedQuestions })
@@ -2301,87 +3249,120 @@ async function reinjectCapturedQuestions() {
 }
 
 function restoreCollectorSettings() {
-  // 1. Restore grade for collector tools only
-  const savedGrade = localStorage.getItem("eduquest_default_grade") || localStorage.getItem("eduquest_selected_grade") || "5";
-  applyGradeToAllSelectors(savedGrade);
-  updateGradePresetsUI(savedGrade);
+  // 1. Restore grade for collector tools only (default to "2" as requested by user)
+  let savedGrade = "2";
+  try {
+    savedGrade = localStorage.getItem("eduquest_default_grade") || "2";
+    localStorage.setItem("eduquest_default_grade", savedGrade);
+    localStorage.setItem("eduquest_selected_grade", savedGrade);
+  } catch (e) {}
+
+  try {
+    applyGradeToAllSelectors(savedGrade);
+    updateGradePresetsUI(savedGrade);
+  } catch (e) {
+    console.warn("restoreCollectorSettings grade presets error:", e);
+  }
 
   // 2. Restore scraper credentials
-  const savedPlat = localStorage.getItem("eduquest_scraper_plat");
-  if (savedPlat) {
-    const el = document.getElementById("scraper-platform");
-    if (el) el.value = savedPlat;
-  }
-
-  const savedUser = localStorage.getItem("eduquest_scraper_user");
-  if (savedUser) {
-    const el = document.getElementById("scraper-username");
-    if (el) el.value = savedUser;
-  }
-
-  const savedRound = localStorage.getItem("eduquest_scraper_round");
-  if (savedRound) {
-    const el = document.getElementById("scraper-round");
-    if (el) el.value = savedRound;
-  }
+  try {
+    const savedPlat = localStorage.getItem("eduquest_scraper_plat");
+    if (savedPlat) {
+      const el = document.getElementById("scraper-platform");
+      if (el) el.value = savedPlat;
+    }
+    const savedUser = localStorage.getItem("eduquest_scraper_user");
+    if (savedUser) {
+      const el = document.getElementById("scraper-username");
+      if (el) el.value = savedUser;
+    }
+    const savedRound = localStorage.getItem("eduquest_scraper_round");
+    if (savedRound) {
+      const el = document.getElementById("scraper-round");
+      if (el) el.value = savedRound;
+    }
+  } catch (e) {}
 
   // 3. Restore auto-hunter toggle
-  const isAutoHunter = localStorage.getItem("eduquest_autohunter") === "true";
-  const toggleEl = document.getElementById("hunter-auto-loop");
-  if (toggleEl) {
-    toggleEl.checked = isAutoHunter;
-    if (isAutoHunter) {
-      const badge = document.getElementById("hunter-countdown-badge");
-      if (badge) badge.style.display = "inline-flex";
-      startAutoHunterLoop();
+  try {
+    const isAutoHunter = localStorage.getItem("eduquest_autohunter") === "true";
+    const toggleEl = document.getElementById("hunter-auto-loop");
+    if (toggleEl) {
+      toggleEl.checked = isAutoHunter;
+      if (isAutoHunter) {
+        const badge = document.getElementById("hunter-countdown-badge");
+        if (badge) badge.style.display = "inline-flex";
+        startAutoHunterLoop();
+      }
     }
-  }
+  } catch (e) {}
 
   // 4. Hub VioEdu: đồng bộ toggle theo scheduler backend (không chạy loop tab cũ)
-  apiFetch(`/api/collect/vioedu-plan`).then(r => r.json()).then(st => {
-    const botToggle = document.getElementById("bot-auto-crawl-toggle");
-    if (botToggle && st.success) {
-      botToggle.checked = !!st.auto_enabled;
-      const badge = document.getElementById("bot-auto-crawl-badge");
-      if (badge) badge.style.display = st.auto_enabled ? "inline-flex" : "none";
-    }
-  }).catch(() => { /* giữ trạng thái localStorage */ });
+  try {
+    apiFetch(`/api/collect/vioedu-plan`).then(r => r.json()).then(st => {
+      const botToggle = document.getElementById("bot-auto-crawl-toggle");
+      if (botToggle && st.success) {
+        botToggle.checked = !!st.auto_enabled;
+        const badge = document.getElementById("bot-auto-crawl-badge");
+        if (badge) badge.style.display = st.auto_enabled ? "inline-flex" : "none";
+      }
+    }).catch(() => { /* giữ trạng thái localStorage */ });
+  } catch (e) {}
   refreshVioEduHubStatus();
 
-  // 5. Restore hunter target URLs list
-  loadHunterTargetUrls();
-  renderHunterUrlsList();
+  // 5. Restore hunter target URLs list & presets for active grade
+  try {
+    const rawInit = (function() {
+      try {
+        return localStorage.getItem("eduquest_default_grade") || localStorage.getItem("eduquest_selected_grade") || "2";
+      } catch (e) { return "2"; }
+    })();
+    const initGrade = rawInit === "all" ? "all" : (parseInt(rawInit) || 2);
+    updateGradePresetsUI(initGrade);
+    loadHunterTargetUrls(initGrade);
+    renderHunterUrlsList();
+  } catch (e) {
+    console.warn("restoreCollectorSettings hunter urls error:", e);
+  }
 
   // 6. Restore persistent live logs
-  const savedHunterLog = localStorage.getItem("eduquest_hunter_log");
-  const hunterLogBox = document.getElementById("hunter-live-log");
-  const hunterToolbar = document.getElementById("hunter-log-toolbar");
-  if (savedHunterLog && hunterLogBox) {
-    const formatted = formatAndSortHunterLog(savedHunterLog);
-    if (formatted) {
-      hunterLogBox.style.display = "block";
-      if (hunterToolbar) hunterToolbar.style.display = "flex";
-      hunterLogBox.textContent = formatted;
-      localStorage.setItem("eduquest_hunter_log", formatted);
+  try {
+    const savedHunterLog = localStorage.getItem("eduquest_hunter_log");
+    const hunterLogBox = document.getElementById("hunter-live-log");
+    const hunterToolbar = document.getElementById("hunter-log-toolbar");
+    if (savedHunterLog && hunterLogBox) {
+      const formatted = formatAndSortHunterLog(savedHunterLog);
+      if (formatted) {
+        hunterLogBox.style.display = "block";
+        if (hunterToolbar) hunterToolbar.style.display = "flex";
+        hunterLogBox.textContent = formatted;
+        try { localStorage.setItem("eduquest_hunter_log", formatted); } catch (e) {}
+      }
     }
-  }
+  } catch (e) {}
 
-  const savedScraperLog = localStorage.getItem("eduquest_scraper_log");
-  const scraperLogBox = document.getElementById("scraper-live-log");
-  const scraperToolbar = document.getElementById("scraper-log-toolbar");
-  if (savedScraperLog && scraperLogBox) {
-    const cleanLog = unSquishLogLines(savedScraperLog);
-    scraperLogBox.style.display = "block";
-    if (scraperToolbar) scraperToolbar.style.display = "flex";
-    scraperLogBox.textContent = cleanLog;
-    localStorage.setItem("eduquest_scraper_log", cleanLog);
-  }
+  try {
+    const savedScraperLog = localStorage.getItem("eduquest_scraper_log");
+    const scraperLogBox = document.getElementById("scraper-live-log");
+    const scraperToolbar = document.getElementById("scraper-log-toolbar");
+    if (savedScraperLog && scraperLogBox) {
+      const cleanLog = unSquishLogLines(savedScraperLog);
+      scraperLogBox.style.display = "block";
+      if (scraperToolbar) scraperToolbar.style.display = "flex";
+      scraperLogBox.textContent = cleanLog;
+      try { localStorage.setItem("eduquest_scraper_log", cleanLog); } catch (e) {}
+    }
+  } catch (e) {}
 
   // 7. Restore OCR live log
-  restoreOcrLog();
+  try {
+    restoreOcrLog();
+  } catch (e) {}
 
   // 8. Refresh OCR Active Lexicon badge count
-  refreshOcrLexiconCountBadge();
+  try {
+    refreshOcrLexiconCountBadge();
+  } catch (e) {}
 }
 
 // ============================================================================
@@ -2392,7 +3373,7 @@ let ocrLexiconSearchDebounce = null;
 
 async function refreshOcrLexiconCountBadge() {
   try {
-    const res = await fetch(`${API_BASE}/ocr/engine-status`);
+    const res = await apiFetch(`/api/ocr/engine-status`);
     if (!res.ok) return;
     const data = await res.json();
     const count = data.total_learned_rules !== undefined ? data.total_learned_rules : 0;
@@ -2433,8 +3414,7 @@ async function loadOcrLexiconRules(search = "") {
   if (stats) stats.textContent = "Đang tải dữ liệu từ điển...";
 
   try {
-    const url = `${API_BASE}/ocr/corrections?page=1&page_size=200&search=${encodeURIComponent(search)}`;
-    const res = await fetch(url);
+    const res = await apiFetch(`/api/ocr/corrections?page=1&page_size=200&search=${encodeURIComponent(search)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const items = data.items || [];
@@ -2543,7 +3523,7 @@ async function submitManualLexiconRule() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/ocr/corrections`, {
+    const res = await apiFetch(`/api/ocr/corrections`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2572,7 +3552,7 @@ async function deleteOcrLexiconRule(id) {
     return;
   }
   try {
-    const res = await fetch(`${API_BASE}/ocr/corrections/${id}`, {
+    const res = await apiFetch(`/api/ocr/corrections/${id}`, {
       method: "DELETE"
     });
     if (!res.ok) throw new Error("Lỗi máy chủ khi xóa quy tắc");
@@ -2590,7 +3570,7 @@ async function clearAllOcrLexiconRules() {
     return;
   }
   try {
-    const res = await fetch(`${API_BASE}/ocr/corrections/clear`, {
+    const res = await apiFetch(`/api/ocr/corrections/clear`, {
       method: "POST"
     });
     if (!res.ok) throw new Error("Lỗi khi xóa từ điển");
@@ -2978,7 +3958,7 @@ window.resetCustomModelsDefault = resetCustomModelsDefault;
 
 async function loadAiVisionSettings() {
   try {
-    const res = await fetch(`${API_BASE}/ai-vision/settings`);
+    const res = await apiFetch(`/api/ai-vision/settings`);
     if (!res.ok) return;
     const data = await res.json();
     const s = data.settings || {};
@@ -3078,7 +4058,7 @@ async function saveAiVisionSettings() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/ai-vision/settings`, {
+    const res = await apiFetch(`/api/ai-vision/settings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -3130,7 +4110,7 @@ async function testAiVisionConnection(provider = "custom") {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/ai-vision/test-connection`, {
+    const res = await apiFetch(`/api/ai-vision/test-connection`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(reqBody)
@@ -3183,7 +4163,7 @@ async function scan9RouterModels() {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/ai-vision/test-connection`, {
+    const res = await apiFetch(`/api/ai-vision/test-connection`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3196,7 +4176,7 @@ async function scan9RouterModels() {
     if (!data.success) throw new Error(data.message);
 
     // Fetch models via backend endpoint (POST body — khong de key lo tren URL/log)
-    const mRes = await fetch(`${API_BASE}/ai-vision/models`, {
+    const mRes = await apiFetch(`/api/ai-vision/models`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: "custom", base_url: baseUrl, api_key: apiKey })
@@ -3255,7 +4235,7 @@ async function scanLiveVisionModels(provider = "openrouter") {
 
   try {
     // POST body thay vi query-string de khong lo key trong URL/log server
-    const res = await fetch(`${API_BASE}/ai-vision/models`, {
+    const res = await apiFetch(`/api/ai-vision/models`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider, api_key: apiKey })
@@ -3315,9 +4295,18 @@ async function scanLiveVisionModels(provider = "openrouter") {
 }
 window.scanLiveVisionModels = scanLiveVisionModels;
 
-// Initialize Dropzone and restore settings when DOM loaded
-document.addEventListener("DOMContentLoaded", () => {
-  setupDropzone();
-  restoreCollectorSettings();
-});
+// Initialize Dropzone and restore settings reliably across all DOM lifecycle stages
+function initCollectorModule() {
+  if (typeof setupDropzone === "function") setupDropzone();
+  if (typeof restoreCollectorSettings === "function") restoreCollectorSettings();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initCollectorModule);
+} else {
+  // DOM is already interactive or complete
+  initCollectorModule();
+}
+window.initCollectorModule = initCollectorModule;
+
 

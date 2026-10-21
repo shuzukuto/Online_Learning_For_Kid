@@ -27,9 +27,8 @@ echo  ║   [4]  Chia sẻ trong mạng LAN / WiFi nội bộ                 �
 echo  ║        Dùng chung trong nhà hoặc trường — không cần Internet ║
 echo  ║                                                              ║
 echo  ╠══════════════════════════════════════════════════════════════╣
-echo  ║                                                              ║
-echo  ║   [5]  🐳 Docker — Chạy nền, tự khởi động khi bật máy       ║
-echo  ║        Không cần Python — server chạy 24/7 ổn định nhất     ║
+echo  ║   [5]  🐳 Docker — Chạy nền 24/7 (Server + ngrok Internet)   ║
+echo  ║        Tự khởi động khi bật máy — không lo tắt nhầm CMD     ║
 echo  ║        Yêu cầu: Docker Desktop đã cài                       ║
 echo  ║                                                              ║
 echo  ╚══════════════════════════════════════════════════════════════╝
@@ -210,8 +209,9 @@ echo  ║                                                              ║
 echo  ║   [A]  Lần đầu: Build image ^& Khởi động (mất 5-10 phút)    ║
 echo  ║   [B]  Khởi động (image đã build sẵn)                       ║
 echo  ║   [C]  Dừng container                                       ║
-echo  ║   [D]  Xem trạng thái ^& IP LAN                             ║
-echo  ║   [E]  Xem log realtime                                     ║
+echo  ║   [D]  Xem trạng thái ^& URL Internet                         ║
+echo  ║   [E]  Xem log realtime EduQuest Server                      ║
+echo  ║   [F]  Xem log realtime ngrok Tunnel                         ║
 echo  ║   [0]  Quay lại menu chính                                  ║
 echo  ║                                                              ║
 echo  ╚══════════════════════════════════════════════════════════════╝
@@ -229,13 +229,14 @@ if %errorlevel% neq 0 (
     goto MENU
 )
 
-set /p DCHOICE="  Nhập lựa chọn (A/B/C/D/E/0): "
+set /p DCHOICE="  Nhập lựa chọn (A/B/C/D/E/F/0): "
 
 if /i "%DCHOICE%"=="A" goto DOCKER_BUILD_START
 if /i "%DCHOICE%"=="B" goto DOCKER_START
 if /i "%DCHOICE%"=="C" goto DOCKER_STOP
 if /i "%DCHOICE%"=="D" goto DOCKER_STATUS
 if /i "%DCHOICE%"=="E" goto DOCKER_LOGS
+if /i "%DCHOICE%"=="F" goto DOCKER_LOGS_NGROK
 if "%DCHOICE%"=="0"   goto MENU
 echo  [!] Lựa chọn không hợp lệ.
 timeout /t 2 /nobreak > nul
@@ -336,10 +337,21 @@ goto MODE_DOCKER
 cls
 echo.
 echo  ══════════════════════════════════════════
-echo   🐳 [E] LOG REALTIME (Ctrl+C để thoát)
+echo   🐳 [E] LOG EDUQUEST REALTIME (Ctrl+C để thoát)
 echo  ══════════════════════════════════════════
 echo.
-docker compose logs -f --tail=50
+docker compose logs -f --tail=50 eduquest
+pause
+goto MODE_DOCKER
+
+:DOCKER_LOGS_NGROK
+cls
+echo.
+echo  ══════════════════════════════════════════
+echo   🐳 [F] LOG NGROK REALTIME (Ctrl+C để thoát)
+echo  ══════════════════════════════════════════
+echo.
+docker compose logs -f --tail=50 ngrok
 pause
 goto MODE_DOCKER
 
@@ -347,11 +359,12 @@ goto MODE_DOCKER
 :SHOW_DOCKER_URL
 echo.
 echo   Truy cập EduQuest Pro tại:
-echo     Local:  http://localhost:8000
+echo     Local:    http://localhost:8000
+echo     Internet: https://otter-scrawny-squall.ngrok-free.dev
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
     set IP=%%a
     set IP=!IP: =!
-    echo     LAN:    http://!IP!:8000
+    echo     LAN:      http://!IP!:8000
     goto :show_done
 )
 :show_done

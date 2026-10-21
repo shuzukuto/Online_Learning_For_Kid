@@ -19,7 +19,13 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _read(path: str) -> str:
     with open(os.path.join(PROJECT_ROOT, path), encoding="utf-8") as f:
-        return f.read()
+        content = f.read()
+    if path == "backend/app.py":
+        import glob
+        for rf in sorted(glob.glob(os.path.join(PROJECT_ROOT, "backend", "routers", "*.py"))):
+            with open(rf, encoding="utf-8") as f:
+                content += "\n" + f.read()
+    return content
 
 
 def test_auth_module_exists_with_pbkdf2():
@@ -418,8 +424,11 @@ def _route_guarded(src: str, path_literal: str) -> bool:
     fn = src.find("async def ", i)
     if fn < 0:
         return True
-    nxt = src.find("@app.", i)
-    body = src[fn:nxt if nxt > fn else len(src)]
+    nxt_app = src.find("@app.", i)
+    nxt_router = src.find("@router.", i)
+    candidates = [p for p in (nxt_app, nxt_router) if p > fn]
+    nxt = min(candidates) if candidates else len(src)
+    body = src[fn:nxt]
     if "_require_session" in body or "_require_admin" in body:
         return True
     # middleware gate mọi /api/ còn lại
@@ -429,7 +438,7 @@ def _route_guarded(src: str, path_literal: str) -> bool:
 def test_web_api_requires_login_session():
     import re
     src = _read("backend/app.py")
-    paths = re.findall(r'@app\.(?:get|post|put|delete|patch)\("(/api/[^"{]+)"', src)
+    paths = re.findall(r'@(?:app|router)\.(?:get|post|put|delete|patch)\("(/api/[^"{]+)"', src)
     unguarded = [p for p in dict.fromkeys(paths)
                  if p not in _AUTH_PUBLIC_PATHS and not _route_guarded(src, p)]
     assert not unguarded, f"web API chua khoa dang nhap: {unguarded[:8]}"
@@ -644,3 +653,23 @@ def test_scheduler_rotates_grades_not_stuck_grade2():
     # khoi vua fresh.
     assert "CURSOR" in src or "cursor" in src.lower() or "xoay" in src.lower(), \
         "scheduler chua xoay vong khoi — van cao lai khoi vua fresh → 0 cau"
+
+
+def test_vioedu_login_failure_returns_400_not_401():
+    # User 2026-10-14: Dang nhap VioEdu that bai neu tra ve 401 se bi auth.js
+    # tu dong AuthStore.clear() lam KICK ADMIN ra man hinh login.
+    # Endpoint phai tra ve 400 (Bad Request), khong dung 401 (danh rieng cho EduQuest Bearer).
+    import re as _re
+    src = _read("backend/app.py")
+    i = src.find('"/api/collect/vioedu-login"')
+    post_i = max(src.rfind("@app.post(", 0, i), src.rfind("@router.post(", 0, i))
+    assert post_i >= 0
+    next_dec = src.find("\n@", i)
+    body = src[post_i:next_dec if next_dec != -1 else len(src)]
+    # Look for status_code in raise HTTPException
+    status_matches = _re.findall(r'raise\s+HTTPException\s*\(\s*status_code\s*=\s*(\d+)', body)
+    assert "401" not in status_matches, \
+        "vioedu-login tra ve 401 khi dang nhap that bai -> se da vang admin ra khoi he thong!"
+    assert "400" in status_matches or "422" in status_matches, \
+        "vioedu-login phai tra ve 400 hoac 422 khi that bai"
+

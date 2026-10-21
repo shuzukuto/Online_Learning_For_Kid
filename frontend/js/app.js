@@ -1,7 +1,7 @@
 // EduQuest Pro - Core Application & Router
 // Version hien thi duoc cap nhat dong tu /api/version (backend/version.py la nguon duy nhat).
 // APP_VERSION giu lam gia tri fallback khi backend chua san sang.
-let APP_VERSION = "v1.1.7";
+let APP_VERSION = "v1.2.5";
 const API_BASE = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
   ? `${window.location.origin}/api`
   : "http://localhost:8000/api";
@@ -101,7 +101,10 @@ function switchView(viewName) {
   if (viewName === "bank") loadQuestions();
   if (viewName === "practice" && typeof initPracticeView === "function") initPracticeView();
   if (viewName === "builder") renderExamBuilderView();
-  if (viewName === "collector") loadCollectorLogs();
+  if (viewName === "collector") {
+    if (typeof restoreCollectorSettings === "function") restoreCollectorSettings();
+    loadCollectorLogs();
+  }
   if (viewName === "admin-users" && window.EduAuth) window.EduAuth.loadAdminUsers();
 }
 
@@ -335,7 +338,7 @@ function formatMathSymbols(str) {
   // 1. Dấu $ đứng trước số tiền: $3, $20, $ 50, $3.5, $100,000 (theo sau bởi dấu câu, khoảng trắng hoặc hết chuỗi, không phải biến số như $3x)
   s = s.replace(/(^|[\s\(>«"“'])\$\s*(\d+(?:[.,]\d+)?)(?=[\s\.,;:!?\)<»"”']|$)/g, '$1<span class="currency-dollar">$</span>$2');
   // 2. Dấu $ đứng sau số: 3$, 50 $, 100$ (không đứng sau toán tử toán học như = 0$, + 5$, v.v.)
-  s = s.replace(/(?<![=+\-*/\^<>~]\s*)\b(\d+(?:[.,]\d+)?)\s*\$(?=[\s\.,;:!?\)<»"”']|$)/g, '$1<span class="currency-dollar">$</span>');
+  s = s.replace(/(\b\d+(?:[.,]\d+)?)\s*\$(?=[\s.,;:!?«»"”']|$)/g, '$1<span class="currency-dollar">$</span>');
 
   // ---------------------------------------------------------
   // BƯỚC 1: Bảo vệ toàn bộ các khối toán học sẵn có

@@ -297,6 +297,20 @@ Mở trình duyệt, truy cập URL ngrok của bạn:
 
 ---
 
+### 🐳 Chạy ngrok Ngầm 24/7 Bằng Docker (Khuyên Dùng — Không Lo Tắt Nhầm CMD)
+
+Để tránh việc phải giữ cửa sổ dòng lệnh và tránh rủi ro bấm tắt nhầm cửa sổ CMD:
+1. Dự án đã tích hợp service `ngrok` chạy trực tiếp bên trong `docker-compose.yml`.
+2. Khởi động 24/7 cực kỳ đơn giản:
+   * Chạy file `start.bat` $\rightarrow$ chọn **`[5] 🐳 Docker`** $\rightarrow$ chọn **`[B] Khởi động`**.
+   * Hoặc gõ lệnh: `docker compose up -d`
+3. Cả **EduQuest Pro** và **ngrok Tunnel** sẽ chạy hoàn toàn dưới nền trong Docker Desktop:
+   * **Không có cửa sổ CMD** nào xuất hiện trên màn hình $\rightarrow$ không bao giờ sợ bấm tắt nhầm.
+   * Tự động khởi động lại khi Windows bật máy hoặc khi rớt mạng (`restart: unless-stopped`).
+4. Truy cập ổn định tại: **`https://otter-scrawny-squall.ngrok-free.dev`**
+
+---
+
 ## 🔗 URL Cố định (Nâng cao)
 
 > **Kết quả:** Mọi người dùng URL cố định không đổi như `https://eduquest.ten-ban.com` mà không cần thông báo lại mỗi lần khởi động máy.

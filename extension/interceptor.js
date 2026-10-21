@@ -1,6 +1,6 @@
-// EduQuest Pro - Super Network & WebSocket Interceptor v1.3.19 (Runs in page context)
+// EduQuest Pro - Super Network & WebSocket Interceptor v1.3.23 (Runs in page context)
 (function () {
-  console.log("[EduQuest Interceptor v1.3.19] Active in page context (Fetch + XHR + WebSocket)");
+  console.log("[EduQuest Interceptor v1.3.23] Active in page context (Fetch + XHR + WebSocket)");
 
   function getShortUrl() {
     try {
@@ -30,7 +30,7 @@
     } catch (e) {}
   }
 
-  sendInterceptorLog(`⚡ Interceptor v1.3.19 đã kích hoạt trên ${window.location.hostname}`, "info");
+  sendInterceptorLog(`⚡ Interceptor v1.3.23 đã kích hoạt trên ${window.location.hostname}`, "info");
 
   function isUuidOrIdString(str) {
     if (!str || typeof str !== "string") return false;
@@ -258,22 +258,38 @@
   function parseVioEduGraphQLItem(item) {
     if (!item || !item.content) return null;
     let options = [];
+    let correctLetter = null;
+    let qType = "fill_blank";
+
     if (Array.isArray(item.answers) && item.answers.length > 0) {
-      options = item.answers.map((a, i) => ({
-        id: String.fromCharCode(65 + i),
-        content: cleanHtmlToText(a.text || a.content || "")
-      }));
+      qType = "single_choice";
+      options = item.answers.map((a, i) => {
+        const letter = String.fromCharCode(65 + i);
+        const isCorrect = a.correct === true;
+        if (isCorrect && !correctLetter) correctLetter = letter;
+        return {
+          id: letter,
+          content: cleanHtmlToText(a.text || a.content || ""),
+          is_correct: isCorrect
+        };
+      });
     } else if (Array.isArray(item.textDropdownAnswers) && item.textDropdownAnswers.length > 0) {
+      qType = "single_choice";
       const list = item.textDropdownAnswers[0]?.list || [];
       options = list.map((dd, i) => ({
         id: String.fromCharCode(65 + i),
-        content: dd.text || dd.content || ""
+        content: dd.text || dd.content || "",
+        is_correct: i === 0  // VioEdu dropdown: first item is correct
       }));
+      if (options.length > 0) correctLetter = "A";
     } else if (Array.isArray(item.leftMatching) && Array.isArray(item.rightMatching)) {
+      qType = "matching";
       options = item.leftMatching.map((lm, i) => ({
         id: String(i + 1),
-        content: (lm.textContent || lm.text || "") + " ↔ " + (item.rightMatching[i]?.textContent || item.rightMatching[i]?.text || "")
+        content: (lm.textContent || lm.text || "") + " ↔ " + (item.rightMatching[i]?.textContent || item.rightMatching[i]?.text || ""),
+        is_correct: true
       }));
+      correctLetter = "Nối tương ứng";
     }
 
     return {
@@ -281,11 +297,12 @@
       source_platform: "vioedu",
       grade: item.grade || 1,
       topic: item.skillName || "VioEdu Luyện tập & Đấu trường",
-      question_type: options.length > 0 ? "single_choice" : "fill_blank",
+      question_type: qType,
       content_html: item.content,
       content_text: cleanHtmlToText(item.content),
       options: options,
-      correct_answer: null,
+      correct_answer: correctLetter,
+      explanation: item.explanation || "",
       difficulty: item.depthOfKnowledge || "medium"
     };
   }

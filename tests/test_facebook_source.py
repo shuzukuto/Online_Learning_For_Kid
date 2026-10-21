@@ -106,3 +106,104 @@ def test_facebook_platform_wired():
     with open(os.path.join(PROJECT_ROOT, "extension", "manifest.json"), encoding="utf-8") as f:
         mf = f.read()
     assert "facebook.com" in mf, "manifest chua cho phep chay tren facebook.com"
+
+
+def test_facebook_question_payload_valid_in_normalizer():
+    from backend.normalizer import is_valid_question_payload
+
+    # Payload scanned from Facebook should NOT be rejected just because it has "facebook" in topic, exam_name, or content
+    fb_q = {
+        "id": "fb_123",
+        "source_platform": "facebook",
+        "source_url": "https://www.facebook.com/groups/toantieuhoc/posts/123456",
+        "exam_name": "Facebook - Nhóm Toán Tiểu Học",
+        "grade": 3,
+        "subject": "math",
+        "topic": "Facebook Nhóm học tập (TIMO/HKIMO/ASMO)",
+        "question_type": "fill_blank",
+        "content_text": "Đề thi thử TIMO lớp 3 vòng 1: Câu 1: Tìm x biết x + 25 = 50. Chia sẻ từ facebook nhóm học tập.",
+        "content_html": "Đề thi thử TIMO lớp 3 vòng 1: Câu 1: Tìm x biết x + 25 = 50.<br>Chia sẻ từ facebook nhóm học tập.",
+        "options": [],
+        "correct_answer": "25",
+        "difficulty": "medium"
+    }
+    valid, reason = is_valid_question_payload(fb_q)
+    assert valid is True, f"Câu hỏi Facebook bị từ chối sai: {reason}"
+
+    # Non-facebook source with spam contact facebook should still be rejected
+    spam_q = {
+        "id": "spam_456",
+        "source_platform": "vndoc",
+        "source_url": "https://vndoc.com/test",
+        "exam_name": "Đề thi",
+        "grade": 3,
+        "subject": "math",
+        "topic": "Đề kiểm tra",
+        "question_type": "fill_blank",
+        "content_text": "Câu 1: 1 + 1 = 2. Mọi thắc mắc nhắn qua facebook cá nhân để được hỗ trợ.",
+        "content_html": "Câu 1: 1 + 1 = 2. Mọi thắc mắc nhắn qua facebook cá nhân để được hỗ trợ.",
+        "options": []
+    }
+    spam_valid, spam_reason = is_valid_question_payload(spam_q)
+    assert spam_valid is False, "Spam liên hệ facebook từ nguồn khác phải bị loại"
+    assert "facebook" in spam_reason.lower()
+
+
+def test_extension_facebook_formatting_and_image_filters():
+    with open(CONTENT_JS, encoding="utf-8") as f:
+        src = f.read()
+    # Check that extractImagesFromElement filters out emoji, rsrc.php, static.xx.fbcdn.net
+    assert "rsrc.php" in src or "rsrc\\.php" in src, "extractImagesFromElement phai loc rsrc.php"
+    assert "emoji" in src, "extractImagesFromElement phai loc emoji"
+    # Check that scanFacebookPosts replaces \n with <br>
+    assert "text.replace(/\\n/g, \"<br>\")" in src or "text.replace(/\\n/g, '<br>')" in src, \
+        "scanFacebookPosts phai giu ngat dong bang <br>"
+    # Check that scanFacebookPosts defaults to fill_blank when options is empty
+    assert 'question_type: "fill_blank"' in src or "question_type: 'fill_blank'" in src, \
+        "scanFacebookPosts phai co question_type fill_blank khi options rong"
+
+
+def test_facebook_detector_with_images_short_caption():
+    cases = [
+        {"fn": "isFacebookEduPost", "input": "caption with image",
+         "args": ["Đề thi học kì 1 môn Toán khối 3", True]},
+        {"fn": "isFacebookEduPost", "input": "spam with image",
+         "args": ["Giảm giá túi xách hàng hiệu", True]},
+        {"fn": "isFacebookEduPost", "input": "caption without image",
+         "args": ["Đề thi học kì 1 môn Toán khối 3", False]},
+    ]
+    out = _run_fb(cases)
+    by = {r["input"]: r for r in out}
+    assert by["caption with image"].get("ok") is True, "de thi kem anh phai match"
+    assert by["spam with image"].get("ok") is False, "spam du co anh van phai loai"
+    assert by["caption without image"].get("ok") is False, "caption ngan khong anh khong dau hieu cau hoi phai bo qua"
+
+
+def test_facebook_social_keywords_allowed_in_normalizer():
+    from backend.normalizer import is_valid_question_payload
+    fb_social_q = {
+        "id": "fb_img_post_789",
+        "source_platform": "facebook",
+        "source_url": "https://www.facebook.com/groups/toantieuhoc/posts/789",
+        "exam_name": "Facebook - Nhóm Chia Sẻ Đề Thi",
+        "grade": 4,
+        "subject": "math",
+        "topic": "Facebook Nhóm học tập (TIMO/HKIMO/ASMO)",
+        "question_type": "fill_blank",
+        "content_text": "Chia sẻ cho ba mẹ và phụ huynh đề kiểm tra giữa kì 1 môn Toán lớp 4 cho các con ôn tập. Mọi người để lại bình luận nhận đáp án chi tiết nhé.",
+        "content_html": "Chia sẻ cho ba mẹ và phụ huynh đề kiểm tra giữa kì 1 môn Toán lớp 4 cho các con ôn tập.<br>Mọi người để lại bình luận nhận đáp án chi tiết nhé.",
+        "images": ["https://scontent.fhan.fbcdn.net/v/test_exam_sheet.jpg"],
+        "options": [],
+        "correct_answer": None,
+        "difficulty": "medium"
+    }
+    valid, reason = is_valid_question_payload(fb_social_q)
+    assert valid is True, f"Bài post Facebook có ảnh đề thi bị từ chối sai: {reason}"
+
+
+def test_facebook_button_injection_and_image_extractor_exist():
+    with open(CONTENT_JS, encoding="utf-8") as f:
+        src = f.read()
+    assert "function extractFacebookImages(" in src, "Thiếu hàm extractFacebookImages trong content.js"
+    assert "function injectFacebookPostButtons(" in src, "Thiếu hàm injectFacebookPostButtons trong content.js"
+    assert "eduquest-fb-save-btn" in src, "Thiếu nút lưu đề thi Facebook 1-click trong content.js"

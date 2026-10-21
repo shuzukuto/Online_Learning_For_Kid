@@ -1,6 +1,6 @@
-// EduQuest Collector v1.3.19 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
+// EduQuest Collector v1.3.23 - Bulk Lesson & Practice Scraper, Deep Network Telemetry & Debug Logger
 (function () {
-  console.log("%c[EduQuest Collector v1.3.19] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
+  console.log("%c[EduQuest Collector v1.3.23] Active on: " + window.location.hostname, "color: #38bdf8; font-weight: bold; font-size: 13px;");
 
   let capturedQuestions = [];
   let autoSaveEnabled = localStorage.getItem("eduquest_autosave") !== "false"; // Default ON (True)
@@ -282,7 +282,7 @@
       this.remove();
     };
     (document.head || document.documentElement).appendChild(script);
-    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.19 vào trang", "info");
+    addLog("Đã tiêm Network & WebSocket Interceptor v1.3.23 vào trang", "info");
   } catch (e) {
     addLog("Lỗi tiêm Interceptor: " + e.message, "error");
   }
@@ -336,9 +336,9 @@
     if (!/\s/.test(clean) && clean.length > 20) return false;
     if (/^\d+$/.test(clean)) return false;
 
-    // Check if card has an educational image, formula, or canvas (Never count icons, robot avatars, choice containers, stars or badges as rich content)
+    // Check if card has an educational image, formula (Never count icons, robot avatars, choice containers, stars or badges as rich content)
     const hasCardRichContent = card && Boolean(
-      card.querySelector("img:not([class*='icon']):not([class*='avatar']):not([class*='logo']):not([src*='Robot']):not([src*='robot']):not([src*='star_practice']):not([src*='diamondComing']):not([src*='practiceCup']):not([src*='Practice']):not([class*='_1Z8DV']):not([class*='vjy-S']):not([class*='_3JKzW']), span.math-tex, mjx-container, [data-latex], canvas")
+      card.querySelector("img:not([class*='icon']):not([class*='avatar']):not([class*='logo']):not([src*='Robot']):not([src*='robot']):not([src*='star_practice']):not([src*='diamondComing']):not([src*='practiceCup']):not([src*='Practice']):not([class*='_1Z8DV']):not([class*='vjy-S']):not([class*='_3JKzW']), span.math-tex, mjx-container, [data-latex]")
     );
 
     // 2. Reject boilerplate-only text WITHOUT rich media
@@ -360,12 +360,31 @@
       /tự động lưu \(zero-click\)/i,
       /nhật ký hoạt động/i,
       /debug log/i,
+      // VioEdu Login / Lobby / Banner non-questions
+      /tên đăng nhập/i,
+      /quên mật khẩu/i,
+      /chào mừng.*đến vioedu/i,
+      /diễn ra hàng ngày.*thách đấu/i,
+      /thách đấu ngay để thể hiện/i,
       // LMS / VioEdu Resume & Confirmation Dialogs, Progress Bars & Loading
       /cách tính điểm/i,
       /tổng điểm\s*</i,
       /đúng cộng \d+ điểm/i,
       /sai trừ \d+ điểm/i,
       /\b\d+\s*\/\s*100\b/,
+      // VioEdu Gamification, Achievement Wall, Avatar, Diamonds, Social Feeds
+      /tường thành tích/i,
+      /cảm xúc của bạn/i,
+      /sở hữu avatar/i,
+      /sở hữu \d+ kim cương/i,
+      /sở hữu huy hiệu/i,
+      /siêu nhân vượt lười/i,
+      /đã đồng hành \d+ ngày/i,
+      /nhận quà thành công/i,
+      /đã vượt qua bài kiểm tra/i,
+      /thật tuyệt vời phải không nào/i,
+      /tỏa sáng với những phần thưởng/i,
+      /chúc mừng bạn đã nhận được/i,
       // VnDoc Video items, online courses, and category navigation
       /video mở đầu/i,
       /video bài đọc/i,
@@ -717,16 +736,19 @@
   // (chan request khong-login) nen lam qua extension, trong phien dang nhap
   // san cua user. Phase 1: TEXT only (anh OCR sau).
   // Pure helpers (khong can DOM) de test duoc qua node.
-  function isFacebookEduPost(text) {
+  function isFacebookEduPost(text, hasImages) {
     var FB_COMPETITION_KEYWORDS = [
       "timo", "hkimo", "asmo", "trang nguyen", "vioedu", "violympic",
       "olympic", "kangaroo", "ikmc", "ioe", "seamo", "sasmo", "imo",
       "toan quoc te", "de thi", "de luyen", "vong thi", "dau truong",
-      "luyen thi", "on thi", "kiem tra", "khao sat"
+      "luyen thi", "on thi", "kiem tra", "khao sat", "de on tap",
+      "phieu bai tap", "bai tap ve nha", "on tap he", "on tap giua ky", "on tap cuoi ky",
+      "khao sat chat luong", "de khao sat"
     ];
     if (!text || typeof text !== "string") return false;
     var t = text.toLowerCase();
-    if (t.length < 30) return false;  // post qua ngan, khong phai de
+    var minLen = hasImages ? 15 : 30;
+    if (t.length < minLen) return false;  // post qua ngan, khong phai de
     // Normalize bo dau tieng Viet de match ca "trang nguyen" lan "trạng nguyên"
     var tn = "";
     try { tn = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d"); }
@@ -736,6 +758,8 @@
       if (t.indexOf(FB_COMPETITION_KEYWORDS[i]) >= 0 || tn.indexOf(FB_COMPETITION_KEYWORDS[i]) >= 0) { hasKw = true; break; }
     }
     if (!hasKw) return false;
+    // Neu post co kem anh de thi va chua tu khoa de thi -> nhan dien ngay
+    if (hasImages) return true;
     // Dau hieu cau hoi: "Cau N", "?", tinh/tim/dien/chon/dap an, cong thuc
     if (/(?:câu|bài)\s*(?:hỏi\s*)?\d+|cau\s*\d+/i.test(text)) return true;
     if (/\?/.test(text) && /(tính|tim|tìm|điền|chon|chọn|đáp án|dap an|kết quả|ket qua|bao nhiêu|giá trị|đúng|sai)\b/i.test(text)) return true;
@@ -801,7 +825,10 @@
                     (mathEl.querySelector("[aria-label]") ? mathEl.querySelector("[aria-label]").getAttribute("aria-label") : "") ||
                     (mathEl.querySelector("annotation[encoding='application/x-tex']") ? mathEl.querySelector("annotation[encoding='application/x-tex']").textContent : "");
         if (tex) {
-          mathEl.replaceWith(document.createTextNode(" " + tex.trim() + " "));
+          let cleanTex = tex.trim();
+          cleanTex = cleanTex.replace(/^\$\s*(\d+(?:[.,]\d+)?\s*\.?)\s*\$$/, "$1");
+          cleanTex = cleanTex.replace(/^\$\s*([+\-=<>≤≥±×÷:])\s*\$$/, "$1");
+          mathEl.replaceWith(document.createTextNode(" " + cleanTex + " "));
         }
       });
       // Replace select dropdown placeholders with [ ... ]
@@ -961,6 +988,10 @@
 
       // If stripped clone yields substantive reading passage or question text (>= 8 chars)
       if (cleanStem && cleanStem.length >= 8) {
+        cleanStem = cleanStem.replace(/bạn thật xuất sắc bạn đã chuẩn bị về đích chưa\??/gi, "").trim();
+        cleanStem = cleanStem.replace(/\$\s*(\d+(?:[.,]\d+)?\s*\.?)\s*\$/g, "$1");
+        cleanStemHtml = cleanStemHtml.replace(/bạn thật xuất sắc bạn đã chuẩn bị về đích chưa\??/gi, "").trim();
+        cleanStemHtml = cleanStemHtml.replace(/\$\s*(\d+(?:[.,]\d+)?\s*\.?)\s*\$/g, "$1");
         return { rawText: cleanStem, rawHtml: cleanStemHtml };
       }
     } catch (err) {}
@@ -997,9 +1028,15 @@
   function scanPageQuestions(force = false, isBackground = false) {
     // URL-based pre-filter: Skip pages that can NEVER contain educational questions
     const currentPath = window.location.pathname.toLowerCase();
-    const nonEduPaths = ["/login", "/forgot-password", "/register", "/signup", "/sign-up", "/sign-in",
+    const nonEduPaths = [
+      "/login", "/forgot-password", "/register", "/signup", "/sign-up", "/sign-in",
       "/profile", "/settings", "/account", "/payment", "/pricing", "/contact", "/about",
-      "/terms", "/privacy", "/faq", "/help", "/support"];
+      "/terms", "/privacy", "/faq", "/help", "/support",
+      "/achievement-wall", "/avatar-user", "/arena-award", "/notification", "/notifications",
+      "/diamond", "/diamonds", "/mission", "/missions", "/rank", "/ranking", "/leaderboard",
+      "/leader-board", "/shop", "/gift", "/gifts", "/exchange-gifts", "/history", "/student-profile",
+      "/class-room", "/arena-hero-battle"
+    ];
     if (nonEduPaths.some(p => currentPath === p || currentPath.startsWith(p + "/"))) {
       if (!isBackground) addLog(`[DOM BỎ QUA] Trang không phải giáo dục: ${currentPath}`, "skip");
       return [];
@@ -1380,6 +1417,101 @@
     return list;
   }
 
+  // Trich xuat anh chat luong cao tu bai post Facebook (de thi, phieu bai tap)
+  function extractFacebookImages(container) {
+    const imgs = [];
+    if (!container) return imgs;
+    const imgElements = container.querySelectorAll("img, div[data-visualcompletion='media-vc-image'] img, a[href*='/photo/'] img");
+    imgElements.forEach(img => {
+      const src = img.src || img.getAttribute("data-src") || img.getAttribute("src");
+      if (!src || src.startsWith("data:") || src.length <= 10) return;
+      if (/loading|spinner|viogpt-loading|Robot|avatar|profile|icon|emoji|rsrc\.php|static\.xx\.fbcdn\.net/i.test(src)) return;
+      const alt = (img.getAttribute("alt") || "").toLowerCase();
+      if (alt.includes("avatar") || alt.includes("profile picture") || alt.includes("ảnh đại diện")) return;
+      if (img.naturalWidth > 0 && img.naturalWidth < 80 && img.naturalHeight > 0 && img.naturalHeight < 80) return;
+      if (img.width > 0 && img.width < 80 && img.height > 0 && img.height < 80) return;
+      if (!imgs.includes(src)) {
+        imgs.push(src);
+      }
+    });
+    return imgs;
+  }
+
+  // Chen nut bat de thi 1-click vao tung bai viet Facebook
+  function injectFacebookPostButtons() {
+    const isFb = window.location.hostname.includes("facebook.com") || window.location.hostname.includes("fb.com");
+    if (!isFb) return;
+
+    const posts = document.querySelectorAll("div[role='article'], article");
+    posts.forEach(post => {
+      try {
+        if (post.closest && post.closest("#eduquest-floating-widget, #eduquest-scanned-modal, [class*='eduquest'], [id*='eduquest']")) return;
+        if (post.querySelector(".eduquest-fb-post-bar")) return;
+
+        const text = (post.innerText || "").trim();
+        const imgs = extractFacebookImages(post);
+        const isEdu = isFacebookEduPost(text, imgs.length > 0);
+        const hasEduHint = isEdu || (imgs.length > 0 && /đề|bài|toán|lớp|khối|học|timo|thi/i.test(text));
+        if (!hasEduHint) return;
+
+        const bar = document.createElement("div");
+        bar.className = "eduquest-fb-post-bar";
+        bar.style.cssText = "display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 6px 12px; margin: 4px 0; background: rgba(2, 132, 199, 0.06); border-radius: 8px; border: 1px dashed rgba(2, 132, 199, 0.3);";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "eduquest-fb-save-btn";
+        const imgCountText = imgs.length > 0 ? ` (${imgs.length} ảnh)` : "";
+        btn.innerHTML = `⚡ Lưu đề thi EduQuest${imgCountText}`;
+        btn.style.cssText = "background: linear-gradient(135deg, #0284c7, #2563eb); color: white; border: none; border-radius: 6px; padding: 5px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12);";
+
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const currentImgs = extractFacebookImages(post);
+          const currentText = (post.innerText || "").trim();
+          const g = extractGradeFromText(currentText) || detectGrade() || 0;
+          const mathish = /[\$\\=><%]|\d+\s*[\+\-\*\/×÷=]\s*\d+|\b(hình|phép tính|cộng|trừ|nhân|chia|tổng|hiệu|toán|math)\b/i.test(currentText);
+          const qId = "fb_manual_" + Date.now();
+          const qPayload = {
+            id: qId,
+            source_platform: "facebook",
+            source_url: window.location.href,
+            exam_name: (document.title || "Facebook Đề thi").substring(0, 120),
+            grade: g,
+            subject: mathish ? "math" : "vietnamese",
+            topic: "Facebook Nhóm học tập (TIMO/HKIMO/ASMO)",
+            question_type: "fill_blank",
+            content_html: currentText.replace(/\n/g, "<br>"),
+            content_text: currentText.substring(0, 2000),
+            images: currentImgs,
+            options: [],
+            correct_answer: null,
+            difficulty: "medium"
+          };
+
+          btn.disabled = true;
+          btn.innerHTML = `⏳ Đang lưu...`;
+          btn.style.background = "#64748b";
+
+          autoSaveToEduQuest([qPayload]);
+          setTimeout(() => {
+            btn.innerHTML = `✓ Đã lưu thành công!`;
+            btn.style.background = "#16a34a";
+            showFloatingToast(`⚡ Đã nạp đề thi và ${currentImgs.length} ảnh Facebook vào CSDL!`);
+          }, 600);
+        };
+
+        bar.appendChild(btn);
+        if (post.firstChild) {
+          post.insertBefore(bar, post.firstChild);
+        } else {
+          post.appendChild(bar);
+        }
+      } catch (err) {}
+    });
+  }
+
   // Quet post Facebook: moi article/div[role=article] la 1 post ung vien;
   // loc bang isFacebookEduPost (keyword ky thi + dau hieu cau hoi), tach
   // khoi bang extractGradeFromText (0 → detectGrade fallback).
@@ -1390,15 +1522,17 @@
       posts = Array.from(document.querySelectorAll("div[role='article'], article"));
     } catch (e) { posts = []; }
     for (const post of posts) {
-      if (list.length >= 5) break;  // moi lan quet toi da 5 post de nhe DOM
+      if (list.length >= 10) break;
       try {
         if (post.closest && post.closest("#eduquest-floating-widget, #eduquest-scanned-modal, [class*='eduquest'], [id*='eduquest']")) continue;
         const text = (post.innerText || "").trim();
-        if (!isFacebookEduPost(text)) continue;
+        const imgs = extractFacebookImages(post);
+        const hasImgs = imgs.length > 0;
+        if (!isFacebookEduPost(text, hasImgs)) continue;
         const sig = text.toLowerCase().replace(/\s+/g, " ").substring(0, 200);
         if (isAlreadyCaptured(sig, null)) continue;
         const g = extractGradeFromText(text) || detectGrade();
-        const mathish = /[\$\\=><%]|\d+\s*[\+\-\*\/×÷=]\s*\d+|\b(hình|phép tính|cộng|trừ|nhân|chia|tổng|hiệu)\b/i.test(text);
+        const mathish = /[\$\\=><%]|\d+\s*[\+\-\*\/×÷=]\s*\d+|\b(hình|phép tính|cộng|trừ|nhân|chia|tổng|hiệu|toán|math)\b/i.test(text);
         const qId = "fb_post_" + Date.now() + "_" + list.length;
         if (isAlreadyCaptured(sig, qId)) continue;
         savedTextSignatures.add(sig);
@@ -1411,16 +1545,19 @@
           grade: g,
           subject: mathish ? "math" : "vietnamese",
           topic: "Facebook Nhóm học tập (TIMO/HKIMO/ASMO)",
-          question_type: "single_choice",
-          content_html: text,
+          question_type: "fill_blank",
+          content_html: text.replace(/\n/g, "<br>"),
           content_text: text.substring(0, 2000),
-          images: extractImagesFromElement(post),
+          images: imgs,
           options: [],
           correct_answer: null,
           difficulty: "medium"
         });
       } catch (e) { /* bo qua post loi, quet tiep */ }
     }
+    try {
+      injectFacebookPostButtons();
+    } catch (e) {}
     return list;
   }
 
@@ -1511,7 +1648,7 @@
     container.querySelectorAll("img").forEach(img => {
       const src = img.src || img.getAttribute("data-src");
       if (!src || src.startsWith("data:") || src.length <= 10) return;
-      if (/loading|spinner|viogpt-loading|Robot|avatar|icon/i.test(src)) return;
+      if (/loading|spinner|viogpt-loading|Robot|avatar|icon|emoji|rsrc\.php|static\.xx\.fbcdn\.net/i.test(src)) return;
       if (!imgs.includes(src)) {
         imgs.push(src);
       }
@@ -1526,7 +1663,7 @@
     matches.forEach(m => {
       const src = m.match(/src=["']([^"']+)["']/);
       if (src && src[1] && !imgs.includes(src[1])) {
-        if (!/loading|spinner|viogpt-loading|Robot|avatar|icon/i.test(src[1])) {
+        if (!/loading|spinner|viogpt-loading|Robot|avatar|icon|emoji|rsrc\.php|static\.xx\.fbcdn\.net/i.test(src[1])) {
           imgs.push(src[1]);
         }
       }
@@ -1542,7 +1679,7 @@
     widget.id = "eduquest-floating-widget";
     widget.className = "eduquest-widget";
     widget.innerHTML = `
-      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.19">
+      <div class="eduquest-badge" id="eduquest-toggle-btn" title="EduQuest Pro v1.3.23">
         <div class="eduquest-icon">⚡</div>
         <span class="eduquest-title">EduQuest</span>
         <span class="eduquest-counter" id="eduquest-count">${capturedQuestions.length}</span>
@@ -1552,7 +1689,7 @@
         <div class="eduquest-panel-header" style="display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <strong>EduQuest Pro</strong>
-            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.19</span>
+            <span style="font-size: 10px; background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">v1.3.23</span>
           </div>
           <span class="eduquest-status" id="eduquest-server-status" style="font-size: 11px;">Đang kiểm tra...</span>
         </div>
@@ -2098,10 +2235,14 @@
   // 6. Automatic Execution & Live Listeners for Real-Time Learning Transitions
   function init() {
     injectWidget();
-    addLog("EduQuest Pro v1.3.19 đã khởi động trên " + window.location.hostname, "info");
+    addLog("EduQuest Pro v1.3.23 đã khởi động trên " + window.location.hostname, "info");
     setTimeout(() => {
       scanPageQuestions(false, false);
       autoSyncPendingQuestions();
+      if (window.location.hostname.includes("facebook.com") || window.location.hostname.includes("fb.com")) {
+        injectFacebookPostButtons();
+        setInterval(injectFacebookPostButtons, 3500);
+      }
     }, 1000);
     setTimeout(() => {
       scanPageQuestions(false, false);

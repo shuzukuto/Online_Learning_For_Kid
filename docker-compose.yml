@@ -29,6 +29,7 @@ services:
       - TZ=Asia/Ho_Chi_Minh  # Đồng bộ múi giờ Việt Nam (UTC+7)
       - CUSTOM_VISION_URL=http://host.docker.internal:20129/v1 # Kết nối trực tiếp 9Router trên Windows
       - DOCKER_CONTAINER=1
+      - CORS_ORIGINS=https://${NGROK_DOMAIN:-otter-scrawny-squall.ngrok-free.dev}
 
     # ── Host network bridge ─────────────────────
     # Cho phép container Docker kết nối ra các dịch vụ chạy trên Windows Host (9Router port 20129)
@@ -58,3 +59,25 @@ services:
       options:
         max-size: "10m"      # Mỗi file log tối đa 10MB
         max-file: "3"        # Giữ tối đa 3 file log xoay vòng
+
+  # ── ngrok Tunnel (Chế độ Chia sẻ Internet 24/7) ──────────────
+  # Chạy ngầm hoàn toàn trong Docker, không cần mở cửa sổ CMD
+  # Tự động kết nối lại khi rớt mạng hoặc khi Windows khởi động lại
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: eduquest-ngrok
+    restart: unless-stopped
+    command:
+      - "http"
+      - "--url=${NGROK_DOMAIN:-otter-scrawny-squall.ngrok-free.dev}"
+      - "eduquest:8000"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-3KAMkuzJ2qBcImaplnaUtIIMEBE_67eVLXreqJoWkGN3uTRL3}
+    depends_on:
+      eduquest:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
